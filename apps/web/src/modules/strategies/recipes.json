@@ -753,7 +753,7 @@
       "adjustments": []
     },
     "reference": "Hull, Options, Futures, and Other Derivatives (10th ed. 2018, 11th ed. 2021), ch. 12 “Trading Strategies Involving Options”, “Spreads” (butterfly spreads created from calls); IV regime: Hull, ch. 19 “The Greek Letters”, “Vega” (the body of a long butterfly is short two options, so the position is short vega)",
-    "notes": "Enters on 14-session RSI between 40 and 60, 63-session IV rank at or above 50: a long butterfly is short vega at its body, so it favours entering after IV is elevated; strikes and expiry are the catalog defaults; take profit at 1× the premium, stop at 0.5× the max loss, close 5 business days before expiry; risks 2% of the declared capital per operation until the user picks another fraction. Thresholds, exits and sizing are this project's defaults (ADR-0064), not the sources'."
+    "notes": "Enters on 14-session RSI between 40 and 60, 63-session IV rank at or above 50 (the IV-rank condition was added on 2026-11-20; suggestions matched before that date were matched without it): a long butterfly is short vega at its body, so it favours entering after IV is elevated; strikes and expiry are the catalog defaults; take profit at 1× the premium, stop at 0.5× the max loss, close 5 business days before expiry; risks 2% of the declared capital per operation until the user picks another fraction. Thresholds, exits and sizing are this project's defaults (ADR-0064), not the sources'."
   },
   {
     "id": "put-butterfly",
@@ -956,7 +956,7 @@
       ],
       "adjustments": []
     },
-    "reference": "Hull, Options, Futures, and Other Derivatives (10th ed. 2018, 11th ed. 2021), ch. 12 “Trading Strategies Involving Options”, “Spreads” (bull spreads created from puts; bear spreads created from calls); B3 Edu, “Opções” (https://edu.b3.com.br/w/opcoes): travas de alta e de baixa; IV regime: Hull, ch. 19 “The Greek Letters”, “Vega” (a net credit position is short vega)",
+    "reference": "Hull, Options, Futures, and Other Derivatives (10th ed. 2018, 11th ed. 2021), ch. 12 “Trading Strategies Involving Options”, “Spreads” (bull spreads created from puts; bear spreads created from calls); B3 Edu, “Opções” (https://edu.b3.com.br/w/opcoes): travas de alta e de baixa; IV regime: Hull, ch. 19 “The Greek Letters”, “Vega” (both short strikes sit nearer the spot than the long wings, so the position is short vega)",
     "notes": "A bull put spread below the spot plus a bear call spread above it, defined risk, net credit: enters on 14-session RSI between 40 and 60, 63-session IV rank at or above 50; strikes and expiry are the catalog defaults; take profit at 0.5× the premium received, stop at 0.5× the max loss, close 5 business days before expiry; risks 2% of the declared capital per operation until the user picks another fraction. Thresholds, exits and sizing are this project's defaults (ADR-0064), not the sources'."
   },
   {

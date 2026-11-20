@@ -183,13 +183,16 @@ function StructureOverflow({
           className: "group/structure-overflow self-start",
         })}
       >
-        {t.suggestions.moreOfStructure(group.suggestions.length)}
+        {t.suggestions.moreOfStructure(group.structureName, group.suggestions.length)}
         <ChevronDown
           aria-hidden="true"
           className="size-4 transition-transform group-data-[panel-open]/structure-overflow:rotate-180"
         />
       </CollapsibleTrigger>
-      <CollapsibleContent className="flex flex-col gap-3">
+      {/* keepMounted: the cards stay in the DOM while collapsed, hidden at zero intersection, so
+          SeenTracker (docs/adr/0074) can still observe their [data-suggestion-id] node and count
+          them once the viewer opens this disclosure. */}
+      <CollapsibleContent keepMounted className="flex flex-col gap-3">
         {group.suggestions.map((suggestion) => cardById.get(suggestion.id))}
       </CollapsibleContent>
     </Collapsible>

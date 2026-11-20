@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { groupSuggestionsByStructureCap } from "./group-by-structure-cap";
+import { groupSuggestionsByStructureCap, pickVariedSuggestions } from "./group-by-structure-cap";
 import type { SuggestionView } from "./suggestion-view";
 
 function view(id: string, structureId: string, structureName = structureId): SuggestionView {
@@ -73,5 +73,28 @@ describe("groupSuggestionsByStructureCap (#378)", () => {
 
   it("returns nothing in the top for an empty list", () => {
     expect(groupSuggestionsByStructureCap([], 2)).toEqual({ top: [], overflow: [] });
+  });
+});
+
+describe("pickVariedSuggestions (#378)", () => {
+  it("picks from the capped, grouped order instead of the raw one, so one structure cannot fill the limit", () => {
+    const suggestions = [
+      view("1", "call-butterfly"),
+      view("2", "call-butterfly"),
+      view("3", "call-butterfly"),
+      view("4", "bull-call-spread"),
+    ];
+
+    expect(pickVariedSuggestions(suggestions, 3)).toEqual([
+      suggestions[0],
+      suggestions[1],
+      suggestions[3],
+    ]);
+  });
+
+  it("returns fewer than the limit when there are not enough varied suggestions", () => {
+    const suggestions = [view("1", "call-butterfly"), view("2", "call-butterfly")];
+
+    expect(pickVariedSuggestions(suggestions, 5)).toEqual(suggestions);
   });
 });

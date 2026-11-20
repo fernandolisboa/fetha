@@ -58,11 +58,11 @@ other. When it is not, the engine skips the entry with `no_series_matches`.
 
 ## Left out
 
-| Structure                                                                  | Why                                                                                                         |
-| -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| Calendar and diagonal spreads (Hull, "Spreads")                            | Two expiries; a structure shares one expiry (ADR-0014).                                                     |
-| Principal-protected notes (Hull, chapter 12)                               | Needs a zero-coupon bond, which is not a listed instrument here.                                            |
-| Reverse covered call and reverse protective put (Hull)                     | Short the underlying, which needs stock lending (aluguel) the portfolio and the engine do not model.        |
-| Naked short call or put                                                    | No section of the two sources defines it as a strategy; the engine prices it, but B3 margin is not modeled. |
-| Vertical condors (not the iron combination), iron butterfly, ratio spreads | Not found in the chapter or the B3 page read for this checklist; add them when a citable source is in hand. |
-| Long & short (B3 Edu "Opções")                                             | Two underlyings; a structure has one.                                                                       |
+| Structure                                                                  | Why                                                                                                                       |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Calendar and diagonal spreads (Hull, "Spreads")                            | Two expiries; a structure shares one expiry (ADR-0014).                                                                   |
+| Principal-protected notes (Hull, chapter 12)                               | Needs a zero-coupon bond, which is not a listed instrument here.                                                          |
+| Reverse covered call and reverse protective put (Hull)                     | Short the underlying, which needs stock lending (aluguel) the portfolio and the engine do not model.                      |
+| Naked short call or put                                                    | No section of the two sources defines it as a strategy; the engine prices it, but B3 margin is not modeled.               |
+| Vertical condors (not the iron combination), iron butterfly, ratio spreads | Left out for scope, not for lack of citation: each would need its own entry and defaults; add one when a recipe needs it. |
+| Long & short (B3 Edu "Opções")                                             | Two underlyings; a structure has one.                                                                                     |

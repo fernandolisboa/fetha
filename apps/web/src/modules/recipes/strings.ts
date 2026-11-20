@@ -243,8 +243,8 @@ const ptBR = {
     },
     "iron-condor": {
       summary:
-        "Vende uma put 5% abaixo e uma call 5% acima do preço atual, as duas recompradas mais longe, a 10%. Fica com o valor recebido se o ativo ficar entre as duas strikes vendidas.",
-      maxLoss: "Perda máxima: a distância até as strikes mais longe menos o que você recebeu.",
+        "Vende uma put 5% abaixo e uma call 5% acima do preço atual, as duas recompradas mais longe, a 10%. Fica com o valor recebido se o ativo ficar entre os dois strikes vendidos.",
+      maxLoss: "Perda máxima: a distância até os strikes mais distantes menos o que você recebeu.",
     },
     "long-straddle-low-iv": {
       summary:

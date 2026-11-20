@@ -146,7 +146,7 @@ the other nine. Item 3's table is corrected and extended:
   so the two short strikes sit inside the two long wings. No new engine capability was needed:
   `priceOperation` already prices an arbitrary leg list (the frozen interface, ADR-0013), and its
   own test suite already exercises a four-leg iron condor payoff.
-- No `any` IV regime remains among the ten recipes now; the column stays in the table for a
+- No `any` IV regime remains among the twelve recipes now; the column stays in the table for a
   future recipe that genuinely has none.
 - Consequence: the per-recipe backtest integration test's sideways scenario moved from an
   IV-agnostic market to a rising-IV one, since every sideways recipe now needs IV rank ≥ 50 to

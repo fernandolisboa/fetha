@@ -93,7 +93,8 @@ const en = {
       recipe: "See the recipe",
       builder: "Study in the builder",
     },
-    moreOfStructure: (count: number) => `More of this structure (${String(count)})`,
+    moreOfStructure: (structureName: string, count: number) =>
+      `More of the ${structureName} structure (${String(count)})`,
     answered: (kind: string, date: string) => `Your decision: ${kind} · ${date}`,
     archivedCard: (session: string) =>
       `Archived: the radar has read the close of ${session} since. It no longer takes decisions, but it is still scored at expiry.`,
@@ -276,7 +277,8 @@ const ptBR = {
       recipe: "Ver receita",
       builder: "Montar no simulador",
     },
-    moreOfStructure: (count: number) => `Mais desta estrutura (${String(count)})`,
+    moreOfStructure: (structureName: string, count: number) =>
+      `Mais da estrutura ${structureName} (${String(count)})`,
     answered: (kind: string, date: string) => `Sua decisão: ${kind} · ${date}`,
     archivedCard: (session: string) =>
       `Arquivada: o radar já leu o fechamento de ${session}. Ela não recebe mais decisões, mas continua sendo avaliada no vencimento.`,

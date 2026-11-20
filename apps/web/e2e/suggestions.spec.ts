@@ -209,3 +209,55 @@ test("choose when seen suggestions leave today's suggestions", async ({
     "As sugestões que você já viu saem daqui 1 dia depois da primeira vez.",
   );
 });
+
+test("caps a structure's suggestions at the top of the panel, with the rest behind a disclosure that stays in the DOM", async ({
+  page,
+  baseURL,
+  request,
+}) => {
+  test.setTimeout(90_000);
+
+  await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
+
+  const seeded = await page.request.post("/api/e2e/seed-radar-many", {
+    headers: { "x-e2e-secret": e2eSecret ?? "" },
+  });
+  expect(seeded.status()).toBe(201);
+  const { suggestionIds } = (await seeded.json()) as { suggestionIds: string[] };
+  // `seed-radar-many` tries a handful of liquid tickers and only keeps the ones whose real
+  // chain, in this preview's ingested sessions, actually resolves a bull call spread; #378's
+  // cap needs at least 3 of the same structure to have anything to show behind a disclosure.
+  test.skip(
+    suggestionIds.length < 3,
+    "fewer than 3 of the candidate tickers had a chain deep enough for a bull call spread in this preview",
+  );
+
+  // The radar tab shows every suggestion (docs/adr/0067 item 7); the watchlist tab's own card
+  // limit is picked from the already-capped, varied order (#378), so it never has an overflow
+  // to show when every seeded suggestion shares one structure.
+  await page.goto("/?aba=radar");
+  const panel = page.getByTestId("today-suggestions");
+  const structureName = "Trava de alta com calls";
+  const overflowCount = suggestionIds.length - 2;
+
+  const disclosure = panel.getByRole("button", {
+    name: new RegExp(`Mais da estrutura ${structureName} \\(${String(overflowCount)}\\)`),
+  });
+  await expect(disclosure).toBeVisible();
+
+  const overflowCards = suggestionIds
+    .slice(2)
+    .map((id) => page.locator(`[data-suggestion-id="${id}"]`));
+  for (const card of overflowCards) {
+    // docs/adr/0074 (ADR-0067's #378 amendment): kept mounted while collapsed, so the seen
+    // tracker can still find and observe it; just not visible until the disclosure opens.
+    await expect(card).toBeAttached();
+    await expect(card).not.toBeVisible();
+  }
+
+  await disclosure.click();
+
+  for (const card of overflowCards) {
+    await expect(card).toBeVisible();
+  }
+});

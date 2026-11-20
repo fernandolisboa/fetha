@@ -119,4 +119,5 @@ read sessions at the newest close, with the same code as the scan (`recipeEntryS
 Two new recipes (`put-butterfly`, `iron-condor`) and the `iron-condor` catalog structure (ADR-0053)
 confirm the consequence already stated above: "adding a recipe to the book adds it to the radar
 with no code change." Item 7's ordering is unchanged; the suggestions panel's per-structure
-display cap (ADR-0067's amendment) does not reach the radar tab's own rows.
+display cap (ADR-0067's amendment) is a `TodaySuggestions`/`SuggestionList` concern and does not
+reach `RadarPanel`'s own rows.

@@ -25,7 +25,39 @@ export async function seedE2ERadar(db: Database, underlying: Ticker): Promise<Se
   if (isProductionDeployment() || !readE2ESecret()) {
     return { ok: false, reason: "e2e_not_available" };
   }
+  return seedOneUnderlying(db, underlying);
+}
 
+export interface SeedE2ERadarManyResult {
+  ok: true;
+  session: string | null;
+  suggestionIds: string[];
+}
+
+// E2E only, for a screen that needs more than one suggestion of the same structure on the same
+// close (the suggestions panel's per-structure cap, #378): tries `underlyings` in order under
+// the same bull-call-spread recipe `seedE2ERadar` uses, and returns the suggestion of every one
+// whose chain actually resolved a spread. A real chain's depth varies by ticker and session, so
+// the caller decides what to do with fewer hits than it asked for; this never 404s on its own.
+export async function seedE2ERadarMany(
+  db: Database,
+  underlyings: readonly Ticker[],
+): Promise<SeedE2ERadarManyResult> {
+  if (isProductionDeployment() || !readE2ESecret()) {
+    return { ok: true, session: null, suggestionIds: [] };
+  }
+  let session: string | null = null;
+  const suggestionIds: string[] = [];
+  for (const underlying of underlyings) {
+    const result = await seedOneUnderlying(db, underlying);
+    if (!result.ok) continue;
+    session = result.session;
+    if (result.suggestionId) suggestionIds.push(result.suggestionId);
+  }
+  return { ok: true, session, suggestionIds };
+}
+
+async function seedOneUnderlying(db: Database, underlying: Ticker): Promise<SeedE2ERadarResult> {
   const candle = await latestCandle(db, underlying);
   const trading = candle ? await tradingSessionForDate(db, candle.session) : null;
   if (!candle || !trading) return { ok: false, reason: "no_market_data" };
