@@ -415,6 +415,17 @@ premium, max loss, max gain, any limit breaches) and the session it was priced i
 an Operation: it carries no lifecycle and no fills, and saving one does not open a position.
 _Avoid_: operation, draft, simulation
 
+**Operation plan**:
+A contemplated operation plus the rules Fetha chose for it: a one-sentence reason, the recipe's
+exit rules (profit target, stop, days before expiry) each resolved to a session, and, for a
+structure that rolls (covered call, credit spreads), a roll rule and its date. Generated
+deterministically (ADR-0079) from a suggestion or from the user's stated view of an underlying
+("sobe / cai / fica de lado / não sei") and the current IV regime; the user only reviews and
+saves it, never authors a number in it. Saving one records both the contemplated operation and an
+`enter` decision in the Diário, so Fetha's original plan is later scored against the user's edits.
+A plan never executes a roll (#382, #383).
+_Avoid_: strategy, recommendation, trade idea
+
 **Held operation**:
 An open operation of the real portfolio whose expiry session has not closed, as the user sees it
 in `/carteira`: its legs at average cost and the fills behind them. The one kind of operation a

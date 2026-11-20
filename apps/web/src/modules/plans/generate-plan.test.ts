@@ -1,0 +1,165 @@
+import { describe, expect, it } from "vitest";
+import {
+  tickerSchema,
+  type Centavos,
+  type DecimalString,
+  type Quantity,
+  type SessionDate,
+} from "@fetha/contracts";
+import type { OperationPricing } from "@fetha/engine";
+
+import { recipeById } from "@/modules/strategies";
+
+import { generatePlan, type GeneratePlanInput } from "./generate-plan";
+
+const UNDERLYING = tickerSchema.parse("PETR4");
+
+function decimal(value: string): DecimalString {
+  return value as DecimalString;
+}
+
+function quantity(value: number): Quantity {
+  return value as Quantity;
+}
+
+function fixturePricing(lots: number, maxLossPerLot: number): OperationPricing {
+  return {
+    at: "2027-01-02T14:00:00.000Z",
+    underlying: UNDERLYING,
+    spot: decimal("36.000000"),
+    riskFreeRate: decimal("0.100000"),
+    dividendYield: decimal("0.000000"),
+    legs: [
+      {
+        leg: {
+          role: "call",
+          side: "buy",
+          ticker: tickerSchema.parse("PETR4K36"),
+          quantity: quantity(100 * lots),
+        },
+        price: decimal("1.500000"),
+        priceSource: "last",
+        stale: null,
+        fairValue: decimal("1.500000"),
+        impliedVolatility: decimal("0.300000"),
+        volatilitySource: "last_trade_implied",
+        greeks: null,
+        timeToExpiryYears: decimal("0.100000"),
+        notes: [],
+      },
+      {
+        leg: {
+          role: "call",
+          side: "sell",
+          ticker: tickerSchema.parse("PETR4K38"),
+          quantity: quantity(100 * lots),
+        },
+        price: decimal("0.800000"),
+        priceSource: "last",
+        stale: null,
+        fairValue: decimal("0.800000"),
+        impliedVolatility: decimal("0.280000"),
+        volatilitySource: "last_trade_implied",
+        greeks: null,
+        timeToExpiryYears: decimal("0.100000"),
+        notes: [],
+      },
+    ],
+    netPremium: (70 * lots) as Centavos,
+    greeks: {
+      delta: decimal("0.300000"),
+      gamma: decimal("0.010000"),
+      theta: decimal("-0.020000"),
+      vega: decimal("0.050000"),
+      rho: decimal("0.010000"),
+    },
+    payoff: [],
+    breakEvens: [decimal("36.700000")],
+    maxLoss: (maxLossPerLot * lots) as Centavos,
+    maxGain: (13000 * lots) as Centavos,
+    limitBreaches: [],
+    notes: [],
+    provenance: {
+      engineVersion: "test",
+      pricingModel: "bsm_continuous_yield",
+      truncated: [],
+      dataVersion: null,
+      datasetNotes: [],
+    },
+  };
+}
+
+function baseInput(overrides: Partial<GeneratePlanInput> = {}): GeneratePlanInput {
+  const recipe = recipeById("bull-call-spread-low-iv");
+  if (!recipe) throw new Error("fixture recipe missing");
+  return {
+    recipe,
+    structureId: "bull-call-spread",
+    structureName: "Trava de alta com calls",
+    underlying: UNDERLYING,
+    view: "up",
+    ivRegime: "low",
+    tolerance: decimal("0.010000"),
+    riskLimitCentavos: 35_000,
+    pricingForLots: (lots) => fixturePricing(lots, 10_000),
+    sessionsBeforeExpiry: (businessDays): SessionDate | null =>
+      businessDays === 5 ? "2027-01-09" : null,
+    ...overrides,
+  };
+}
+
+describe("generatePlan", () => {
+  it("sizes to the largest lot count that fits the risk limit and prices every leg's limit", () => {
+    const result = generatePlan(baseInput());
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.plan.lots).toBe(3);
+    expect(result.plan.legs).toEqual([
+      {
+        leg: { role: "call", side: "buy", ticker: "PETR4K36", quantity: 300 },
+        limitPrice: "1.515000",
+      },
+      {
+        leg: { role: "call", side: "sell", ticker: "PETR4K38", quantity: 300 },
+        limitPrice: "0.792000",
+      },
+    ]);
+    expect(result.plan.maxLossCentavos).toBe(30_000);
+    expect(result.plan.netPremiumCentavos).toBe(210);
+    expect(result.plan.summary).toContain("alta");
+    expect(result.plan.exitRules).toHaveLength(3);
+    expect(result.plan.exitRules.at(-1)).toEqual({
+      rule: { kind: "days_before_expiry", businessDays: 5 },
+      session: "2027-01-09",
+    });
+    expect(result.plan.roll).toEqual({ applies: false, session: null });
+  });
+
+  it("reports the plan does not fit when even one lot exceeds the risk limit", () => {
+    const result = generatePlan(baseInput({ riskLimitCentavos: 5_000 }));
+    expect(result).toEqual({ ok: false, reason: "does_not_fit", oneLotMaxLossCentavos: 10_000 });
+  });
+
+  it("reports unpriceable when the engine never prices even one lot", () => {
+    const result = generatePlan(baseInput({ pricingForLots: () => null }));
+    expect(result).toEqual({ ok: false, reason: "unpriceable" });
+  });
+
+  it("names the roll rule's date for a credit spread", () => {
+    const recipe = recipeById("bull-put-spread-high-iv");
+    if (!recipe) throw new Error("fixture recipe missing");
+    const result = generatePlan(
+      baseInput({ recipe, structureId: "bull-put-spread", view: "up", ivRegime: "high" }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.plan.roll.applies).toBe(true);
+  });
+
+  it("summarizes a plan built from a suggestion without a stated view", () => {
+    const result = generatePlan(baseInput({ view: null }));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.plan.summary).toContain("sugestão");
+  });
+});

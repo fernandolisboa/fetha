@@ -1,4 +1,13 @@
-import { pgTable, text, bigint, jsonb, timestamp, date, index } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  text,
+  bigint,
+  jsonb,
+  timestamp,
+  date,
+  index,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
 import type { ContemplatedLeg } from "@fetha/contracts";
 
 import { user } from "../../auth/schema";
@@ -32,5 +41,9 @@ export const contemplatedOperations = pgTable(
   },
   (table) => [
     index("contemplated_operations_user_id_created_at_idx").on(table.userId, table.createdAt),
+    // Target of a plan's composite foreign key (plans/schema.ts, docs/adr/0079): a plan's
+    // user_id is bound to its contemplated operation's user_id by the database, the same
+    // pattern `operations_id_user_id_idx` gives fills.
+    uniqueIndex("contemplated_operations_id_user_id_idx").on(table.id, table.userId),
   ],
 );

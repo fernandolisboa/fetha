@@ -58,6 +58,7 @@ export { buildPortfolioMarketView } from "./portfolio-view";
 export {
   countSessionsClosedAfter,
   latestSessionOnOrBefore,
+  nthSessionBefore,
 } from "./repositories/calendar-repository";
 export { searchOptionSeriesAction, type SearchOptionSeriesResult } from "./actions";
 export { OptionSeriesPricesTable } from "./components/option-series-prices-table";
