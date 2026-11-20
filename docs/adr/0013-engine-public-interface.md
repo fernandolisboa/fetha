@@ -1541,11 +1541,13 @@ from` for every candle in it.
 ### Error union
 
 `EngineError` is the complete list of whole-call failures: `invalid_input` (semantic, after Zod),
-`unsupported` (a `kind` the contracts allow but the engine does not implement; see
-`capabilities()`), `missing_instrument`, `insufficient_data` (naming the `DataWindow` that would
-suffice), `no_series_matches`, `degenerate_strikes`, `unsizeable`, `checkpoint_mismatch`. Anything
-else that can go wrong is a `null` field with a `Note` on the item or a `Note` on the artifact. A
-thrown exception from the engine is a bug.
+`unsupported` (a `kind` the contracts allow but the engine does not implement, when the call
+cannot produce a result at all without it; see `capabilities()` and, for the one call that can
+still produce a result while ignoring such a kind, the #377 addendum below), `missing_instrument`,
+`insufficient_data` (naming the `DataWindow` that would suffice), `no_series_matches`,
+`degenerate_strikes`, `unsizeable`, `checkpoint_mismatch`. Anything else that can go wrong is a
+`null` field with a `Note` on the item or a `Note` on the artifact. A thrown exception from the
+engine is a bug.
 
 ### Ordering constraints
 
@@ -3365,6 +3367,21 @@ strategy declares, the same one-note-per-run shape every other run-wide note in 
 has. `evaluateStrategy` (daily/intraday evaluation, the signal inbox) is untouched: the note is a
 property of a _run report_, not of a single evaluation instant, and the issue scoped it to
 `runBacktest` alone.
+
+- **`runBacktest` does not refuse with `unsupported` (`adjustmentRules`, `roll`), unlike
+  `markToMarket`/`proposeSettlement` (the #21 addendum above).** `unsupported` is reserved for a
+  call that cannot produce a result at all without the unimplemented kind, the same reading the
+  #16 addendum above gives `timeframe !== "D1"` (a restriction this ticket imposes, not grounds
+  for `unsupported`, "the wrong code here"). A roll rule is different again from both: it is a
+  genuine, capabilities-reported gap (`capabilities().adjustmentRules = []`), but `runBacktest` can
+  still produce a result without applying it — a valid run of the declared structure, held without
+  rolling, same as before this issue, just no longer silent about it. Refusing outright would also
+  stop every already-saved strategy that carries a roll rule from backtesting at all, for a gap
+  the strategy's other rules (entry, exit, sizing) have nothing to do with. `markToMarket` and
+  `proposeSettlement` have no such "held as is" fallback — a roll is the entire ask of those two
+  calls — so `unsupported` is the right code there and stays unchanged; `runBacktest` instead
+  degrades to a note, the shape this file's "Anything else that can go wrong is a `null` field with
+  a `Note`" sentence (Error union, above) already describes for every other partial, non-fatal gap.
 
 A run whose strategy declares no adjustment is bit-for-bit unchanged (none of the four backtest
 goldens carries an `adjustments` rule, so none of their `notes` arrays gains the new code; they

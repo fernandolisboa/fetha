@@ -145,8 +145,20 @@ const surfacedCodes: NoteCode[] = [
 // rendered DOM to assert against.
 export const surfacedNoteCodes: NoteCode[] = surfacedCodes;
 
+// A run persisted before #377 landed never carries `adjustment_not_applied`
+// even when its strategy declares a roll rule (the engine only started
+// emitting it going forward); a freshly run backtest already carries the
+// note from the engine itself. Derived at render time instead of backfilled,
+// so an old run reads correctly without a migration — and guarded by
+// `hasNote` so a run that *does* carry it (any new run) is never doubled.
 export function generalNotesFor(run: BacktestRun): BacktestRun["notes"] {
-  return run.notes.filter((note) => !surfacedCodes.includes(note.code));
+  const notes = run.notes.filter((note) => !surfacedCodes.includes(note.code));
+  const hasRollAdjustment = run.config.strategy.definition.adjustments.length > 0;
+  const hasNote = run.notes.some((note) => note.code === "adjustment_not_applied");
+  if (hasRollAdjustment && !hasNote) {
+    notes.push({ code: "adjustment_not_applied", message: noteMessage("adjustment_not_applied") });
+  }
+  return notes;
 }
 
 // Per-session equity returns, not operation P&L over starting capital:
