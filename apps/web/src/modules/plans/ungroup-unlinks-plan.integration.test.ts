@@ -4,7 +4,7 @@ import type { ContemplatedLeg, PlanRules } from "@fetha/contracts";
 import { getDb } from "@/db/client";
 import { deleteTestUser } from "@/db/test/cleanup";
 import { user } from "@/modules/auth/schema";
-import { PortfolioRepository } from "@/modules/portfolio";
+import { PortfolioRepository } from "@/modules/portfolio/portfolio-repository";
 import { contemplatedOperations, operations } from "@/modules/portfolio/schema";
 import { structures } from "@/modules/strategies/schema";
 

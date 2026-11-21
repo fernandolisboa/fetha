@@ -7,16 +7,25 @@ import {
   type RollRule,
 } from "@fetha/contracts";
 
-import { firedPlanSignalKinds, type PlanSignalInputs } from "./plan-signal-rules";
+import {
+  evaluatedPlanSignalKinds,
+  firedPlanSignalKinds,
+  type PlanSignalInputs,
+  type PriceBases,
+} from "./plan-signal-rules";
 
 const centavos = (value: number) => centavosSchema.parse(value);
 const decimal = (value: string) => decimalStringSchema.parse(value);
 const session = (value: string) => sessionDateSchema.parse(value);
 
+const defaultPriceBases: PriceBases = {
+  premiumBaseCentavos: centavos(1000),
+  maxLossBaseCentavos: centavos(5000),
+};
+
 function baseInputs(overrides: Partial<PlanSignalInputs> = {}): PlanSignalInputs {
   return {
-    premiumBaseCentavos: centavos(1000),
-    maxLossBaseCentavos: centavos(5000),
+    priceBases: defaultPriceBases,
     unrealizedPnlCentavos: centavos(0),
     exitRules: [],
     roll: { applies: false, session: null },
@@ -73,8 +82,7 @@ describe("firedPlanSignalKinds", () => {
         exitRules: [
           { rule: { kind: "stop_loss", multipleOfMaxLoss: decimal("2") }, session: null },
         ],
-        premiumBaseCentavos: centavos(10_000),
-        maxLossBaseCentavos: "unbounded",
+        priceBases: { premiumBaseCentavos: centavos(10_000), maxLossBaseCentavos: "unbounded" },
         unrealizedPnlCentavos: centavos(-lossCentavos),
       });
     expect(firedPlanSignalKinds(shortCallInputs(20_000))).toEqual(["stop_hit"]);
@@ -85,8 +93,7 @@ describe("firedPlanSignalKinds", () => {
     const fired = firedPlanSignalKinds(
       baseInputs({
         exitRules: [stopLossRule],
-        maxLossBaseCentavos: "unbounded",
-        premiumBaseCentavos: centavos(1000),
+        priceBases: { premiumBaseCentavos: centavos(1000), maxLossBaseCentavos: "unbounded" },
         unrealizedPnlCentavos: centavos(-500),
       }),
     );
@@ -97,7 +104,7 @@ describe("firedPlanSignalKinds", () => {
     const fired = firedPlanSignalKinds(
       baseInputs({
         exitRules: [profitTargetRule],
-        premiumBaseCentavos: centavos(0),
+        priceBases: { premiumBaseCentavos: centavos(0), maxLossBaseCentavos: centavos(5000) },
         unrealizedPnlCentavos: centavos(1000),
       }),
     );
@@ -108,8 +115,22 @@ describe("firedPlanSignalKinds", () => {
     const fired = firedPlanSignalKinds(
       baseInputs({
         exitRules: [stopLossRule],
-        maxLossBaseCentavos: centavos(0),
+        priceBases: { premiumBaseCentavos: centavos(1000), maxLossBaseCentavos: centavos(0) },
         unrealizedPnlCentavos: centavos(-100000),
+      }),
+    );
+    expect(fired).toEqual([]);
+  });
+
+  // The skip this file's own top comment documents, centralized here rather than trusted to a
+  // caller-side filter (review round 2, #381): no resolved price bases at all means neither
+  // price-based rule can ever fire, regardless of how large the unrealized loss or profit is.
+  it("never fires profit_target or stop_loss with no price bases at all", () => {
+    const fired = firedPlanSignalKinds(
+      baseInputs({
+        exitRules: [profitTargetRule, stopLossRule],
+        priceBases: null,
+        unrealizedPnlCentavos: centavos(1_000_000),
       }),
     );
     expect(fired).toEqual([]);
@@ -141,6 +162,16 @@ describe("firedPlanSignalKinds", () => {
     expect(notYet).toEqual([]);
   });
 
+  it("still fires expiry_near with no price bases at all", () => {
+    const rule: ResolvedExitRule = {
+      rule: { kind: "days_before_expiry", businessDays: 5 },
+      session: session("2026-11-20"),
+    };
+    expect(firedPlanSignalKinds(baseInputs({ exitRules: [rule], priceBases: null }))).toEqual([
+      "expiry_near",
+    ]);
+  });
+
   it("never fires for a condition exit rule (no indicator evaluation in this nightly step)", () => {
     const rule: ResolvedExitRule = {
       rule: {
@@ -166,5 +197,17 @@ describe("firedPlanSignalKinds", () => {
       }),
     );
     expect(fired.sort()).toEqual(["roll_due", "stop_hit"]);
+  });
+});
+
+describe("evaluatedPlanSignalKinds", () => {
+  it("is every kind with resolved price bases", () => {
+    expect([...evaluatedPlanSignalKinds(defaultPriceBases)].sort()).toEqual(
+      ["expiry_near", "roll_due", "stop_hit", "target_hit"].sort(),
+    );
+  });
+
+  it("is every kind but the two price-based ones with no price bases", () => {
+    expect([...evaluatedPlanSignalKinds(null)].sort()).toEqual(["expiry_near", "roll_due"].sort());
   });
 });

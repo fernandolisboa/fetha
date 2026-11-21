@@ -226,4 +226,32 @@ describe("PlanSignalsRepository isolation", () => {
       ]),
     ).toBe(1);
   });
+
+  it("user A's clearStale against user B's operation id deletes nothing, and B's signal survives (security advisory, #381)", async () => {
+    await ensureStockStructure();
+    const emailA = uniqueEmail("clear-stale-a");
+    const emailB = uniqueEmail("clear-stale-b");
+    createdEmails.push(emailA, emailB);
+    const userA = await insertBareUser(emailA);
+    const userB = await insertBareUser(emailB);
+    const planB = await insertExecutedPlan(userB.id);
+
+    await new PlanSignalsRepository(getDb(), userB).createMany([
+      {
+        operationPlanRulesId: planB.planRulesId,
+        operationId: planB.operationId,
+        kind: "stop_hit",
+        session: "2024-01-03",
+        at: "2024-01-03T20:00:00.000Z",
+      },
+    ]);
+
+    const cleared = await new PlanSignalsRepository(getDb(), userA).clearStale(
+      planB.operationId,
+      ["target_hit", "stop_hit", "roll_due", "expiry_near"],
+      [],
+    );
+    expect(cleared).toBe(0);
+    expect(await new PlanSignalsRepository(getDb(), userB).listMine()).toHaveLength(1);
+  });
 });

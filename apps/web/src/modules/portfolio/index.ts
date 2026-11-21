@@ -25,7 +25,7 @@ export type {
   RecordFillsAsOperationResult,
 } from "./portfolio-service";
 export { countLiveOpenOperations } from "./portfolio-service";
-export { PortfolioRepository, type NewFill, type GroupResult } from "./portfolio-repository";
+export type { RawFillInput } from "./fill-validation";
 export { PortfolioDashboard, type OperationDecisionSlot } from "./components/portfolio-dashboard";
 export {
   getMyHeldOperation,
@@ -39,7 +39,6 @@ export { getCurrentRiskProfile, getMyDeclaredCapital } from "./risk-profile-quer
 export { RiskProfileRepository } from "./risk-profile-repository";
 export { portfolioStrings, t } from "./strings";
 export { PortfolioDataExport } from "./data-export";
-export { parsePriceInput } from "./parse-price";
 export { RollAgendaPanel } from "./roll/components/roll-agenda-panel";
 export { RollChainHistory } from "./roll/components/roll-chain-history";
 export {

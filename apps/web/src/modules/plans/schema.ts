@@ -68,9 +68,11 @@ export const operationPlanRules = pgTable(
 );
 
 // The nightly alert this plan's rules fired for an executed, open operation (ADR-0079 addendum,
-// ticket #381): target hit, stop hit or roll due. Deduplicated at the database level, not by
-// discipline — `(user, operation, kind)` is unique, so a condition that is still true the next
-// night writes nothing new (`onConflictDoNothing`), never a second alert for the same thing.
+// ticket #381): target hit, stop hit, roll due or expiry near. Deduplicated at the database
+// level, not by discipline — `(user, operation, kind)` is unique, so a condition still true the
+// next night writes nothing new. Not append-only: `PlanSignalsRepository.clearStale` deletes a
+// row whose kind was evaluated but did not fire, so a condition that clears and later fires again
+// does alert a second time, the way a plain `onConflictDoNothing`-only table never could.
 export const planSignals = pgTable(
   "plan_signals",
   {

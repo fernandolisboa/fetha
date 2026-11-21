@@ -410,16 +410,26 @@ nightly job alerts the user when the plan's own rules fire against it. No order 
   same way `recordFillAction` validates one) before saving; nothing from the prefill is trusted
   again once the user submits, and the prefill action itself is rate-limited (`plans/prefill`,
   60/min) since every open of the dialog reprices live.
-- **One transaction, atomic.** `recordFillsAsOperation(db, tx, user, newFills)` — a new,
-  single entry point on the `portfolio` module — resolves each fill's series and corporate-action
-  facts, inserts the fills and groups them into one new operation, all inside the caller's
-  `tx`. `executePlanAction` is the only caller: it opens one `db.transaction`, calls
+- **One transaction, atomic — and `plans` never validates a fill itself.** `recordFillsAsOperation
+(db, tx, user, session, rawFills)` — the `portfolio` module's one entry point for turning raw,
+  unparsed leg input into a new operation — takes each leg exactly as the user typed it: ticker,
+  side, quantity, and price/costs still as pt-BR strings. It validates every leg through
+  `resolveFillInstrument`, the same function `recordFillAction` calls for its own one fill
+  (`fill-validation.ts`): asset class is always read off the option-series lookup, never a
+  caller's own guess, so a stock leg gets the same unknown-instrument check (`latestCandle`) an
+  option leg's series lookup already gave it for free. Before this fix, `executePlanAction` built
+  each `NewFill` itself from the plan's own `leg.role`, which had already drifted from
+  `recordFillAction`'s own logic (assetClass guessed from `role` instead of the series lookup, and
+  no `latestCandle` check for a stock leg at all) — a second copy of validation a plan's own shape
+  could silently fall out of step with. `recordFillsAsOperation` then resolves series and
+  corporate-action facts, inserts the fills and groups them into one new operation, all inside
+  the caller's `tx`. `executePlanAction` is the only caller: it opens one `db.transaction`, calls
   `recordFillsAsOperation`, then `PlanRulesRepository.linkOperation` with that same `tx`. Before
-  this fix, a refusal from either step was `return`ed from inside the transaction's callback,
-  which Drizzle commits on a plain return — only a thrown error rolls a transaction back. Both
-  refusals are now a typed `ExecutePlanRefusedError`, thrown inside the callback and caught
-  outside it, so a forced grouping refusal (two legs on different underlyings, say) or the losing
-  side of two concurrent submits of the same plan both leave zero new fills and zero new
+  the atomicity fix, a refusal from either step was `return`ed from inside the transaction's
+  callback, which Drizzle commits on a plain return — only a thrown error rolls a transaction
+  back. Both refusals are now a typed `ExecutePlanRefusedError`, thrown inside the callback and
+  caught outside it, so a forced grouping refusal (two legs on different underlyings, say) or the
+  losing side of two concurrent submits of the same plan both leave zero new fills and zero new
   operations, not an orphan. `PortfolioRepository.insertFills`/`.group` express "run in the
   caller's own transaction, or open a fresh one" as a plain method overload (`tx?: Transaction`)
   rather than a runtime `Database | Transaction` union checked at the call site — the union
@@ -428,11 +438,15 @@ nightly job alerts the user when the plan's own rules fire against it. No order 
   clause still requires the plan's `operation_id` to be null, so the loser of two concurrent
   "Executei" submits is the one whose `linkOperation` call returns no rows, not a race on who
   reads first; the unique index on `operation_id` is the second, database-level guarantee behind
-  it. `plans` no longer reaches into `PortfolioRepository`, `planOperation` or `seriesByHolding`
-  directly, or fakes a `FillRecord` to call them — `recordFillsAsOperation` is the only seam, and
-  the portfolio module's public index shrank to match (`GroupRefusal`, `FillRecord`, `planOperation`
-  and the two series/corporate-action helpers are no longer exported; nothing outside the module
-  used them once this landed).
+  it. `plans` reaches into no portfolio internal directly — `recordFillsAsOperation` (and its
+  `RecordFillsAsOperationResult`/`RawFillInput` types), `loadPortfolio`/`OperationRow` (the
+  nightly step's own read) and the already-existing `OperationsRepository`/`priceOperationNow` are
+  the whole seam. The portfolio module's public index carries none of `PortfolioRepository`,
+  `NewFill` or `GroupResult`: the one other caller that needed `PortfolioRepository` for a single
+  method (`plans`' own ungroup-unlinks-the-plan test) imports it from its own file
+  (`@/modules/portfolio/portfolio-repository`), the pattern every other cross-module integration
+  test already used for a repository it needs but the production code across that boundary never
+  does.
 - **An executed plan cannot execute again.** `planExecutionPrefillAction` and `executePlanAction`
   both refuse with `already_executed` once `operation_plan_rules.operation_id` is set — checked
   up front (a fast, friendly refusal) and enforced again by `linkOperation`'s own conditional
@@ -478,9 +492,11 @@ nightly job alerts the user when the plan's own rules fire against it. No order 
   premium could put the stop multiple past 1 and never fire, or fire a profit target at the wrong
   fraction entirely. Target and stop are skipped (not fired, not cleared) when `entryPayoff.kind`
   is not `"priced"` (a corporate action since opening, or a pricing failure) or when today's mark
-  pricing itself carries a `no_market_price`/`iv_not_converged` note, since `unrealizedPnl` is
-  derived from that same mark; roll and expiry-near need no price at all, so they are evaluated
-  regardless. Every `ExitRule` kind is matched exhaustively: `days_before_expiry` resolves to its
+  pricing itself carries a `no_market_price` note, since `unrealizedPnl` is derived from that same
+  mark; a lone `iv_not_converged` note is not a skip condition — it fires when a leg has a market
+  price but no greeks (a deep-ITM short priced below intrinsic, say), and the engine's own
+  `evaluateNumericExitRule` still treats that mark and the `unrealizedPnl` derived from it as
+  valid. Roll and expiry-near need no price at all, so they are evaluated regardless. Every `ExitRule` kind is matched exhaustively: `days_before_expiry` resolves to its
   own `expiry_near` kind rather than being silently dropped (its already-resolved
   `ResolvedExitRule.session`, computed once at save time against the series the plan actually
   listed, is compared to today's session, the same way roll due is); `condition` exit rules
@@ -500,7 +516,19 @@ nightly job alerts the user when the plan's own rules fire against it. No order 
   `nightly_runs`' own redacted report (`planSignalScoring { usersEvaluated, usersSkipped,
 signalsWritten, signalsCleared, errorCount }`, ADR-0045's addendum pattern) and in
   `NightlyJobOutcome`. It writes to `plan_signals`, its own store — not "the signal inbox",
-  `signals`, which stays strategy-scoped.
+  `signals`, which stays strategy-scoped. A plan's linked operation that is no longer open
+  (settled, rolled away, or pending its own settlement) clears every kind `plan_signals` still
+  has for it (`clearStale(operationId, planSignalKinds, [])`) rather than leaving a stale
+  `target_hit` on `/sinais` for a position the user no longer holds (review round 2, #381); the
+  read side defends the same thing independently — `getMyPlanSignals` joins each signal's
+  operation through `getMyPortfolio`'s own open operations, so a signal in the narrow window
+  before the next nightly run clears it is left out of the list rather than shown, not just
+  deduplicated.
+- **A plan alert links to the real operation, not the Carteira's own front page.**
+  `PlanSignalListEntry` carries the operation's own id, not only its underlying, so
+  `PlanSignalsPanel`'s own "ver carteira" link on `/sinais` points at
+  `/carteira/operacoes/<operationId>` — the same operation page #388 added — instead of the
+  generic `/carteira` list the user would have had to search through themselves.
 
 ## Alternatives considered
 

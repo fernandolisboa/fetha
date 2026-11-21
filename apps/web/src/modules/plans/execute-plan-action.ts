@@ -11,9 +11,7 @@ import {
 } from "@fetha/contracts";
 
 import { getDb } from "@/db/client";
-import { nowInstant } from "@/lib/instant";
 import { formatDecimal } from "@/lib/format/decimal";
-import { parseCentavosInput } from "@/lib/format/parse-money";
 import { todaySaoPauloDate } from "@/lib/today-sao-paulo";
 import {
   AccountRateLimitExceededError,
@@ -22,18 +20,11 @@ import {
   withAuthenticatedAction,
 } from "@/modules/auth";
 import {
-  isMarketIndex,
-  optionSeriesForFills,
-  seriesKey,
-  tradingSessionForDate,
-} from "@/modules/market-data";
-import {
   OperationsRepository,
-  parsePriceInput,
   priceOperationNow,
   recordFillsAsOperation,
   type ContemplatedOperation,
-  type NewFill,
+  type RawFillInput,
   type RecordFillsAsOperationResult,
 } from "@/modules/portfolio";
 
@@ -139,12 +130,8 @@ export type ExecutePlanResult =
   | {
       status: "error";
       error:
-        | "invalid_input"
         | "not_found"
         | "already_executed"
-        | "unknown_instrument"
-        | "index_stock_leg"
-        | "not_a_session"
         | "rate_limited"
         | Exclude<RecordFillsAsOperationResult, { ok: true }>["reason"];
     };
@@ -168,9 +155,6 @@ class ExecutePlanRefusedError extends Error {
 export async function executePlanAction(input: unknown): Promise<ExecutePlanResult> {
   const parsed = executeInputSchema.safeParse(input);
   if (!parsed.success) return { status: "error", error: "invalid_input" };
-  if (parsed.data.session > todaySaoPauloDate()) {
-    return { status: "error", error: "invalid_input" };
-  }
 
   return withAuthenticatedAction(async () => {
     const user = await requireUser();
@@ -197,61 +181,35 @@ export async function executePlanAction(input: unknown): Promise<ExecutePlanResu
     if (!planRules) return { status: "error", error: "not_found" };
     if (planRules.operationId) return { status: "error", error: "already_executed" };
 
-    // A fill dated on a day the market has not opened yet (recordFillAction's own guard): it
-    // would open an operation after the mark session, which the engine refuses outright.
-    const tradingSession = await tradingSessionForDate(db, session);
-    if (!tradingSession || new Date(tradingSession.open) > new Date(nowInstant())) {
-      return { status: "error", error: "not_a_session" };
-    }
-
     const correctionByTicker = new Map(parsed.data.fills.map((fill) => [fill.ticker, fill]));
     if (correctionByTicker.size !== operation.legs.length) {
       return { status: "error", error: "invalid_input" };
     }
 
-    const newFills: NewFill[] = [];
+    // One leg per plan order, carrying only what the plan itself fixed (ticker and side) plus
+    // whatever the user corrected (quantity, price, costs) — `recordFillsAsOperation` resolves
+    // each leg's real asset class and series itself, the same validation `recordFillAction` runs
+    // for its own one fill (review round 2, #381: a plan's own `role` is no longer trusted for
+    // this, closing the drift that once let a stock leg skip the unknown-instrument check).
+    const rawFills: RawFillInput[] = [];
     for (const leg of operation.legs) {
       const correction = correctionByTicker.get(leg.ticker);
       if (!correction) return { status: "error", error: "invalid_input" };
-      const price = parsePriceInput(correction.price);
-      const costs = correction.costs.trim() === "" ? 0 : parseCentavosInput(correction.costs);
-      if (price === null || costs === null) {
-        return { status: "error", error: "invalid_input" };
-      }
-
-      const isStockLeg = leg.role === "stock";
-      const series = isStockLeg
-        ? undefined
-        : (await optionSeriesForFills(db, [{ ticker: leg.ticker, session }])).get(
-            seriesKey(leg.ticker, session),
-          );
-      if (!isStockLeg && !series) {
-        return { status: "error", error: "unknown_instrument" };
-      }
-      if (isStockLeg && isMarketIndex(leg.ticker)) {
-        return { status: "error", error: "index_stock_leg" };
-      }
-
-      newFills.push({
+      rawFills.push({
         ticker: leg.ticker,
-        assetClass: isStockLeg ? "stock" : "option",
         side: leg.side,
         // Editable (review round 2, #381): the user corrects a partial fill's size here, not
         // only its price; ticker and side stay the plan's own.
         quantity: correction.quantity,
-        price,
-        session,
-        costsCentavos: costs,
-        expiry: series ? sessionDateSchema.parse(series.expiry) : null,
-        source: "manual",
-        importKey: null,
+        price: correction.price,
+        costs: correction.costs,
       });
     }
 
     let operationId: string;
     try {
       operationId = await db.transaction(async (tx) => {
-        const recorded = await recordFillsAsOperation(db, tx, user, newFills);
+        const recorded = await recordFillsAsOperation(db, tx, user, session, rawFills);
         if (!recorded.ok) {
           throw new ExecutePlanRefusedError(recorded.reason);
         }

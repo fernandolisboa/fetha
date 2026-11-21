@@ -1,4 +1,4 @@
-import { centavosSchema, sessionDateSchema, type Centavos } from "@fetha/contracts";
+import { sessionDateSchema } from "@fetha/contracts";
 
 import type { Database } from "@/db/client";
 import type { ScopedUser } from "@/lib/user-scoped-repository";
@@ -6,7 +6,12 @@ import { tradingSessionForDate } from "@/modules/market-data";
 import { loadPortfolio, type OperationRow } from "@/modules/portfolio";
 
 import { executedPlanUserIds } from "./executed-plan-users";
-import { firedPlanSignalKinds, planSignalKinds, type PlanSignalKind } from "./plan-signal-rules";
+import {
+  evaluatedPlanSignalKinds,
+  firedPlanSignalKinds,
+  planSignalKinds,
+  type PriceBases,
+} from "./plan-signal-rules";
 import { PlanRulesRepository } from "./plan-rules-repository";
 import { PlanSignalsRepository, type NewPlanSignal } from "./plan-signals-repository";
 
@@ -29,25 +34,18 @@ function emptyOutcome(): EvaluatePlanSignalsOutcome {
   return { usersEvaluated: 0, usersSkipped: 0, signalsWritten: 0, signalsCleared: 0, errors: 0 };
 }
 
-// Price- and max-loss-based notes the engine attaches when today's mark pricing cannot be
-// trusted (review round 2, #381): `unrealizedPnl` itself is still derived from this pricing, so
-// a target or stop measured against it would be comparing against a number the engine itself
-// flagged as unreliable.
-const UNRELIABLE_MARK_NOTE_CODES = new Set(["no_market_price", "iv_not_converged"]);
+// The only note that means today's mark itself is unusable (#381 round 3): `no_market_price`.
+// `iv_not_converged` fires when a leg has a market price but no greeks — a deep-ITM short priced
+// below intrinsic, for example — and the engine's own `evaluateNumericExitRule` still treats that
+// mark and the `unrealizedPnl` derived from it as valid, so it must not be in this skip set.
+const UNRELIABLE_MARK_NOTE_CODES = new Set(["no_market_price"]);
 
-const PRICE_BASED_KINDS: readonly PlanSignalKind[] = ["target_hit", "stop_hit"];
-
-// Target and stop are entry-priced (review round 2, #381; see `plan-signal-rules.ts`'s own
-// comment for why): resolved from `row.entryPayoff`'s own `priceOperation` call at each leg's
-// `entryPrice`, never from today's mark. Skipped — not fired, not cleared — when the engine has
-// no reliable entry price (`entryPayoff.kind !== "priced"`) or no reliable mark to compare it
-// against (a `no_market_price`/`iv_not_converged` note on today's pricing); roll and expiry
-// alerts need no price at all, so they are evaluated regardless.
-const ZERO_CENTAVOS = centavosSchema.parse(0);
-
-function priceBasesOf(
-  row: OperationRow,
-): { premiumBaseCentavos: Centavos; maxLossBaseCentavos: Centavos | "unbounded" } | null {
+// Target and stop are entry-priced (#381; see `plan-signal-rules.ts`'s own comment for why):
+// resolved from `row.entryPayoff`'s own `priceOperation` call at each leg's `entryPrice`, never
+// from today's mark. Null — and so skipped, not fired, not cleared, by `plan-signal-rules.ts`
+// itself — when the engine has no reliable entry price (`entryPayoff.kind !== "priced"`) or no
+// reliable mark at all (a `no_market_price` note on today's pricing).
+function priceBasesOf(row: OperationRow): PriceBases | null {
   if (row.entryPayoff.kind !== "priced") return null;
   if (!row.valuation) return null;
   if (row.valuation.pricing.notes.some((note) => UNRELIABLE_MARK_NOTE_CODES.has(note.code))) {
@@ -108,20 +106,20 @@ export async function evaluatePlanSignals(
         const operationId = plan.operationId;
         if (!operationId) continue;
         const row = rowByOperationId.get(operationId);
+        // A position the user no longer holds — settled, rolled away, or still open but
+        // pending its own settlement and not mark-to-market'd — clears every alert kind for it
+        // rather than leaving a stale target_hit/stop_hit/roll_due/expiry_near on `/sinais`
+        // forever (round 2 correctness finding, #381): nothing about it can still be firing.
         if (!row || row.operation.status !== "open" || row.pendingSettlement || !row.valuation) {
+          signalsCleared += await signalsRepo.clearStale(operationId, planSignalKinds, []);
           continue;
         }
         const priceBases = priceBasesOf(row);
-        const evaluatedKinds = priceBases
-          ? planSignalKinds
-          : planSignalKinds.filter((kind) => !PRICE_BASED_KINDS.includes(kind));
+        const evaluatedKinds = evaluatedPlanSignalKinds(priceBases);
         const kinds = firedPlanSignalKinds({
-          premiumBaseCentavos: priceBases?.premiumBaseCentavos ?? ZERO_CENTAVOS,
-          maxLossBaseCentavos: priceBases?.maxLossBaseCentavos ?? ZERO_CENTAVOS,
+          priceBases,
           unrealizedPnlCentavos: row.valuation.unrealizedPnl,
-          exitRules: priceBases
-            ? plan.rules.exitRules
-            : plan.rules.exitRules.filter((rule) => rule.rule.kind === "days_before_expiry"),
+          exitRules: plan.rules.exitRules,
           roll: plan.rules.roll,
           todaySession: session,
         });

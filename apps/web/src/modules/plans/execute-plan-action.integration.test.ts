@@ -6,7 +6,7 @@ import { decimalStringSchema, type ContemplatedLeg, type PlanRules } from "@feth
 import { getDb } from "@/db/client";
 import { deleteTestUser } from "@/db/test/cleanup";
 import { user } from "@/modules/auth/schema";
-import { parsePriceInput } from "@/modules/portfolio";
+import { parsePriceInput } from "@/modules/portfolio/parse-price";
 import { contemplatedOperations, fills, operations } from "@/modules/portfolio/schema";
 import { structures } from "@/modules/strategies/schema";
 
@@ -41,7 +41,9 @@ vi.mock("@/modules/market-data", async () => {
   };
 });
 
-const priceOperationNowMock = vi.fn(() => Promise.resolve(null));
+const { priceOperationNowMock } = vi.hoisted(() => ({
+  priceOperationNowMock: vi.fn(() => Promise.resolve(null)),
+}));
 
 vi.mock("@/modules/portfolio", async () => {
   const actual = await vi.importActual<typeof import("@/modules/portfolio")>("@/modules/portfolio");
@@ -207,8 +209,9 @@ describe("planExecutionPrefillAction", () => {
     if (prefill.status !== "ok") throw new Error("prefill failed");
     const [leg] = prefill.legs;
     if (!leg?.price) throw new Error("expected a prefilled price");
+    // pt-BR grouping puts a "." between thousands (1.234,50), so only the decimal comma is a
+    // reliable formatting signal here (round 2 correctness finding, #381).
     expect(leg.price).toContain(",");
-    expect(leg.price).not.toContain(".");
     expect(parsePriceInput(leg.price)).not.toBeNull();
 
     const result = await executePlanAction({

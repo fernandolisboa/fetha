@@ -28,7 +28,7 @@ export function PlanSignalsPanel({ signals }: { signals: PlanSignalListEntry[] }
             </span>
             <span className="text-muted-foreground flex items-center gap-2 font-mono tabular-nums">
               {formatDate(signal.createdAt)}
-              <Link href="/carteira" className="underline">
+              <Link href={`/carteira/operacoes/${signal.operationId}`} className="underline">
                 {t.signals.viewPortfolio}
               </Link>
             </span>
