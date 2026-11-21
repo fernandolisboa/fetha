@@ -5,26 +5,17 @@ import {
   PAYOFF_SPARK_VIEW_HEIGHT,
   PAYOFF_SPARK_VIEW_WIDTH,
 } from "../payoff-sparkline";
-import { t } from "../strings";
 
 // The compact row's spark (ticket: card B, docs/adr/0067 amendment): a decorative preview, never
 // the only way to read a number — the row's own text already says what it risks and gains, so
-// this is `aria-hidden`, like the watchlist's sparkline.
-export function PayoffSparkline({
-  payoff,
-  ticker,
-}: {
-  payoff: readonly PayoffPoint[];
-  ticker: string;
-}) {
+// this is `aria-hidden` with no accessible name of its own.
+export function PayoffSparkline({ payoff }: { payoff: readonly PayoffPoint[] }) {
   const spark = buildPayoffSparkline(payoff);
   if (!spark) return null;
 
   return (
     <svg
       aria-hidden="true"
-      role="img"
-      aria-label={t.suggestions.compactRow.sparklineLabel(ticker)}
       viewBox={`0 0 ${String(PAYOFF_SPARK_VIEW_WIDTH)} ${String(PAYOFF_SPARK_VIEW_HEIGHT)}`}
       preserveAspectRatio="none"
       className="h-[34px] w-full"

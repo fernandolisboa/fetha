@@ -13,21 +13,32 @@ export interface PayoffSparkline {
 
 // The compact row's spark (ticket: card B): the engine's own expiry payoff, scaled to the fixed
 // viewBox above so the SVG stretches to whatever width the row's layout gives it, with the up and
-// down areas split at the zero-pnl line like the full chart's gain/loss areas. Values become
-// plain numbers only as drawing coordinates, same as the full payoff chart's own layout helpers;
-// nothing here is read back as money. Fewer than two points draws nothing.
+// down areas split at the zero-pnl line like the full chart's gain/loss areas. The engine's own
+// samples are not evenly spaced (break-evens and strikes are inserted between the 0.8x/1.2x-of-spot
+// grid points), so x is placed by the sample's own underlying price, not by its index — an evenly
+// spaced x would bend the curve's kinks to the wrong side of a break-even. Values become plain
+// numbers only as drawing coordinates, same as the full payoff chart's own layout helpers; nothing
+// here is read back as money. Fewer than two points draws nothing.
 export function buildPayoffSparkline(payoff: readonly PayoffPoint[]): PayoffSparkline | null {
   if (payoff.length < 2) return null;
 
+  const underlyings = payoff.map((point) => Number(point.underlying));
   const values = payoff.map((point) => point.pnl);
   const low = Math.min(...values, 0);
   const high = Math.max(...values, 0);
   const span = high - low;
+  const firstUnderlying = underlyings[0] ?? 0;
+  const lastUnderlying = underlyings[underlyings.length - 1] ?? 0;
+  const underlyingSpan = lastUnderlying - firstUnderlying;
   const innerWidth = PAYOFF_SPARK_VIEW_WIDTH - 2 * PADDING;
   const innerHeight = PAYOFF_SPARK_VIEW_HEIGHT - 2 * PADDING;
 
   const x = (index: number): number =>
-    PADDING + (values.length === 1 ? 0 : (index / (values.length - 1)) * innerWidth);
+    PADDING +
+    (underlyingSpan === 0
+      ? 0
+      : (((underlyings[index] ?? firstUnderlying) - firstUnderlying) / underlyingSpan) *
+        innerWidth);
   const y = (value: number): number =>
     span === 0 ? PAYOFF_SPARK_VIEW_HEIGHT / 2 : PADDING + (1 - (value - low) / span) * innerHeight;
 

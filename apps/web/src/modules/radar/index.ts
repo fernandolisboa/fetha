@@ -1,8 +1,7 @@
 export { RadarPanel } from "./components/radar-panel";
 export { SuggestionCalibrationPanel } from "./components/suggestion-calibration-panel";
-export { SuggestionCard, scenarioLabel, suggestionHeadline } from "./components/suggestion-card";
+export { SuggestionCard, suggestionHeadline } from "./components/suggestion-card";
 export { SuggestionRow } from "./components/suggestion-row";
-export { profitZoneText } from "./payoff-summary";
 export { scanRadar, type RadarScanOutcome } from "./scan";
 export { radarStrings, t } from "./strings";
 export {

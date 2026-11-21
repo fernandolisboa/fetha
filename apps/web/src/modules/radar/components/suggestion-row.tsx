@@ -71,7 +71,7 @@ export function SuggestionRow({
           {zoneText ? `${zoneText} · ${expiresText}` : expiresText}
         </span>
         <span className="w-24 justify-self-end [grid-area:spark] @min-[44rem]:w-[120px]">
-          <PayoffSparkline payoff={suggestion.pricing.payoff} ticker={suggestion.underlying} />
+          <PayoffSparkline payoff={suggestion.pricing.payoff} />
         </span>
         <span
           className={cn(

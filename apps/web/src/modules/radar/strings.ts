@@ -164,7 +164,6 @@ const en = {
       expiresAt: (date: string) => `expires ${date}`,
       open: "Open",
       close: "Close",
-      sparklineLabel: (ticker: string) => `Result of ${ticker} at expiry, across underlying prices`,
     },
     whyTitle: "Why now",
     legsTable: {
@@ -501,8 +500,6 @@ const ptBR = {
       expiresAt: (date: string) => `vence ${date}`,
       open: "Abrir",
       close: "Fechar",
-      sparklineLabel: (ticker: string) =>
-        `Resultado de ${ticker} no vencimento, pelos preços do ativo`,
     },
     whyTitle: "Por que agora",
     legsTable: {
