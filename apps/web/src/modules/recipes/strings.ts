@@ -138,6 +138,7 @@ const en = {
       iv_rank: (sessions: number) => `IV rank (${String(sessions)} sessions)`,
     },
     comparators: { ">": ">", ">=": "≥", "<": "<", "<=": "≤", "==": "=", "!=": "≠" },
+    reading: (name: string, value: string) => `${name} at ${value}`,
     profitTarget: (percent: string) => `the gain reaches ${percent} of the premium`,
     stopLoss: (percent: string) => `the loss reaches ${percent} of the max loss`,
     daysBeforeExpiry: (days: number) =>
@@ -286,6 +287,7 @@ const ptBR = {
       iv_rank: (sessions: number) => `Ranking de IV (${String(sessions)} sessões)`,
     },
     comparators: { ">": ">", ">=": "≥", "<": "<", "<=": "≤", "==": "=", "!=": "≠" },
+    reading: (name: string, value: string) => `${name} em ${value}`,
     profitTarget: (percent: string) => `o ganho chega a ${percent} do prêmio`,
     stopLoss: (percent: string) => `a perda chega a ${percent} da perda máxima`,
     daysBeforeExpiry: (days: number) =>

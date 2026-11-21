@@ -1,30 +1,20 @@
 import type { ReactNode } from "react";
-import { decimalStringSchema, type Centavos } from "@fetha/contracts";
+import type { Centavos } from "@fetha/contracts";
 
-import { formatBRL, formatPriceBRL } from "@/lib/format/brl";
-import { formatDecimal } from "@/lib/format/decimal";
+import { formatBRL } from "@/lib/format/brl";
 
-import type { LotLeg } from "../lot-legs";
+import { gainToRiskRatio } from "../payoff-summary";
 import { t } from "../strings";
-import { legText } from "./radar-facts";
-
-export function lotLegText(leg: LotLeg): string {
-  const quantity = formatDecimal(decimalStringSchema.parse(String(leg.quantity)), 0);
-  return `${quantity} × ${legText(leg)} · ${t.suggestions.legPrice(formatPriceBRL(leg.price))}`;
-}
-
-// DESIGN.md's money convention, as the builder's StatBlocks: a credit reads "+ R$".
-export function netPremiumText(value: Centavos): string {
-  return value > 0 ? `+ ${formatBRL(value)}` : formatBRL(value);
-}
 
 export function Figure({
   label,
   value,
+  hint,
   token,
 }: {
   label: string;
   value: ReactNode;
+  hint?: string;
   token?: string;
 }) {
   return (
@@ -36,6 +26,42 @@ export function Figure({
       >
         {value}
       </dd>
+      {hint && <span className="text-faint text-[11px]">{hint}</span>}
     </div>
+  );
+}
+
+// Arrisca / Ganha até / Ganho ÷ risco, the three figures both the suggestion and the research
+// idea card open with: shared so the two never drift apart on labels or formatting.
+export function PayoffFigures({
+  maxLoss,
+  maxGain,
+  className,
+}: {
+  maxLoss: Centavos;
+  maxGain: Centavos | "unbounded";
+  className?: string;
+}) {
+  return (
+    <dl
+      aria-label={t.suggestions.numbersLabel}
+      className={className ?? "grid grid-cols-2 gap-x-6 gap-y-2 @min-[26rem]:grid-cols-4"}
+    >
+      <Figure
+        label={t.suggestions.figures.risked}
+        value={formatBRL(maxLoss)}
+        hint={t.suggestions.figures.riskedHint}
+      />
+      <Figure
+        label={t.suggestions.figures.gainUpTo}
+        value={maxGain === "unbounded" ? t.suggestions.figures.gainUnbounded : formatBRL(maxGain)}
+        token="--up"
+      />
+      <Figure
+        label={t.suggestions.figures.gainToRisk}
+        value={gainToRiskRatio(maxGain, maxLoss)}
+        hint={t.suggestions.figures.gainToRiskHint}
+      />
+    </dl>
   );
 }

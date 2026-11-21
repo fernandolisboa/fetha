@@ -211,3 +211,21 @@ still finds their `[data-suggestion-id]` node and counts them once the viewer op
 disclosure and the card crosses its visibility threshold; a hidden card is never counted while
 still collapsed. `RadarPanel`'s own rows (ADR-0066 item 7) are unaffected: the cap is a
 `TodaySuggestions`/`SuggestionList` concern, not a radar-wide one.
+
+## Amendment (2026-11-21, PR #397, owner request)
+
+Item 7's direct-voice headline ("Uma trava de alta com calls em PETR4 cabe agora.") is replaced by
+a plainer title, "<estrutura> em <TICKER>", and Fetha's own voice now lives one line below it in a
+single payoff sentence computed in the radar module (`summarizePayoff`/`payoffSummarySentence`,
+`apps/web/src/modules/radar/payoff-summary.ts`) from the engine's own expiry payoff and
+break-evens: what the viewer pays or receives, where the
+profit zone sits and what the other side of it costs, e.g. "Você paga R$ 1,98 e ganha até R$ 5,00
+se VALE3 fechar entre R$ 14,25 e R$ 16,80 em 16/01/2027. Fora dessa faixa, perde até R$ 26,98." The
+card's anatomy below the title is unchanged in kind: a scenario chip (the move the recipe needs,
+re-labelled "Cenário" per the Thesis glossary's avoid-list on "Aposta"/"bet"), an expiry chip, a
+debit/credit chip shown only when the lot carries a real premium, three figures (Arrisca / Ganha
+até / Ganho ÷ risco, now a shared `PayoffFigures` component so the suggestion and research cards
+never drift apart on them), the payoff chart, "Por que agora", the lot as a table and a
+closed-by-default "Detalhes" with the greeks and the recipe's own track record. "Por que agora"
+now pairs each condition with the figure that matched it today instead of repeating a separate
+facts list beside it. None of this changes items 1–6, 8–10 or the terms; it is presentation only.

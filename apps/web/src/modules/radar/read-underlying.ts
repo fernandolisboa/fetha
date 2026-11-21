@@ -20,7 +20,7 @@ import {
 
 import { recipes } from "@/modules/strategies";
 
-import type { RadarFacts, RadarLeg } from "./match";
+import { indicatorSpecKey, type RadarFacts, type RadarLeg } from "./match";
 import { recipeStructure } from "./recipe-structure";
 import { SUGGESTION_LOT, suggestionFrom, type SuggestionDraft } from "./suggestion";
 
@@ -43,15 +43,9 @@ const conditionHeldOutcomes: ReadonlySet<EvaluationOutcome> = new Set([
   "degenerate_strikes",
 ]);
 
-function specKey(spec: IndicatorSpec): string {
-  return spec.kind === "iv_rank"
-    ? `iv_rank:${String(spec.lookbackSessions)}`
-    : `${spec.kind}:${String(spec.length)}`;
-}
-
 function entrySpecs(recipe: Recipe): IndicatorSpec[] {
   const unique = new Map(
-    conditionIndicators(recipe.definition.entry).map((spec) => [specKey(spec), spec]),
+    conditionIndicators(recipe.definition.entry).map((spec) => [indicatorSpecKey(spec), spec]),
   );
   return [...unique.values()];
 }
@@ -60,13 +54,13 @@ function factsFor(recipe: Recipe, series: IndicatorSeries): RadarFacts | null {
   const close = series.candles.at(-1)?.close;
   if (!close) return null;
   const last = new Map(
-    series.series.map((entry) => [specKey(entry.indicator), entry.values.at(-1) ?? null]),
+    series.series.map((entry) => [indicatorSpecKey(entry.indicator), entry.values.at(-1) ?? null]),
   );
   return {
     close,
     indicators: entrySpecs(recipe).map((indicator) => ({
       indicator,
-      value: last.get(specKey(indicator)) ?? null,
+      value: last.get(indicatorSpecKey(indicator)) ?? null,
     })),
   };
 }
@@ -211,7 +205,9 @@ export async function readUnderlying(
   const reading = await engine.assetReading({ view, ticker, at });
   if (!reading.ok) return { ok: false, code: reading.error.code };
 
-  const specs = new Map(recipes.flatMap(entrySpecs).map((spec) => [specKey(spec), spec] as const));
+  const specs = new Map(
+    recipes.flatMap(entrySpecs).map((spec) => [indicatorSpecKey(spec), spec] as const),
+  );
   const series = await engine.indicators({
     view,
     ticker,

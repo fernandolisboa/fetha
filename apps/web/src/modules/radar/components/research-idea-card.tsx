@@ -1,9 +1,10 @@
-import { Fragment, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { TriangleAlert } from "lucide-react";
 
 import { buttonVariants } from "@/components/ui/button";
-import { formatBRL, formatPriceBRL } from "@/lib/format/brl";
+import { Badge } from "@/components/ui/badge";
+import { formatPriceBRL } from "@/lib/format/brl";
 import { cn } from "@/lib/utils";
 import { formatSessionDate } from "@/lib/format/date-time";
 import { AssetReadingChips } from "@/modules/market-data/client";
@@ -11,8 +12,10 @@ import { PayoffChart, RiskNotice } from "@/modules/portfolio/client";
 
 import type { IdeaCard } from "../research";
 import type { IdeaAlert } from "../research-rules";
+import { payoffSummarySentence, summarizePayoff } from "../payoff-summary";
 import { t } from "../strings";
-import { Figure, lotLegText, netPremiumText } from "./lot-parts";
+import { PayoffFigures } from "./lot-parts";
+import { LegsTable } from "./legs-table";
 
 function alertText(alert: Exclude<IdeaAlert, { kind: "limit_breach" }>): string {
   switch (alert.kind) {
@@ -21,16 +24,6 @@ function alertText(alert: Exclude<IdeaAlert, { kind: "limit_breach" }>): string 
     case "near_expiry":
       return t.research.alerts.near_expiry(alert.sessionsLeft);
   }
-}
-
-function BreakEvens({ values }: { values: IdeaCard["breakEvens"] }) {
-  if (values.length === 0) return "—";
-  return values.map((value, index) => (
-    <Fragment key={value}>
-      {index > 0 && " / "}
-      <span className="whitespace-nowrap">{formatPriceBRL(value)}</span>
-    </Fragment>
-  ));
 }
 
 function IdeaAlerts({ alerts }: { alerts: readonly IdeaAlert[] }) {
@@ -75,7 +68,20 @@ export function ResearchIdeaCard({
   actions?: ReactNode;
 }) {
   const title = voicedTitle ?? t.research.cardTitle(idea.structure.name, idea.underlying);
-  const labels = t.suggestions.numbers;
+  const hasStockLeg = idea.legs.some((leg) => leg.role === "stock");
+  const summary = summarizePayoff({
+    payoff: idea.chart.payoff,
+    breakEvens: idea.breakEvens,
+    netPremium: idea.netPremium,
+    maxGain: idea.maxGain,
+    maxLoss: idea.maxLoss,
+  });
+  const sentence = payoffSummarySentence(summary, {
+    ticker: idea.underlying,
+    date: formatSessionDate(idea.expiry),
+    hasStockLeg,
+  });
+
   return (
     <article
       className={cn(
@@ -87,6 +93,9 @@ export function ResearchIdeaCard({
       aria-label={title}
     >
       <h4 className="text-[13px] font-semibold">{title}</h4>
+      <Badge variant="secondary" className="w-fit font-mono tabular-nums">
+        {t.research.expires(formatSessionDate(idea.expiry), idea.sessionsToExpiry)}
+      </Badge>
       {opinion}
       <div className="flex flex-col gap-1.5">
         <p className="text-muted-foreground text-xs">
@@ -95,26 +104,16 @@ export function ResearchIdeaCard({
         <AssetReadingChips reading={idea.reading} />
       </div>
       <IdeaAlerts alerts={idea.alerts} />
-      <ul aria-label={t.suggestions.legsLabel} className="font-mono text-xs tabular-nums">
-        {idea.legs.map((leg) => (
-          <li key={`${leg.side}-${leg.ticker}`}>{lotLegText(leg)}</li>
-        ))}
-      </ul>
-      <dl
-        aria-label={t.suggestions.numbersLabel}
+      <p className={cn("text-[13px] text-pretty", stale && "opacity-75")}>{sentence}</p>
+      <PayoffFigures
+        maxLoss={idea.maxLoss}
+        maxGain={idea.maxGain}
         className={cn(
           "grid grid-cols-2 gap-x-6 gap-y-2 @min-[26rem]:grid-cols-4",
           stale && "opacity-75",
         )}
-      >
-        <Figure label={labels.netPremium} value={netPremiumText(idea.netPremium)} />
-        <Figure label={labels.maxLoss} value={formatBRL(idea.maxLoss)} />
-        <Figure
-          label={labels.maxGain}
-          value={idea.maxGain === "unbounded" ? labels.unbounded : formatBRL(idea.maxGain)}
-        />
-        <Figure label={labels.breakEvens} value={<BreakEvens values={idea.breakEvens} />} />
-      </dl>
+      />
+      <LegsTable legs={idea.legs} />
       <PayoffChart
         points={idea.chart.payoff}
         spot={idea.chart.spot}
@@ -124,9 +123,6 @@ export function ResearchIdeaCard({
         spotLabel={t.suggestions.chartSpot(formatPriceBRL(idea.chart.spot))}
         framed
       />
-      <p className="text-[13px]">
-        {t.research.expires(formatSessionDate(idea.expiry), idea.sessionsToExpiry)}
-      </p>
       <div className="flex flex-wrap items-center gap-2">
         {idea.suggestionId && (
           <Link

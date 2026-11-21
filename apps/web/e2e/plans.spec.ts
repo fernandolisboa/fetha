@@ -5,7 +5,7 @@ import { registerAndSignIn } from "./helpers";
 // Same seed as radar.spec.ts and suggestions.spec.ts (#379): one PETR4 bull call spread
 // suggestion at the newest ingested close.
 const e2eSecret = process.env.E2E_SECRET;
-const HEADLINE = "Uma trava de alta com calls em PETR4 cabe agora.";
+const HEADLINE = "Trava de alta com calls em PETR4";
 
 test.skip(!e2eSecret, "E2E_SECRET is not set; skipping the plan flow.");
 
