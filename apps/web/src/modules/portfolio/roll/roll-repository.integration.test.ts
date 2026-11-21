@@ -188,6 +188,39 @@ describe("PortfolioRepository.roll", () => {
     expect((await repository.listOperations())[0]?.status).toBe("open");
   });
 
+  it("refuses a roll whose opening fills would not come out open, writing nothing", async () => {
+    const db = getDb();
+    const owner = await insertUser("roll-opening-closed");
+    const repository = new PortfolioRepository(db, owner);
+    await repository.insertFills([shortCallFill()]);
+    const [opened] = await repository.listFills();
+    if (!opened) throw new Error("fixture setup failed");
+    const grouped = await repository.group(null, [opened.id], plan);
+    if (!grouped.ok) throw new Error(grouped.reason);
+
+    const result = await repository.roll(
+      grouped.operationId,
+      [opened.id],
+      [shortCallFill({ side: "buy", session: rolledAt })],
+      [
+        shortCallFill({ ticker: NEXT_TICKER, expiry: NEXT_EXPIRY, session: rolledAt }),
+        shortCallFill({
+          ticker: NEXT_TICKER,
+          expiry: NEXT_EXPIRY,
+          side: "buy",
+          session: rolledAt,
+        }),
+      ],
+      rolledAt,
+      plan,
+    );
+    expect(result).toEqual({ ok: false, reason: "conflict" });
+    // The source's own closing fill must never commit either (#382): a refusal on the opening
+    // side rolls the whole transaction back, not only its own half.
+    expect(await repository.listFills()).toHaveLength(1);
+    expect((await repository.listOperations())[0]?.status).toBe("open");
+  });
+
   it("carries a covered call's stock leg forward with its cost basis, never closing it", async () => {
     const db = getDb();
     const owner = await insertUser("roll-covered-call");
