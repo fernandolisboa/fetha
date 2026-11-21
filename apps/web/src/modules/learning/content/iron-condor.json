@@ -2,7 +2,10 @@
   "id": "iron-condor",
   "version": 1,
   "minutes": 7,
-  "title": { "en": "Iron condor", "pt": "Condor de ferro" },
+  "title": {
+    "en": "Iron condor",
+    "pt": "Condor de ferro"
+  },
   "summary": {
     "en": "A credit received for betting the stock stays inside a range, built from a put spread and a call spread.",
     "pt": "Um crédito recebido por apostar que a ação fica dentro de uma faixa, montado com uma trava de puts e uma de calls."
@@ -81,7 +84,10 @@
       "options": [
         {
           "id": "c",
-          "text": { "en": "Four calls, no puts", "pt": "Quatro calls, sem puts" }
+          "text": {
+            "en": "Four calls, no puts",
+            "pt": "Quatro calls, sem puts"
+          }
         },
         {
           "id": "a",
@@ -113,21 +119,27 @@
       "options": [
         {
           "id": "b",
-          "text": { "en": "Rises past the higher strike", "pt": "Sobe além do strike mais alto" }
+          "text": {
+            "en": "Rises past the higher strike",
+            "pt": "Sobe além do strike mais alto"
+          }
         },
         {
-          "id": "a",
+          "id": "c",
           "text": {
             "en": "Stays between the two short strikes",
             "pt": "Fica entre os dois strikes vendidos"
           }
         },
         {
-          "id": "c",
-          "text": { "en": "Falls to zero", "pt": "Cai a zero" }
+          "id": "a",
+          "text": {
+            "en": "Falls to zero",
+            "pt": "Cai a zero"
+          }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "c",
       "explanation": {
         "en": "Between the two sold strikes, both spreads expire worthless and the full credit stands as profit.",
         "pt": "Entre os dois strikes vendidos, as duas travas vencem sem valor e o crédito inteiro fica como lucro."
@@ -142,24 +154,27 @@
       "options": [
         {
           "id": "c",
-          "text": { "en": "It never matters here", "pt": "Nunca importa aqui" }
+          "text": {
+            "en": "It never matters here",
+            "pt": "Nunca importa aqui"
+          }
         },
         {
-          "id": "b",
+          "id": "a",
           "text": {
             "en": "Low relative to this underlying's own recent normal",
             "pt": "Baixa em relação ao normal recente deste ativo"
           }
         },
         {
-          "id": "a",
+          "id": "b",
           "text": {
             "en": "High relative to this underlying's own recent normal",
             "pt": "Alta em relação ao normal recente deste ativo"
           }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "b",
       "explanation": {
         "en": "Richer options, from high IV rank, make both sold legs worth more, for a bigger net credit.",
         "pt": "Opções mais caras, de IV rank alto, deixam as duas pernas vendidas mais valiosas, para um crédito líquido maior."
@@ -188,7 +203,10 @@
         },
         {
           "id": "c",
-          "text": { "en": "Automatically rolls itself", "pt": "Rola a si mesmo automaticamente" }
+          "text": {
+            "en": "Automatically rolls itself",
+            "pt": "Rola a si mesmo automaticamente"
+          }
         }
       ],
       "correctOptionId": "a",

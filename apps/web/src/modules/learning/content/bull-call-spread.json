@@ -2,7 +2,10 @@
   "id": "bull-call-spread",
   "version": 1,
   "minutes": 6,
-  "title": { "en": "Bull call spread", "pt": "Trava de alta com calls" },
+  "title": {
+    "en": "Bull call spread",
+    "pt": "Trava de alta com calls"
+  },
   "summary": {
     "en": "A cheaper, capped bet on a rise: sell a higher call to pay for the one you buy.",
     "pt": "Uma aposta de alta mais barata e travada: vende uma call mais alta para pagar a que você compra."
@@ -83,14 +86,14 @@
           }
         },
         {
-          "id": "c",
+          "id": "b",
           "text": {
             "en": "Costs more and leaves the gain unbounded",
             "pt": "Custa mais e deixa o ganho sem limite"
           }
         },
         {
-          "id": "b",
+          "id": "c",
           "text": {
             "en": "Has the exact same risk and reward",
             "pt": "Tem exatamente o mesmo risco e retorno"
@@ -111,7 +114,7 @@
       },
       "options": [
         {
-          "id": "c",
+          "id": "a",
           "text": {
             "en": "Converted into a put automatically",
             "pt": "Convertida em put automaticamente"
@@ -125,14 +128,14 @@
           }
         },
         {
-          "id": "a",
+          "id": "c",
           "text": {
             "en": "Assigned before expiry, since equity calls are usually American-style",
             "pt": "Atribuída antes do vencimento, já que calls sobre ações costumam ser do estilo americano"
           }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "c",
       "explanation": {
         "en": "Most B3 equity calls are American-style, so the sold leg carries early-assignment risk, especially deep in the money near a dividend.",
         "pt": "A maioria das calls sobre ações da B3 é do estilo americano, então a perna vendida carrega risco de atribuição antecipada, especialmente bem dentro do dinheiro perto de um dividendo."
@@ -154,7 +157,10 @@
         },
         {
           "id": "b",
-          "text": { "en": "Falls to zero", "pt": "Cai a zero" }
+          "text": {
+            "en": "Falls to zero",
+            "pt": "Cai a zero"
+          }
         },
         {
           "id": "c",
@@ -178,14 +184,14 @@
       },
       "options": [
         {
-          "id": "b",
+          "id": "a",
           "text": {
             "en": "Change the strikes without changing the expiry",
             "pt": "Mudar os strikes sem mudar o vencimento"
           }
         },
         {
-          "id": "a",
+          "id": "b",
           "text": {
             "en": "Move the whole spread to a later expiry without closing it first",
             "pt": "Levar a trava inteira para um vencimento mais distante sem encerrar ela antes"
@@ -199,7 +205,7 @@
           }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "b",
       "explanation": {
         "en": "Rolling replaces an operation with another, further out in time, keeping the position open end to end.",
         "pt": "Rolar troca uma operação por outra, mais adiante no tempo, mantendo a posição aberta do início ao fim."

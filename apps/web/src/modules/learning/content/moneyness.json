@@ -60,19 +60,28 @@
       },
       "options": [
         {
-          "id": "a",
-          "text": { "en": "In the money", "pt": "Dentro do dinheiro" }
-        },
-        {
           "id": "b",
-          "text": { "en": "At the money", "pt": "No dinheiro" }
+          "text": {
+            "en": "In the money",
+            "pt": "Dentro do dinheiro"
+          }
         },
         {
           "id": "c",
-          "text": { "en": "Out of the money", "pt": "Fora do dinheiro" }
+          "text": {
+            "en": "At the money",
+            "pt": "No dinheiro"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Out of the money",
+            "pt": "Fora do dinheiro"
+          }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "b",
       "explanation": {
         "en": "A call is in the money whenever the stock trades above its strike.",
         "pt": "Uma call está dentro do dinheiro sempre que a ação negocia acima do strike."
@@ -87,18 +96,27 @@
       "options": [
         {
           "id": "c",
-          "text": { "en": "Out of the money", "pt": "Fora do dinheiro" }
-        },
-        {
-          "id": "b",
-          "text": { "en": "At the money", "pt": "No dinheiro" }
+          "text": {
+            "en": "Out of the money",
+            "pt": "Fora do dinheiro"
+          }
         },
         {
           "id": "a",
-          "text": { "en": "In the money", "pt": "Dentro do dinheiro" }
+          "text": {
+            "en": "At the money",
+            "pt": "No dinheiro"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "In the money",
+            "pt": "Dentro do dinheiro"
+          }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "b",
       "explanation": {
         "en": "A put is in the money whenever the stock trades below its strike — the mirror of a call.",
         "pt": "Uma put está dentro do dinheiro sempre que a ação negocia abaixo do strike — o espelho da call."
@@ -112,19 +130,28 @@
       },
       "options": [
         {
-          "id": "a",
-          "text": { "en": "In the money", "pt": "Dentro do dinheiro" }
+          "id": "c",
+          "text": {
+            "en": "In the money",
+            "pt": "Dentro do dinheiro"
+          }
         },
         {
-          "id": "c",
-          "text": { "en": "Out of the money", "pt": "Fora do dinheiro" }
+          "id": "a",
+          "text": {
+            "en": "Out of the money",
+            "pt": "Fora do dinheiro"
+          }
         },
         {
           "id": "b",
-          "text": { "en": "At the money", "pt": "No dinheiro" }
+          "text": {
+            "en": "At the money",
+            "pt": "No dinheiro"
+          }
         }
       ],
-      "correctOptionId": "c",
+      "correctOptionId": "a",
       "explanation": {
         "en": "{{higherStrike}} sits above the {{spot}} spot, so a call there is out of the money.",
         "pt": "{{higherStrike}} está acima do spot de {{spot}}, então uma call ali está fora do dinheiro."
@@ -138,14 +165,14 @@
       },
       "options": [
         {
-          "id": "a",
+          "id": "c",
           "text": {
             "en": "A reading that changes every session as the stock price moves",
             "pt": "Uma leitura que muda a cada pregão conforme o preço da ação se move"
           }
         },
         {
-          "id": "c",
+          "id": "a",
           "text": {
             "en": "A fixed label a series keeps for its whole life",
             "pt": "Um rótulo fixo que a série mantém a vida toda"
@@ -159,7 +186,7 @@
           }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "c",
       "explanation": {
         "en": "Moneyness only compares today's stock price with the strike, so it moves every session.",
         "pt": "Moneyness só compara o preço de hoje da ação com o strike, então ela muda a cada pregão."

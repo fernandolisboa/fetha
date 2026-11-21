@@ -56,25 +56,28 @@
       },
       "options": [
         {
-          "id": "a",
+          "id": "b",
           "text": {
             "en": "The stock price minus the strike, floored at zero",
             "pt": "O preço da ação menos o strike, travado em zero"
           }
         },
         {
-          "id": "b",
-          "text": { "en": "The premium paid for it", "pt": "O prêmio pago por ela" }
+          "id": "c",
+          "text": {
+            "en": "The premium paid for it",
+            "pt": "O prêmio pago por ela"
+          }
         },
         {
-          "id": "c",
+          "id": "a",
           "text": {
             "en": "The strike minus the stock price, floored at zero",
             "pt": "O strike menos o preço da ação, travado em zero"
           }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "b",
       "explanation": {
         "en": "A call's intrinsic value is the stock price minus the strike, never negative.",
         "pt": "O valor intrínseco de uma call é o preço da ação menos o strike, nunca negativo."
@@ -88,16 +91,25 @@
       },
       "options": [
         {
-          "id": "b",
-          "text": { "en": "Equal to its full premium", "pt": "Igual ao prêmio inteiro" }
+          "id": "c",
+          "text": {
+            "en": "Equal to its full premium",
+            "pt": "Igual ao prêmio inteiro"
+          }
         },
         {
           "id": "a",
-          "text": { "en": "Zero", "pt": "Zero" }
+          "text": {
+            "en": "Zero",
+            "pt": "Zero"
+          }
         },
         {
-          "id": "c",
-          "text": { "en": "Negative", "pt": "Negativo" }
+          "id": "b",
+          "text": {
+            "en": "Negative",
+            "pt": "Negativo"
+          }
         }
       ],
       "correctOptionId": "a",
@@ -114,28 +126,28 @@
       },
       "options": [
         {
-          "id": "c",
+          "id": "b",
           "text": {
             "en": "Half intrinsic, half time value",
             "pt": "Metade intrínseco, metade valor do tempo"
           }
         },
         {
-          "id": "a",
+          "id": "c",
           "text": {
             "en": "Zero intrinsic, all of it time value",
             "pt": "Zero intrínseco, tudo valor do tempo"
           }
         },
         {
-          "id": "b",
+          "id": "a",
           "text": {
             "en": "All of it intrinsic, zero time value",
             "pt": "Tudo intrínseco, zero valor do tempo"
           }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "c",
       "explanation": {
         "en": "At the money, intrinsic value is zero by definition, so the entire premium is time value.",
         "pt": "No dinheiro, o valor intrínseco é zero por definição, então o prêmio inteiro é valor do tempo."
@@ -149,19 +161,28 @@
       },
       "options": [
         {
+          "id": "a",
+          "text": {
+            "en": "Pure time value",
+            "pt": "Valor do tempo puro"
+          }
+        },
+        {
           "id": "b",
-          "text": { "en": "Pure time value", "pt": "Valor do tempo puro" }
+          "text": {
+            "en": "Zero",
+            "pt": "Zero"
+          }
         },
         {
           "id": "c",
-          "text": { "en": "Zero", "pt": "Zero" }
-        },
-        {
-          "id": "a",
-          "text": { "en": "Pure intrinsic value", "pt": "Valor intrínseco puro" }
+          "text": {
+            "en": "Pure intrinsic value",
+            "pt": "Valor intrínseco puro"
+          }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "c",
       "explanation": {
         "en": "Deep in the money there is little room left to move further in the buyer's favor, so time value shrinks and the premium is mostly intrinsic.",
         "pt": "Bem dentro do dinheiro sobra pouco espaço para se mover mais a favor de quem comprou, então o valor do tempo encolhe e o prêmio fica majoritariamente intrínseco."

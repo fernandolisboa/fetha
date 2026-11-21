@@ -2,7 +2,10 @@
   "id": "long-put",
   "version": 1,
   "minutes": 6,
-  "title": { "en": "Long put", "pt": "Compra de put" },
+  "title": {
+    "en": "Long put",
+    "pt": "Compra de put"
+  },
   "summary": {
     "en": "The simplest bearish bet: pay a premium for a drop, risk only that premium.",
     "pt": "A aposta de baixa mais simples: paga um prêmio por uma queda, arriscando só esse prêmio."
@@ -70,8 +73,11 @@
       },
       "options": [
         {
-          "id": "b",
-          "text": { "en": "Unbounded", "pt": "Sem limite" }
+          "id": "c",
+          "text": {
+            "en": "Unbounded",
+            "pt": "Sem limite"
+          }
         },
         {
           "id": "a",
@@ -81,8 +87,11 @@
           }
         },
         {
-          "id": "c",
-          "text": { "en": "The premium paid", "pt": "O prêmio pago" }
+          "id": "b",
+          "text": {
+            "en": "The premium paid",
+            "pt": "O prêmio pago"
+          }
         }
       ],
       "correctOptionId": "a",
@@ -99,19 +108,28 @@
       },
       "options": [
         {
-          "id": "c",
-          "text": { "en": "Vega", "pt": "Vega" }
-        },
-        {
           "id": "a",
-          "text": { "en": "Theta", "pt": "Theta" }
+          "text": {
+            "en": "Vega",
+            "pt": "Vega"
+          }
         },
         {
           "id": "b",
-          "text": { "en": "Delta", "pt": "Delta" }
+          "text": {
+            "en": "Theta",
+            "pt": "Theta"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "Delta",
+            "pt": "Delta"
+          }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "b",
       "explanation": {
         "en": "Theta erodes a long option's time value every session, regardless of whether it is a call or a put.",
         "pt": "O theta corrói o valor do tempo de uma opção comprada a cada pregão, seja ela call ou put."
@@ -125,28 +143,28 @@
       },
       "options": [
         {
-          "id": "a",
+          "id": "b",
           "text": {
             "en": "Low relative to this underlying's own recent normal",
             "pt": "Baixa em relação ao normal recente deste ativo"
           }
         },
         {
-          "id": "b",
+          "id": "c",
           "text": {
             "en": "High relative to this underlying's own recent normal",
             "pt": "Alta em relação ao normal recente deste ativo"
           }
         },
         {
-          "id": "c",
+          "id": "a",
           "text": {
             "en": "It never matters for a long put",
             "pt": "Nunca importa para uma put comprada"
           }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "b",
       "explanation": {
         "en": "Buying a put outright is cheaper, and leaves room for volatility to rise, when IV rank is low.",
         "pt": "Comprar uma put direto fica mais barato, e deixa espaço para a volatilidade subir, quando o IV rank está baixo."
@@ -160,25 +178,28 @@
       },
       "options": [
         {
-          "id": "b",
+          "id": "a",
           "text": {
             "en": "Above the break-even of {{long-put.breakEven0}}",
             "pt": "Acima do break-even de {{long-put.breakEven0}}"
           }
         },
         {
-          "id": "c",
-          "text": { "en": "Exactly at the strike", "pt": "Exatamente no strike" }
+          "id": "b",
+          "text": {
+            "en": "Exactly at the strike",
+            "pt": "Exatamente no strike"
+          }
         },
         {
-          "id": "a",
+          "id": "c",
           "text": {
             "en": "Below the break-even of {{long-put.breakEven0}}",
             "pt": "Abaixo do break-even de {{long-put.breakEven0}}"
           }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "c",
       "explanation": {
         "en": "A put's payoff grows as the stock falls, so it only profits below its break-even.",
         "pt": "O payoff de uma put cresce conforme a ação cai, então ela só dá lucro abaixo do break-even."

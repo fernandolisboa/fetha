@@ -73,7 +73,10 @@
         },
         {
           "id": "c",
-          "text": { "en": "The option's strike price", "pt": "O preço do strike da opção" }
+          "text": {
+            "en": "The option's strike price",
+            "pt": "O preço do strike da opção"
+          }
         }
       ],
       "correctOptionId": "a",
@@ -97,18 +100,21 @@
           }
         },
         {
-          "id": "a",
+          "id": "c",
           "text": {
             "en": "A percentile of this underlying's own recent implied volatility readings",
             "pt": "Um percentil das próprias leituras recentes de volatilidade implícita deste ativo"
           }
         },
         {
-          "id": "c",
-          "text": { "en": "The VIX index", "pt": "O índice VIX" }
+          "id": "a",
+          "text": {
+            "en": "The VIX index",
+            "pt": "O índice VIX"
+          }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "c",
       "explanation": {
         "en": "IV rank, in Fetha, is a percentile against the underlying's own recent history, not a min-max scale and not a market-wide index like the VIX.",
         "pt": "O IV rank, na Fetha, é um percentil contra o próprio histórico recente do ativo, não uma escala mínimo-máximo e não um índice de mercado como o VIX."
@@ -122,19 +128,28 @@
       },
       "options": [
         {
-          "id": "c",
-          "text": { "en": "A falling stock price", "pt": "Um preço de ação em queda" }
-        },
-        {
           "id": "a",
-          "text": { "en": "High IV rank", "pt": "IV rank alto" }
+          "text": {
+            "en": "A falling stock price",
+            "pt": "Um preço de ação em queda"
+          }
         },
         {
           "id": "b",
-          "text": { "en": "Low IV rank", "pt": "IV rank baixo" }
+          "text": {
+            "en": "High IV rank",
+            "pt": "IV rank alto"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "Low IV rank",
+            "pt": "IV rank baixo"
+          }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "b",
       "explanation": {
         "en": "Selling premium pays off best when options are pricier than usual — high IV rank.",
         "pt": "Vender prêmio compensa mais quando as opções estão mais caras do que o normal — IV rank alto."
@@ -148,7 +163,7 @@
       },
       "options": [
         {
-          "id": "a",
+          "id": "b",
           "text": {
             "en": "The same raw percentage can be high for one stock and low for another",
             "pt": "O mesmo percentual bruto pode ser alto para uma ação e baixo para outra"
@@ -162,11 +177,14 @@
           }
         },
         {
-          "id": "b",
-          "text": { "en": "IV rank is always zero", "pt": "O IV rank é sempre zero" }
+          "id": "a",
+          "text": {
+            "en": "IV rank is always zero",
+            "pt": "O IV rank é sempre zero"
+          }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "b",
       "explanation": {
         "en": "A rank reads implied volatility relative to this underlying's own history, so the same recipe makes sense across very different stocks.",
         "pt": "Um rank lê a volatilidade implícita relativa ao próprio histórico do ativo, então a mesma receita faz sentido em ações bem diferentes."

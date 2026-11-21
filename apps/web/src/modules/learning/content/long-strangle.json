@@ -2,7 +2,10 @@
   "id": "long-strangle",
   "version": 1,
   "minutes": 7,
-  "title": { "en": "Long strangle", "pt": "Strangle comprado" },
+  "title": {
+    "en": "Long strangle",
+    "pt": "Strangle comprado"
+  },
   "summary": {
     "en": "A cheaper version of the straddle: buy an out-of-the-money call and put instead of the same strike.",
     "pt": "Uma versão mais barata do straddle: compra uma call e uma put fora do dinheiro, em vez do mesmo strike."
@@ -73,22 +76,28 @@
       },
       "options": [
         {
-          "id": "a",
+          "id": "b",
           "text": {
             "en": "Its call and put sit at different, out-of-the-money strikes",
             "pt": "A call e a put ficam em strikes diferentes, fora do dinheiro"
           }
         },
         {
-          "id": "b",
-          "text": { "en": "It only buys a call", "pt": "Só compra uma call" }
+          "id": "c",
+          "text": {
+            "en": "It only buys a call",
+            "pt": "Só compra uma call"
+          }
         },
         {
-          "id": "c",
-          "text": { "en": "It sells both legs", "pt": "Vende as duas pernas" }
+          "id": "a",
+          "text": {
+            "en": "It sells both legs",
+            "pt": "Vende as duas pernas"
+          }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "b",
       "explanation": {
         "en": "A straddle uses the same strike for both legs; a strangle spreads them apart, one put strike below the stock and one call strike above.",
         "pt": "Um straddle usa o mesmo strike para as duas pernas; um strangle espalha elas, um strike de put abaixo da ação e um de call acima."
@@ -103,15 +112,24 @@
       "options": [
         {
           "id": "b",
-          "text": { "en": "Exactly the same", "pt": "Exatamente o mesmo" }
+          "text": {
+            "en": "Exactly the same",
+            "pt": "Exatamente o mesmo"
+          }
         },
         {
           "id": "c",
-          "text": { "en": "More", "pt": "Mais" }
+          "text": {
+            "en": "More",
+            "pt": "Mais"
+          }
         },
         {
           "id": "a",
-          "text": { "en": "Less", "pt": "Menos" }
+          "text": {
+            "en": "Less",
+            "pt": "Menos"
+          }
         }
       ],
       "correctOptionId": "a",
@@ -128,22 +146,28 @@
       },
       "options": [
         {
-          "id": "c",
-          "text": { "en": "Identical to a straddle's", "pt": "Idênticos aos de um straddle" }
+          "id": "a",
+          "text": {
+            "en": "Identical to a straddle's",
+            "pt": "Idênticos aos de um straddle"
+          }
         },
         {
-          "id": "a",
+          "id": "b",
           "text": {
             "en": "Farther apart — a bigger move is needed to profit",
             "pt": "Mais distantes — um movimento maior é preciso para lucrar"
           }
         },
         {
-          "id": "b",
-          "text": { "en": "Closer together", "pt": "Mais próximos" }
+          "id": "c",
+          "text": {
+            "en": "Closer together",
+            "pt": "Mais próximos"
+          }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "b",
       "explanation": {
         "en": "Starting from out-of-the-money strikes already below and above the stock, the stock needs to move further still to clear each break-even.",
         "pt": "Partindo de strikes fora do dinheiro já abaixo e acima da ação, a ação precisa se mover ainda mais para passar de cada break-even."
@@ -157,7 +181,7 @@
       },
       "options": [
         {
-          "id": "b",
+          "id": "c",
           "text": {
             "en": "Never, only straddles are exposed to it",
             "pt": "Nunca, só straddles ficam expostos a isso"
@@ -171,7 +195,7 @@
           }
         },
         {
-          "id": "c",
+          "id": "b",
           "text": {
             "en": "Only the put leg, never the call",
             "pt": "Só a perna de put, nunca a de call"

@@ -59,28 +59,28 @@
       },
       "options": [
         {
-          "id": "a",
+          "id": "c",
           "text": {
             "en": "The premium paid",
             "pt": "O prêmio pago"
           }
         },
         {
-          "id": "b",
+          "id": "a",
           "text": {
             "en": "Unbounded",
             "pt": "Sem limite"
           }
         },
         {
-          "id": "c",
+          "id": "b",
           "text": {
             "en": "The full price of the underlying stock",
             "pt": "O preço integral da ação-objeto"
           }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "c",
       "explanation": {
         "en": "Buying an option risks only what was paid for it, worst case.",
         "pt": "Comprar uma opção arrisca, no pior caso, só o que foi pago por ela."
@@ -94,14 +94,14 @@
       },
       "options": [
         {
-          "id": "b",
+          "id": "a",
           "text": {
             "en": "A loss capped at the premium received",
             "pt": "Uma perda travada no prêmio recebido"
           }
         },
         {
-          "id": "a",
+          "id": "b",
           "text": {
             "en": "A loss that grows with the stock's rise, with no built-in ceiling",
             "pt": "Uma perda que cresce com a alta da ação, sem um teto natural"
@@ -115,7 +115,7 @@
           }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "b",
       "explanation": {
         "en": "A naked short call's loss grows as the stock rises past the break-even, with no ceiling of its own.",
         "pt": "A perda de uma call vendida a descoberto cresce conforme a ação sobe além do ponto de equilíbrio, sem um teto próprio."
@@ -129,28 +129,28 @@
       },
       "options": [
         {
-          "id": "b",
+          "id": "c",
           "text": {
             "en": "An amount with no upper bound",
             "pt": "Um valor sem limite superior"
           }
         },
         {
-          "id": "c",
+          "id": "a",
           "text": {
             "en": "The strike price",
             "pt": "O preço do strike"
           }
         },
         {
-          "id": "a",
+          "id": "b",
           "text": {
             "en": "{{short-call.maxGainAbs}}, the premium received",
             "pt": "{{short-call.maxGainAbs}}, o prêmio recebido"
           }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "b",
       "explanation": {
         "en": "The most a short call can ever earn is the premium it was sold for, if the stock stays at or below the strike.",
         "pt": "O máximo que uma call vendida pode ganhar é o prêmio pelo qual foi vendida, se a ação ficar no strike ou abaixo dele."
@@ -164,28 +164,28 @@
       },
       "options": [
         {
-          "id": "a",
+          "id": "c",
           "text": {
             "en": "Caps the loss at the stock's own downside instead of leaving it unbounded",
             "pt": "Trava a perda na própria queda da ação, em vez de deixá-la sem limite"
           }
         },
         {
-          "id": "b",
+          "id": "a",
           "text": {
             "en": "Removes all risk from writing the call",
             "pt": "Remove todo risco de lançar a call"
           }
         },
         {
-          "id": "c",
+          "id": "b",
           "text": {
             "en": "Doubles the premium received",
             "pt": "Dobra o prêmio recebido"
           }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "c",
       "explanation": {
         "en": "Owning the stock behind a short call turns the unbounded naked-call loss into the stock's own downside, at the cost of giving up gains above the strike.",
         "pt": "Ter a ação por trás da call vendida transforma a perda sem limite do lançamento a descoberto na própria queda da ação, ao custo de abrir mão dos ganhos acima do strike."

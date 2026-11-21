@@ -2,7 +2,10 @@
   "id": "put-butterfly",
   "version": 1,
   "minutes": 7,
-  "title": { "en": "Put butterfly", "pt": "Borboleta com puts" },
+  "title": {
+    "en": "Put butterfly",
+    "pt": "Borboleta com puts"
+  },
   "summary": {
     "en": "The same defined-risk sideways bet as the call butterfly, built from puts instead.",
     "pt": "A mesma aposta de lateralização e risco definido da borboleta com calls, montada com puts."
@@ -78,22 +81,28 @@
       },
       "options": [
         {
-          "id": "b",
+          "id": "a",
           "text": {
             "en": "The mirror image, flipped upside down",
             "pt": "O espelho, invertido de cabeça para baixo"
           }
         },
         {
-          "id": "a",
-          "text": { "en": "The same shape", "pt": "O mesmo formato" }
+          "id": "b",
+          "text": {
+            "en": "The same shape",
+            "pt": "O mesmo formato"
+          }
         },
         {
           "id": "c",
-          "text": { "en": "Unbounded on both sides", "pt": "Sem limite dos dois lados" }
+          "text": {
+            "en": "Unbounded on both sides",
+            "pt": "Sem limite dos dois lados"
+          }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "b",
       "explanation": {
         "en": "Buying the wings and selling twice the middle strike gives the same capped-loss, peaked-gain shape whether built from calls or puts.",
         "pt": "Comprar as pontas e vender o dobro no strike do meio dá o mesmo formato de perda travada e ganho em pico, seja montado com calls ou com puts."
@@ -142,19 +151,28 @@
       },
       "options": [
         {
-          "id": "a",
-          "text": { "en": "Exactly at the middle strike", "pt": "Exatamente no strike do meio" }
+          "id": "c",
+          "text": {
+            "en": "Exactly at the middle strike",
+            "pt": "Exatamente no strike do meio"
+          }
         },
         {
-          "id": "c",
-          "text": { "en": "At the lower strike", "pt": "No strike mais baixo" }
+          "id": "a",
+          "text": {
+            "en": "At the lower strike",
+            "pt": "No strike mais baixo"
+          }
         },
         {
           "id": "b",
-          "text": { "en": "At the higher strike", "pt": "No strike mais alto" }
+          "text": {
+            "en": "At the higher strike",
+            "pt": "No strike mais alto"
+          }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "c",
       "explanation": {
         "en": "Same as the call butterfly: the position peaks exactly at the middle strike, where the two sold puts are worth the most against the wings.",
         "pt": "Igual à borboleta com calls: a posição alcança o pico exatamente no strike do meio, onde as duas puts vendidas valem mais contra as pontas."
@@ -168,22 +186,28 @@
       },
       "options": [
         {
+          "id": "a",
+          "text": {
+            "en": "Always lower",
+            "pt": "Sempre menor"
+          }
+        },
+        {
           "id": "b",
-          "text": { "en": "Always lower", "pt": "Sempre menor" }
+          "text": {
+            "en": "Exactly the same",
+            "pt": "Exatamente o mesmo"
+          }
         },
         {
           "id": "c",
-          "text": { "en": "Exactly the same", "pt": "Exatamente o mesmo" }
-        },
-        {
-          "id": "a",
           "text": {
             "en": "Relatively higher, since each extra series adds its own bid-ask spread",
             "pt": "Relativamente maior, já que cada série extra soma seu próprio spread de compra e venda"
           }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "c",
       "explanation": {
         "en": "More legs means more series, each with its own liquidity cost at entry and exit.",
         "pt": "Mais pernas significam mais séries, cada uma com seu próprio custo de liquidez na entrada e na saída."

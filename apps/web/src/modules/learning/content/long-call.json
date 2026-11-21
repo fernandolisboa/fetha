@@ -2,7 +2,10 @@
   "id": "long-call",
   "version": 1,
   "minutes": 6,
-  "title": { "en": "Long call", "pt": "Compra de call" },
+  "title": {
+    "en": "Long call",
+    "pt": "Compra de call"
+  },
   "summary": {
     "en": "The simplest bullish bet: pay a premium for unlimited upside, risk only that premium.",
     "pt": "A aposta de alta mais simples: paga um prêmio por um potencial de alta sem limite, arriscando só esse prêmio."
@@ -71,15 +74,24 @@
       "options": [
         {
           "id": "a",
-          "text": { "en": "The premium paid", "pt": "O prêmio pago" }
+          "text": {
+            "en": "The premium paid",
+            "pt": "O prêmio pago"
+          }
         },
         {
           "id": "b",
-          "text": { "en": "Unbounded", "pt": "Sem limite" }
+          "text": {
+            "en": "Unbounded",
+            "pt": "Sem limite"
+          }
         },
         {
           "id": "c",
-          "text": { "en": "The strike price", "pt": "O preço do strike" }
+          "text": {
+            "en": "The strike price",
+            "pt": "O preço do strike"
+          }
         }
       ],
       "correctOptionId": "a",
@@ -131,22 +143,28 @@
       },
       "options": [
         {
-          "id": "b",
-          "text": { "en": "Helps a long call", "pt": "Ajuda a call comprada" }
+          "id": "a",
+          "text": {
+            "en": "Helps a long call",
+            "pt": "Ajuda a call comprada"
+          }
         },
         {
-          "id": "c",
+          "id": "b",
           "text": {
             "en": "Has no effect on a long call",
             "pt": "Não tem efeito sobre a call comprada"
           }
         },
         {
-          "id": "a",
-          "text": { "en": "Works against a long call", "pt": "Trabalha contra a call comprada" }
+          "id": "c",
+          "text": {
+            "en": "Works against a long call",
+            "pt": "Trabalha contra a call comprada"
+          }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "c",
       "explanation": {
         "en": "A long call's theta is negative: time value erodes with each session the stock does not move.",
         "pt": "O theta de uma call comprada é negativo: o valor do tempo corrói a cada pregão em que a ação não se move."
@@ -160,28 +178,28 @@
       },
       "options": [
         {
-          "id": "c",
+          "id": "a",
           "text": {
             "en": "Fall to that price for the position to profit",
             "pt": "Cair até esse preço para a posição lucrar"
           }
         },
         {
-          "id": "a",
+          "id": "b",
           "text": {
             "en": "Rise above that price for the position to profit",
             "pt": "Subir acima desse preço para a posição lucrar"
           }
         },
         {
-          "id": "b",
+          "id": "c",
           "text": {
             "en": "Stay exactly at that price forever",
             "pt": "Ficar exatamente nesse preço para sempre"
           }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "b",
       "explanation": {
         "en": "Above break-even, the call's intrinsic value exceeds the premium paid, and the position turns a profit.",
         "pt": "Acima do break-even, o valor intrínseco da call supera o prêmio pago, e a posição passa a ter lucro."

@@ -2,7 +2,10 @@
   "id": "long-straddle",
   "version": 1,
   "minutes": 7,
-  "title": { "en": "Long straddle", "pt": "Straddle comprado" },
+  "title": {
+    "en": "Long straddle",
+    "pt": "Straddle comprado"
+  },
   "summary": {
     "en": "A bet on a big move, either direction, by buying a call and a put at the same strike.",
     "pt": "Uma aposta num movimento grande, para qualquer lado, comprando uma call e uma put no mesmo strike."
@@ -80,18 +83,21 @@
           }
         },
         {
-          "id": "a",
+          "id": "c",
           "text": {
             "en": "A bought call and a bought put, same strike",
             "pt": "Uma call comprada e uma put comprada, mesmo strike"
           }
         },
         {
-          "id": "c",
-          "text": { "en": "Two bought calls", "pt": "Duas calls compradas" }
+          "id": "a",
+          "text": {
+            "en": "Two bought calls",
+            "pt": "Duas calls compradas"
+          }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "c",
       "explanation": {
         "en": "A straddle buys both a call and a put at the same strike, betting on a move either direction.",
         "pt": "Um straddle compra uma call e uma put no mesmo strike, apostando num movimento para qualquer lado."
@@ -106,7 +112,10 @@
       "options": [
         {
           "id": "c",
-          "text": { "en": "Stays exactly at the strike", "pt": "Fica exatamente no strike" }
+          "text": {
+            "en": "Stays exactly at the strike",
+            "pt": "Fica exatamente no strike"
+          }
         },
         {
           "id": "a",
@@ -117,7 +126,10 @@
         },
         {
           "id": "b",
-          "text": { "en": "Moves by any amount at all", "pt": "Se move por qualquer valor" }
+          "text": {
+            "en": "Moves by any amount at all",
+            "pt": "Se move por qualquer valor"
+          }
         }
       ],
       "correctOptionId": "a",
@@ -134,25 +146,28 @@
       },
       "options": [
         {
-          "id": "a",
+          "id": "b",
           "text": {
             "en": "Implied volatility collapses, taking time value down with it even if direction was right",
             "pt": "A volatilidade implícita despenca, levando o valor do tempo com ela mesmo se a direção estava certa"
           }
         },
         {
-          "id": "b",
-          "text": { "en": "The strike changes", "pt": "O strike muda" }
+          "id": "c",
+          "text": {
+            "en": "The strike changes",
+            "pt": "O strike muda"
+          }
         },
         {
-          "id": "c",
+          "id": "a",
           "text": {
             "en": "The expiry date moves earlier",
             "pt": "A data de vencimento muda para antes"
           }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "b",
       "explanation": {
         "en": "Both legs' premiums were pricing in the event's uncertainty; once it resolves, that uncertainty — and the premium with it — evaporates fast.",
         "pt": "Os prêmios das duas pernas estavam precificando a incerteza do evento; depois que ele se resolve, essa incerteza — e o prêmio junto com ela — evapora rápido."
@@ -166,22 +181,28 @@
       },
       "options": [
         {
+          "id": "a",
+          "text": {
+            "en": "Does not apply",
+            "pt": "Não se aplica"
+          }
+        },
+        {
           "id": "b",
-          "text": { "en": "Does not apply", "pt": "Não se aplica" }
+          "text": {
+            "en": "Works in the position's favor",
+            "pt": "Trabalha a favor da posição"
+          }
         },
         {
           "id": "c",
-          "text": { "en": "Works in the position's favor", "pt": "Trabalha a favor da posição" }
-        },
-        {
-          "id": "a",
           "text": {
             "en": "Erodes value about twice as fast as a single long option",
             "pt": "Corrói valor cerca de duas vezes mais rápido do que uma única opção comprada"
           }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "c",
       "explanation": {
         "en": "Each leg carries its own negative theta; with two bought legs, the combined decay roughly doubles a single long option's.",
         "pt": "Cada perna carrega seu próprio theta negativo; com duas pernas compradas, a corrosão combinada aproximadamente dobra a de uma única opção comprada."

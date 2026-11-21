@@ -2,7 +2,10 @@
   "id": "bear-put-spread",
   "version": 1,
   "minutes": 6,
-  "title": { "en": "Bear put spread", "pt": "Trava de baixa com puts" },
+  "title": {
+    "en": "Bear put spread",
+    "pt": "Trava de baixa com puts"
+  },
   "summary": {
     "en": "A cheaper, capped bet on a fall: sell a lower put to pay for the one you buy.",
     "pt": "Uma aposta de baixa mais barata e travada: vende uma put mais baixa para pagar a que você compra."
@@ -77,24 +80,27 @@
       "options": [
         {
           "id": "b",
-          "text": { "en": "Rises above the higher strike", "pt": "Sobe acima do strike mais alto" }
+          "text": {
+            "en": "Rises above the higher strike",
+            "pt": "Sobe acima do strike mais alto"
+          }
         },
         {
-          "id": "a",
+          "id": "c",
           "text": {
             "en": "Falls to or below the lower strike",
             "pt": "Cai até o strike mais baixo ou abaixo"
           }
         },
         {
-          "id": "c",
+          "id": "a",
           "text": {
             "en": "Stays exactly at the higher strike",
             "pt": "Fica exatamente no strike mais alto"
           }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "c",
       "explanation": {
         "en": "Max gain is reached once the stock falls to or past the lower strike — further decline does not add to it.",
         "pt": "O ganho máximo é alcançado quando a ação cai até o strike mais baixo ou além — queda adicional não aumenta mais."
@@ -108,25 +114,28 @@
       },
       "options": [
         {
-          "id": "c",
+          "id": "a",
           "text": {
             "en": "Costs more and has no cap on the gain",
             "pt": "Custa mais e não tem teto no ganho"
           }
         },
         {
-          "id": "a",
+          "id": "b",
           "text": {
             "en": "Costs less but caps the max gain",
             "pt": "Custa menos, mas trava o ganho máximo"
           }
         },
         {
-          "id": "b",
-          "text": { "en": "Has identical risk and reward", "pt": "Tem risco e retorno idênticos" }
+          "id": "c",
+          "text": {
+            "en": "Has identical risk and reward",
+            "pt": "Tem risco e retorno idênticos"
+          }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "b",
       "explanation": {
         "en": "Selling the lower put funds part of the bought put's premium, lowering the cost but capping the gain at the lower strike.",
         "pt": "Vender a put mais baixa financia parte do prêmio da put comprada, baixando o custo mas travando o ganho no strike mais baixo."
@@ -147,15 +156,18 @@
           }
         },
         {
-          "id": "c",
+          "id": "b",
           "text": {
             "en": "High relative to this underlying's own recent normal",
             "pt": "Alta em relação ao normal recente deste ativo"
           }
         },
         {
-          "id": "b",
-          "text": { "en": "It never matters here", "pt": "Nunca importa aqui" }
+          "id": "c",
+          "text": {
+            "en": "It never matters here",
+            "pt": "Nunca importa aqui"
+          }
         }
       ],
       "correctOptionId": "a",
@@ -180,7 +192,10 @@
         },
         {
           "id": "b",
-          "text": { "en": "Falls to zero", "pt": "Cai a zero" }
+          "text": {
+            "en": "Falls to zero",
+            "pt": "Cai a zero"
+          }
         },
         {
           "id": "c",

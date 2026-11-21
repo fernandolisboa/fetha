@@ -111,6 +111,26 @@ describe("the lesson catalog and its content files", () => {
     }
   });
 
+  // `correctOptionId` itself reaches the DOM as each radio's `value`, so a visitor who never
+  // looks at where an option is rendered could still pass by always picking the option whose id
+  // is, say, "a" (review round 2, finding #9): the same check as the position one above, but
+  // keyed on the id string rather than the array index.
+  it("never lets the same option id be correct often enough to pass by always picking it", () => {
+    for (const lesson of lessons) {
+      const ids = new Set(lesson.quiz.flatMap((question) => question.options.map((o) => o.id)));
+      for (const id of ids) {
+        const correctCount = lesson.quiz.filter(
+          (question) => question.correctOptionId === id,
+        ).length;
+        const ratio = correctCount / lesson.quiz.length;
+        expect(
+          ratio,
+          `lesson "${lesson.id}": always picking option id "${id}" scores ${String(ratio)}`,
+        ).toBeLessThan(PASSING_SCORE_RATIO);
+      }
+    }
+  });
+
   it("every placeholder in every lesson resolves against the illustrative market", async () => {
     const examples = await loadIllustrativeExamples();
     for (const lesson of lessons) {

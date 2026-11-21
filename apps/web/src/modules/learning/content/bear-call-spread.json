@@ -2,7 +2,10 @@
   "id": "bear-call-spread",
   "version": 1,
   "minutes": 6,
-  "title": { "en": "Bear call spread", "pt": "Trava de baixa com calls" },
+  "title": {
+    "en": "Bear call spread",
+    "pt": "Trava de baixa com calls"
+  },
   "summary": {
     "en": "A credit received up front, kept in full if the stock stays below the strike sold.",
     "pt": "Um crédito recebido na entrada, mantido por completo se a ação ficar abaixo do strike vendido."
@@ -76,22 +79,28 @@
       },
       "options": [
         {
-          "id": "a",
+          "id": "c",
           "text": {
             "en": "Up front, as the net credit",
             "pt": "Na entrada, como o crédito líquido"
           }
         },
         {
-          "id": "b",
-          "text": { "en": "Only if the stock falls to zero", "pt": "Só se a ação cair a zero" }
+          "id": "a",
+          "text": {
+            "en": "Only if the stock falls to zero",
+            "pt": "Só se a ação cair a zero"
+          }
         },
         {
-          "id": "c",
-          "text": { "en": "From the broker as interest", "pt": "Do corretor como juros" }
+          "id": "b",
+          "text": {
+            "en": "From the broker as interest",
+            "pt": "Do corretor como juros"
+          }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "c",
       "explanation": {
         "en": "Selling the lower-strike call for more than the higher-strike call bought costs gives a net credit at entry, the max this spread can gain.",
         "pt": "Vender a call de strike mais baixo por mais do que custa a call de strike mais alto comprada dá um crédito líquido na entrada, o máximo que essa trava pode ganhar."
@@ -105,19 +114,28 @@
       },
       "options": [
         {
-          "id": "c",
-          "text": { "en": "Above the higher strike", "pt": "Acima do strike mais alto" }
+          "id": "a",
+          "text": {
+            "en": "Above the higher strike",
+            "pt": "Acima do strike mais alto"
+          }
         },
         {
           "id": "b",
-          "text": { "en": "Exactly at the lower strike", "pt": "Exatamente no strike mais baixo" }
+          "text": {
+            "en": "Exactly at the lower strike",
+            "pt": "Exatamente no strike mais baixo"
+          }
         },
         {
-          "id": "a",
-          "text": { "en": "At or below the break-even", "pt": "No break-even ou abaixo" }
+          "id": "c",
+          "text": {
+            "en": "At or below the break-even",
+            "pt": "No break-even ou abaixo"
+          }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "c",
       "explanation": {
         "en": "Below its break-even the full credit stands as the profit; above it, the credit starts getting eaten by the spread's growing loss.",
         "pt": "Abaixo do break-even, o crédito inteiro fica como lucro; acima dele, o crédito começa a ser consumido pela perda crescente da trava."
@@ -131,14 +149,14 @@
       },
       "options": [
         {
-          "id": "b",
+          "id": "a",
           "text": {
             "en": "Low relative to this underlying's own recent normal",
             "pt": "Baixa em relação ao normal recente deste ativo"
           }
         },
         {
-          "id": "a",
+          "id": "b",
           "text": {
             "en": "High relative to this underlying's own recent normal",
             "pt": "Alta em relação ao normal recente deste ativo"
@@ -146,10 +164,13 @@
         },
         {
           "id": "c",
-          "text": { "en": "It never matters here", "pt": "Nunca importa aqui" }
+          "text": {
+            "en": "It never matters here",
+            "pt": "Nunca importa aqui"
+          }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "b",
       "explanation": {
         "en": "Richer options, from high IV rank, mean a bigger credit for selling the same strikes.",
         "pt": "Opções mais caras, de IV rank alto, significam um crédito maior ao vender os mesmos strikes."
@@ -164,21 +185,27 @@
       "options": [
         {
           "id": "c",
-          "text": { "en": "Every option is European-style", "pt": "Toda opção é do estilo europeu" }
-        },
-        {
-          "id": "b",
-          "text": { "en": "Calls can never be assigned", "pt": "Calls nunca podem ser atribuídas" }
+          "text": {
+            "en": "Every option is European-style",
+            "pt": "Toda opção é do estilo europeu"
+          }
         },
         {
           "id": "a",
+          "text": {
+            "en": "Calls can never be assigned",
+            "pt": "Calls nunca podem ser atribuídas"
+          }
+        },
+        {
+          "id": "b",
           "text": {
             "en": "Most equity calls are American-style",
             "pt": "A maioria das calls sobre ações é do estilo americano"
           }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "b",
       "explanation": {
         "en": "Most B3 equity calls can be exercised any time up to expiry, so a short call deep in the money can be assigned early.",
         "pt": "A maioria das calls sobre ações da B3 pode ser exercida em qualquer momento até o vencimento, então uma call vendida bem dentro do dinheiro pode ser atribuída antes do vencimento."

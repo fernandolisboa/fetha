@@ -2,7 +2,10 @@
   "id": "bull-put-spread",
   "version": 1,
   "minutes": 6,
-  "title": { "en": "Bull put spread", "pt": "Trava de alta com puts" },
+  "title": {
+    "en": "Bull put spread",
+    "pt": "Trava de alta com puts"
+  },
   "summary": {
     "en": "A credit received up front, kept in full if the stock stays above the strike sold.",
     "pt": "Um crédito recebido na entrada, mantido por completo se a ação ficar acima do strike vendido."
@@ -76,22 +79,28 @@
       },
       "options": [
         {
-          "id": "c",
-          "text": { "en": "At expiry only, never before", "pt": "Só no vencimento, nunca antes" }
+          "id": "a",
+          "text": {
+            "en": "At expiry only, never before",
+            "pt": "Só no vencimento, nunca antes"
+          }
         },
         {
-          "id": "a",
+          "id": "b",
           "text": {
             "en": "Up front, as the net credit",
             "pt": "Na entrada, como o crédito líquido"
           }
         },
         {
-          "id": "b",
-          "text": { "en": "From the broker as interest", "pt": "Do corretor como juros" }
+          "id": "c",
+          "text": {
+            "en": "From the broker as interest",
+            "pt": "Do corretor como juros"
+          }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "b",
       "explanation": {
         "en": "Selling the higher-strike put for more than the lower-strike put bought costs gives a net credit at entry, which is the max this spread can ever gain.",
         "pt": "Vender a put de strike mais alto por mais do que custa a put de strike mais baixo comprada dá um crédito líquido na entrada, que é o máximo que essa trava pode ganhar."
@@ -105,25 +114,28 @@
       },
       "options": [
         {
-          "id": "a",
+          "id": "c",
           "text": {
             "en": "High relative to this underlying's own recent normal",
             "pt": "Alta em relação ao normal recente deste ativo"
           }
         },
         {
-          "id": "b",
+          "id": "a",
           "text": {
             "en": "Low relative to this underlying's own recent normal",
             "pt": "Baixa em relação ao normal recente deste ativo"
           }
         },
         {
-          "id": "c",
-          "text": { "en": "It never matters here", "pt": "Nunca importa aqui" }
+          "id": "b",
+          "text": {
+            "en": "It never matters here",
+            "pt": "Nunca importa aqui"
+          }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "c",
       "explanation": {
         "en": "Richer options, from high IV rank, mean a bigger credit for selling the same strikes.",
         "pt": "Opções mais caras, de IV rank alto, significam um crédito maior ao vender os mesmos strikes."
@@ -137,22 +149,28 @@
       },
       "options": [
         {
-          "id": "b",
-          "text": { "en": "Always smaller than the credit", "pt": "Sempre menor que o crédito" }
-        },
-        {
           "id": "c",
-          "text": { "en": "Exactly equal to the credit", "pt": "Exatamente igual ao crédito" }
+          "text": {
+            "en": "Always smaller than the credit",
+            "pt": "Sempre menor que o crédito"
+          }
         },
         {
           "id": "a",
+          "text": {
+            "en": "Exactly equal to the credit",
+            "pt": "Exatamente igual ao crédito"
+          }
+        },
+        {
+          "id": "b",
           "text": {
             "en": "Several times the credit received",
             "pt": "Várias vezes o crédito recebido"
           }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "b",
       "explanation": {
         "en": "The width between the strikes minus the credit is usually a multiple of that credit, so position sizing should use the max loss, not the credit.",
         "pt": "A distância entre os strikes menos o crédito costuma ser um múltiplo desse crédito, então o tamanho da posição deveria usar a perda máxima, não o crédito."
@@ -173,14 +191,14 @@
           }
         },
         {
-          "id": "c",
+          "id": "b",
           "text": {
             "en": "Always assigned the day after it is sold",
             "pt": "Sempre atribuída no dia seguinte à venda"
           }
         },
         {
-          "id": "b",
+          "id": "c",
           "text": {
             "en": "American-style, assignable at any time",
             "pt": "Do estilo americano, atribuível a qualquer momento"

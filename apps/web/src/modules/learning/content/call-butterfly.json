@@ -2,7 +2,10 @@
   "id": "call-butterfly",
   "version": 1,
   "minutes": 7,
-  "title": { "en": "Call butterfly", "pt": "Borboleta com calls" },
+  "title": {
+    "en": "Call butterfly",
+    "pt": "Borboleta com calls"
+  },
   "summary": {
     "en": "A cheap, defined-risk bet that the stock settles near the middle strike at expiry.",
     "pt": "Uma aposta barata e de risco definido de que a ação feche perto do strike do meio no vencimento."
@@ -79,15 +82,24 @@
       "options": [
         {
           "id": "c",
-          "text": { "en": "Below the lower strike", "pt": "Abaixo do strike mais baixo" }
+          "text": {
+            "en": "Below the lower strike",
+            "pt": "Abaixo do strike mais baixo"
+          }
         },
         {
           "id": "a",
-          "text": { "en": "Exactly at the middle strike", "pt": "Exatamente no strike do meio" }
+          "text": {
+            "en": "Exactly at the middle strike",
+            "pt": "Exatamente no strike do meio"
+          }
         },
         {
           "id": "b",
-          "text": { "en": "Above the higher strike", "pt": "Acima do strike mais alto" }
+          "text": {
+            "en": "Above the higher strike",
+            "pt": "Acima do strike mais alto"
+          }
         }
       ],
       "correctOptionId": "a",
@@ -104,22 +116,28 @@
       },
       "options": [
         {
-          "id": "a",
+          "id": "c",
           "text": {
             "en": "Four: two bought, two sold",
             "pt": "Quatro: duas compradas, duas vendidas"
           }
         },
         {
-          "id": "b",
-          "text": { "en": "Two", "pt": "Duas" }
+          "id": "a",
+          "text": {
+            "en": "Two",
+            "pt": "Duas"
+          }
         },
         {
-          "id": "c",
-          "text": { "en": "Three, all bought", "pt": "Três, todas compradas" }
+          "id": "b",
+          "text": {
+            "en": "Three, all bought",
+            "pt": "Três, todas compradas"
+          }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "c",
       "explanation": {
         "en": "A call butterfly buys the lower and higher strikes (one each) and sells two at the middle strike — four legs in all.",
         "pt": "Uma borboleta com calls compra o strike mais baixo e o mais alto (um de cada) e vende duas no strike do meio — quatro pernas no total."
@@ -134,11 +152,17 @@
       "options": [
         {
           "id": "b",
-          "text": { "en": "Keeps growing without limit", "pt": "Continua crescendo sem limite" }
+          "text": {
+            "en": "Keeps growing without limit",
+            "pt": "Continua crescendo sem limite"
+          }
         },
         {
           "id": "c",
-          "text": { "en": "Is unbounded on one side only", "pt": "É sem limite só de um lado" }
+          "text": {
+            "en": "Is unbounded on one side only",
+            "pt": "É sem limite só de um lado"
+          }
         },
         {
           "id": "a",
@@ -162,25 +186,28 @@
       },
       "options": [
         {
-          "id": "c",
+          "id": "a",
           "text": {
             "en": "Nothing extra — more legs changes nothing",
             "pt": "Nada extra — mais pernas não muda nada"
           }
         },
         {
-          "id": "a",
+          "id": "b",
           "text": {
             "en": "Liquidity cost, since every series needs its own bid-ask crossed",
             "pt": "Custo de liquidez, já que cada série precisa cruzar seu próprio spread"
           }
         },
         {
-          "id": "b",
-          "text": { "en": "Unlimited loss", "pt": "Perda sem limite" }
+          "id": "c",
+          "text": {
+            "en": "Unlimited loss",
+            "pt": "Perda sem limite"
+          }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "b",
       "explanation": {
         "en": "Four series each carry their own bid-ask spread, so entering and exiting a butterfly costs more, relatively, than a single-leg or two-leg position.",
         "pt": "Quatro séries carregam cada uma seu próprio spread de compra e venda, então entrar e sair de uma borboleta custa mais, relativamente, do que uma posição de uma ou duas pernas."

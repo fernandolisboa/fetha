@@ -51,25 +51,28 @@
       },
       "options": [
         {
-          "id": "a",
+          "id": "b",
           "text": {
             "en": "How much an option's fair value changes per session, everything else held equal",
             "pt": "Quanto o valor justo de uma opção muda por pregão, tudo o mais mantido igual"
           }
         },
         {
-          "id": "b",
+          "id": "c",
           "text": {
             "en": "How much the stock moves per session",
             "pt": "Quanto a ação se move por pregão"
           }
         },
         {
-          "id": "c",
-          "text": { "en": "The option's strike price", "pt": "O preço do strike da opção" }
+          "id": "a",
+          "text": {
+            "en": "The option's strike price",
+            "pt": "O preço do strike da opção"
+          }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "b",
       "explanation": {
         "en": "Theta isolates the passage of time, holding the stock price, volatility and rates fixed.",
         "pt": "Theta isola a passagem do tempo, mantendo fixos o preço da ação, a volatilidade e as taxas."
@@ -84,15 +87,24 @@
       "options": [
         {
           "id": "b",
-          "text": { "en": "Zero", "pt": "Zero" }
+          "text": {
+            "en": "Zero",
+            "pt": "Zero"
+          }
         },
         {
           "id": "c",
-          "text": { "en": "Positive", "pt": "Positivo" }
+          "text": {
+            "en": "Positive",
+            "pt": "Positivo"
+          }
         },
         {
           "id": "a",
-          "text": { "en": "Negative", "pt": "Negativo" }
+          "text": {
+            "en": "Negative",
+            "pt": "Negativo"
+          }
         }
       ],
       "correctOptionId": "a",
@@ -117,11 +129,17 @@
         },
         {
           "id": "b",
-          "text": { "en": "Stay perfectly constant", "pt": "Ficar perfeitamente constante" }
+          "text": {
+            "en": "Stay perfectly constant",
+            "pt": "Ficar perfeitamente constante"
+          }
         },
         {
           "id": "c",
-          "text": { "en": "Slow down and stop", "pt": "Desacelerar e parar" }
+          "text": {
+            "en": "Slow down and stop",
+            "pt": "Desacelerar e parar"
+          }
         }
       ],
       "correctOptionId": "a",
@@ -138,25 +156,28 @@
       },
       "options": [
         {
-          "id": "c",
+          "id": "a",
           "text": {
             "en": "A guaranteed loss for every future session",
             "pt": "Uma perda garantida para todo pregão futuro"
           }
         },
         {
-          "id": "a",
+          "id": "b",
           "text": {
             "en": "A model read for the next session alone, with today's stock price and volatility held fixed",
             "pt": "Uma leitura do modelo só para o próximo pregão, com o preço da ação e a volatilidade de hoje mantidos fixos"
           }
         },
         {
-          "id": "b",
-          "text": { "en": "The option's entire premium", "pt": "O prêmio inteiro da opção" }
+          "id": "c",
+          "text": {
+            "en": "The option's entire premium",
+            "pt": "O prêmio inteiro da opção"
+          }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "b",
       "explanation": {
         "en": "Theta is a snapshot at one pricing instant; the next session's real decay depends on where the stock and its volatility actually end up.",
         "pt": "O theta é uma fotografia num instante de precificação; a corrosão real do próximo pregão depende de onde a ação e a volatilidade de fato ficarem."

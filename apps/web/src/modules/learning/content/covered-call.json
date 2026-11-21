@@ -2,7 +2,10 @@
   "id": "covered-call",
   "version": 1,
   "minutes": 6,
-  "title": { "en": "Covered call", "pt": "Lançamento coberto" },
+  "title": {
+    "en": "Covered call",
+    "pt": "Lançamento coberto"
+  },
   "summary": {
     "en": "Own the stock, sell a call against it, collect a premium in exchange for giving up gains above the strike.",
     "pt": "Tenha a ação, venda uma call contra ela, receba um prêmio em troca de abrir mão dos ganhos acima do strike."
@@ -76,8 +79,11 @@
       },
       "options": [
         {
-          "id": "b",
-          "text": { "en": "Removed entirely", "pt": "Removida por completo" }
+          "id": "c",
+          "text": {
+            "en": "Removed entirely",
+            "pt": "Removida por completo"
+          }
         },
         {
           "id": "a",
@@ -87,8 +93,11 @@
           }
         },
         {
-          "id": "c",
-          "text": { "en": "Doubled", "pt": "Dobrada" }
+          "id": "b",
+          "text": {
+            "en": "Doubled",
+            "pt": "Dobrada"
+          }
         }
       ],
       "correctOptionId": "a",
@@ -105,22 +114,28 @@
       },
       "options": [
         {
-          "id": "c",
-          "text": { "en": "Keeps growing without limit", "pt": "Continua crescendo sem limite" }
+          "id": "b",
+          "text": {
+            "en": "Keeps growing without limit",
+            "pt": "Continua crescendo sem limite"
+          }
         },
         {
-          "id": "a",
+          "id": "c",
           "text": {
             "en": "Is capped there, premium included",
             "pt": "Fica travado ali, prêmio incluído"
           }
         },
         {
-          "id": "b",
-          "text": { "en": "Drops to zero", "pt": "Cai a zero" }
+          "id": "a",
+          "text": {
+            "en": "Drops to zero",
+            "pt": "Cai a zero"
+          }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "c",
       "explanation": {
         "en": "The sold call offsets any further rise past the strike, so the gain caps there.",
         "pt": "A call vendida compensa qualquer alta adicional além do strike, então o ganho trava ali."
@@ -134,25 +149,28 @@
       },
       "options": [
         {
-          "id": "a",
+          "id": "b",
           "text": {
             "en": "Right before a dividend, if the call is deep in the money",
             "pt": "Pouco antes de um dividendo, se a call estiver bem dentro do dinheiro"
           }
         },
         {
-          "id": "b",
+          "id": "c",
           "text": {
             "en": "The instant the call is sold",
             "pt": "No instante em que a call é vendida"
           }
         },
         {
-          "id": "c",
-          "text": { "en": "Only after expiry", "pt": "Só depois do vencimento" }
+          "id": "a",
+          "text": {
+            "en": "Only after expiry",
+            "pt": "Só depois do vencimento"
+          }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "b",
       "explanation": {
         "en": "A deep-in-the-money American-style call is most likely to be exercised early right before a dividend, to capture it.",
         "pt": "Uma call americana bem dentro do dinheiro tem mais chance de ser exercida antes do vencimento pouco antes de um dividendo, para capturar ele."
@@ -166,25 +184,28 @@
       },
       "options": [
         {
-          "id": "a",
+          "id": "b",
           "text": {
             "en": "The call leg, to another strike or expiry",
             "pt": "A perna de call, para outro strike ou vencimento"
           }
         },
         {
-          "id": "b",
-          "text": { "en": "The stock position itself", "pt": "A própria posição na ação" }
+          "id": "c",
+          "text": {
+            "en": "The stock position itself",
+            "pt": "A própria posição na ação"
+          }
         },
         {
-          "id": "c",
+          "id": "a",
           "text": {
             "en": "Nothing — covered calls cannot be rolled",
             "pt": "Nada — lançamentos cobertos não podem ser rolados"
           }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "b",
       "explanation": {
         "en": "Rolling replaces the sold call with another one, further out or at a different strike, while the stock position stays as it is.",
         "pt": "Rolar troca a call vendida por outra, mais adiante ou num strike diferente, enquanto a posição na ação permanece como está."

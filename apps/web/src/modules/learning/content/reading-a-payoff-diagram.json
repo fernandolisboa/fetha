@@ -58,22 +58,28 @@
       },
       "options": [
         {
-          "id": "a",
+          "id": "c",
           "text": {
             "en": "Where the underlying stock could sit",
             "pt": "Onde a ação-objeto poderia estar"
           }
         },
         {
-          "id": "b",
-          "text": { "en": "Time until expiry", "pt": "O tempo até o vencimento" }
+          "id": "a",
+          "text": {
+            "en": "Time until expiry",
+            "pt": "O tempo até o vencimento"
+          }
         },
         {
-          "id": "c",
-          "text": { "en": "Implied volatility", "pt": "A volatilidade implícita" }
+          "id": "b",
+          "text": {
+            "en": "Implied volatility",
+            "pt": "A volatilidade implícita"
+          }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "c",
       "explanation": {
         "en": "The horizontal axis sweeps every possible stock price; the vertical axis reads the profit or loss at each one.",
         "pt": "O eixo horizontal percorre todo preço possível da ação; o eixo vertical lê o lucro ou perda em cada um."
@@ -87,22 +93,28 @@
       },
       "options": [
         {
-          "id": "b",
-          "text": { "en": "Always above it", "pt": "Sempre acima" }
-        },
-        {
           "id": "c",
-          "text": { "en": "Always exactly on top of it", "pt": "Sempre exatamente em cima" }
+          "text": {
+            "en": "Always above it",
+            "pt": "Sempre acima"
+          }
         },
         {
           "id": "a",
+          "text": {
+            "en": "Always exactly on top of it",
+            "pt": "Sempre exatamente em cima"
+          }
+        },
+        {
+          "id": "b",
           "text": {
             "en": "Below it while time value has not decayed away yet",
             "pt": "Abaixo dela enquanto o valor do tempo ainda não derreteu"
           }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "b",
       "explanation": {
         "en": "A position that still carries time value is worth less today than at expiry, so T+0 sits below the expiry line until that time value is gone.",
         "pt": "Uma posição que ainda carrega valor do tempo vale menos hoje do que no vencimento, então T+0 fica abaixo da linha de vencimento até esse valor do tempo acabar."
@@ -123,11 +135,14 @@
           }
         },
         {
-          "id": "c",
-          "text": { "en": "The strike price", "pt": "O preço do strike" }
+          "id": "b",
+          "text": {
+            "en": "The strike price",
+            "pt": "O preço do strike"
+          }
         },
         {
-          "id": "b",
+          "id": "c",
           "text": {
             "en": "The highest point of the expiry line",
             "pt": "O ponto mais alto da linha de vencimento"
@@ -148,19 +163,28 @@
       },
       "options": [
         {
-          "id": "b",
-          "text": { "en": "Are always far apart", "pt": "Estão sempre bem separadas" }
+          "id": "a",
+          "text": {
+            "en": "Are always far apart",
+            "pt": "Estão sempre bem separadas"
+          }
         },
         {
-          "id": "a",
-          "text": { "en": "Are the same thing", "pt": "São a mesma coisa" }
+          "id": "b",
+          "text": {
+            "en": "Are the same thing",
+            "pt": "São a mesma coisa"
+          }
         },
         {
           "id": "c",
-          "text": { "en": "No longer exist", "pt": "Deixam de existir" }
+          "text": {
+            "en": "No longer exist",
+            "pt": "Deixam de existir"
+          }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "b",
       "explanation": {
         "en": "All time value has decayed away by expiry, so the T+0 value and the expiry payoff converge into the same line.",
         "pt": "Todo o valor do tempo já derreteu no vencimento, então o valor de T+0 e o payoff de vencimento se tornam a mesma linha."
