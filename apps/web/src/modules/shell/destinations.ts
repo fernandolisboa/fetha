@@ -1,9 +1,18 @@
-import { Eye, Bell, TrendingUp, Wallet, BookOpen, Settings, type LucideIcon } from "lucide-react";
+import {
+  Eye,
+  Bell,
+  TrendingUp,
+  Wallet,
+  BookOpen,
+  GraduationCap,
+  Settings,
+  type LucideIcon,
+} from "lucide-react";
 
 import { t } from "./strings";
 
 export type DestinationHref =
-  "/" | "/sinais" | "/estrategias" | "/carteira" | "/diario" | "/configuracoes";
+  "/" | "/sinais" | "/estrategias" | "/carteira" | "/diario" | "/aprender" | "/configuracoes";
 
 export interface Destination {
   href: DestinationHref;
@@ -19,6 +28,7 @@ export function destinations(): Destination[] {
     { href: "/estrategias", label: t.destinations.strategies, icon: TrendingUp },
     { href: "/carteira", label: t.destinations.portfolio, icon: Wallet },
     { href: "/diario", label: t.destinations.journal, icon: BookOpen },
+    { href: "/aprender", label: t.destinations.learn, icon: GraduationCap },
     { href: "/configuracoes", label: t.destinations.settings, icon: Settings },
   ];
 }

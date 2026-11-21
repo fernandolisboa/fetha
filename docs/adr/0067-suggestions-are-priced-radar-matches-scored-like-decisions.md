@@ -233,7 +233,7 @@ facts list beside it. None of this changes items 1–6, 8–10 or the terms; it 
 ## Amendment (2026-11-21, PR #399)
 
 A per-user Aparência preference, `preferences.suggestion_density` (`full` | `compact`, default
-`full`, migration 0052, next to `theme` and `layout`, set from Configurações › Aparência with
+`full`, migration 0053, next to `theme` and `layout`, set from Configurações › Aparência with
 `setSuggestionDensityAction`), switches "Sugestões de hoje" and the radar tab's list between the
 card above (card A) and a one-line **compact row** (card B) per suggestion, for sweeping a long
 list: the title and scenario chip, "Arrisca `<valor>` · ganha até `<valor>`" (gain in `--up`, "sem

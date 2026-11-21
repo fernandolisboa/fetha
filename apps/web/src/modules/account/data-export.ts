@@ -7,6 +7,7 @@ import { AuthDataExport } from "@/modules/auth";
 import { AiSettingsDataExport } from "@/modules/ai-models";
 import { BacktestsDataExport } from "@/modules/backtests";
 import { DecisionsDataExport } from "@/modules/decisions";
+import { LessonProgressDataExport } from "@/modules/learning";
 import { PlanRulesDataExport } from "@/modules/plans";
 import { PortfolioDataExport } from "@/modules/portfolio";
 import { PreferencesDataExport } from "@/modules/preferences";
@@ -26,6 +27,7 @@ const SOURCES: readonly DataExportSource[] = [
   AuditDataExport,
   AiSettingsDataExport,
   PreferencesDataExport,
+  LessonProgressDataExport,
   WatchlistDataExport,
   RadarDataExport,
   StrategiesDataExport,

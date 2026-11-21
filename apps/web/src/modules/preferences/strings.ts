@@ -45,7 +45,7 @@ const en = {
     options: {
       workspace: {
         label: "Workspace",
-        description: "Side rail with the six destinations, market bar in the header.",
+        description: "Side rail with the destinations, market bar in the header.",
       },
       studio: {
         label: "Studio",
@@ -171,7 +171,7 @@ const ptBR = {
     options: {
       workspace: {
         label: "Workspace",
-        description: "Barra lateral com os seis destinos, barra de mercado no cabeçalho.",
+        description: "Barra lateral com os destinos, barra de mercado no cabeçalho.",
       },
       studio: {
         label: "Studio",

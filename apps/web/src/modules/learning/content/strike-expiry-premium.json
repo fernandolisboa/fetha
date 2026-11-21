@@ -1,0 +1,192 @@
+{
+  "id": "strike-expiry-premium",
+  "version": 2,
+  "minutes": 5,
+  "title": {
+    "en": "Strike, expiry and premium",
+    "pt": "Strike, vencimento e prêmio"
+  },
+  "summary": {
+    "en": "The three numbers that define any option, and a first look at in/at/out of the money.",
+    "pt": "Os três números que definem qualquer opção, e uma primeira olhada em dentro/no/fora do dinheiro."
+  },
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "The strike is the price fixed in the contract: what a call lets you buy at, or what a put lets you sell at. In this lesson's example the strike is {{lowerStrike}}, on a stock trading at {{spot}}.",
+        "pt": "O strike é o preço travado no contrato: é por ele que a call deixa comprar, ou a put deixa vender. No exemplo desta lição, o strike é {{lowerStrike}}, com a ação cotada a {{spot}}."
+      }
+    },
+    {
+      "type": "list",
+      "items": {
+        "en": [
+          "Expiry is the day the contract stops existing. On B3, equity options expire monthly, usually on the third Friday of the month (moved to the prior business day on a holiday).",
+          "B3 also lists weekly series between the monthly ones, on the liquid underlyings that have them; they follow the same mechanics, just with a shorter, weekly expiry."
+        ],
+        "pt": [
+          "O vencimento é o dia em que o contrato deixa de existir. Na B3, as opções sobre ações vencem uma vez por mês, geralmente na terceira sexta-feira (ou no pregão útil anterior, se cair em feriado).",
+          "A B3 também lista séries semanais entre as mensais, nos ativos líquidos que as têm; funcionam do mesmo jeito, só com um vencimento mais curto, de uma semana."
+        ]
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "The premium is what the option costs: {{long-call.premiumAbs}} for the call in this lesson's example, paid by the buyer to the seller when the position opens. That quote is per share; on B3 an option trades in lots of 100 shares, so the actual cash amount is the quoted premium times 100 (and again times however many lots the position holds).",
+        "pt": "O prêmio é o preço da opção: {{long-call.premiumAbs}} pela call do exemplo desta lição, pago por quem compra a quem vende, na abertura da posição. Essa cotação é por ação; na B3 uma opção negocia em lotes de 100 ações, então o valor em dinheiro de fato é o prêmio cotado vezes 100 (e de novo vezes quantos lotes a posição tiver)."
+      }
+    },
+    {
+      "type": "callout",
+      "tone": "info",
+      "text": {
+        "en": "Loosely: a call is “in the money” when the stock trades above its strike, “at the money” right at the strike, and “out of the money” below it (a put, the other way round). It is a useful first label, not the full picture — fundamentals goes deeper into what it means for a premium's value.",
+        "pt": "De forma simples: uma call está “dentro do dinheiro” quando a ação negocia acima do strike, “no dinheiro” exatamente no strike, e “fora do dinheiro” abaixo dele (a put, ao contrário). É uma etiqueta inicial útil, não o quadro completo — Fundamentos entra mais a fundo no que isso significa para o valor do prêmio."
+      }
+    }
+  ],
+  "quiz": [
+    {
+      "id": "q1",
+      "prompt": {
+        "en": "The strike is:",
+        "pt": "O strike é:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "The price fixed in the contract",
+            "pt": "O preço travado no contrato"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "The option's cost",
+            "pt": "O custo da opção"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "The day the contract expires",
+            "pt": "O dia em que o contrato vence"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "The strike is the exercise price; the premium is the cost, and expiry is the date.",
+        "pt": "O strike é o preço de exercício; o prêmio é o custo, e o vencimento é a data."
+      }
+    },
+    {
+      "id": "q2",
+      "prompt": {
+        "en": "On B3, equity options usually expire:",
+        "pt": "Na B3, as opções sobre ações costumam vencer:"
+      },
+      "options": [
+        {
+          "id": "b",
+          "text": {
+            "en": "Every day",
+            "pt": "Todo dia"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Once a month, around the third Friday",
+            "pt": "Uma vez por mês, em torno da terceira sexta-feira"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "Only once a year",
+            "pt": "Só uma vez por ano"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "The monthly cycle expires near the third Friday (moved a day earlier on a holiday); some liquid underlyings also have weekly series.",
+        "pt": "O ciclo mensal vence perto da terceira sexta-feira (um pregão antes, se cair em feriado); alguns ativos líquidos também têm séries semanais."
+      }
+    },
+    {
+      "id": "q3",
+      "prompt": {
+        "en": "The premium is paid:",
+        "pt": "O prêmio é pago:"
+      },
+      "options": [
+        {
+          "id": "b",
+          "text": {
+            "en": "By the seller to the buyer, at expiry",
+            "pt": "Por quem vende a quem compra, no vencimento"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "To B3, as a fee",
+            "pt": "À B3, como uma taxa"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "By the buyer to the seller, when the position opens",
+            "pt": "Por quem compra a quem vende, na abertura da posição"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "The premium changes hands once, from buyer to seller, at the trade — {{long-call.premiumAbs}} in this lesson's call.",
+        "pt": "O prêmio muda de mãos uma única vez, de quem compra para quem vende, no momento da negociação — {{long-call.premiumAbs}} na call desta lição."
+      }
+    },
+    {
+      "id": "q4",
+      "prompt": {
+        "en": "With the stock at {{spot}} and the call's strike at {{lowerStrike}}, this call is, loosely speaking:",
+        "pt": "Com a ação a {{spot}} e o strike da call em {{lowerStrike}}, essa call está, de forma simples:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "At the money (spot at the strike)",
+            "pt": "No dinheiro (ativo no strike)"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "Deep in the money",
+            "pt": "Bem dentro do dinheiro"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "Deep out of the money",
+            "pt": "Bem fora do dinheiro"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "The strike equals the spot in this example, so the call sits right at the money.",
+        "pt": "O strike é igual ao preço do ativo neste exemplo, então a call está exatamente no dinheiro."
+      }
+    }
+  ]
+}

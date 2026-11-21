@@ -1,5 +1,5 @@
 {
-  "id": "8a1ceb7a-59a1-4067-bde5-2a9d72a69da0",
+  "id": "481c11ec-f4f4-4ffe-8bc1-7066d25c3136",
   "prevId": "eca03c20-a700-4d44-85bd-9c2596a0ff53",
   "version": "7",
   "dialect": "postgresql",
@@ -2647,6 +2647,84 @@
       },
       "isRLSEnabled": false
     },
+    "public.lesson_progress": {
+      "name": "lesson_progress",
+      "schema": "",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lesson_id": {
+          "name": "lesson_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lesson_version": {
+          "name": "lesson_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "best_correct": {
+          "name": "best_correct",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "total": {
+          "name": "total",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "first_passed_at": {
+          "name": "first_passed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "lesson_progress_user_id_user_id_fk": {
+          "name": "lesson_progress_user_id_user_id_fk",
+          "tableFrom": "lesson_progress",
+          "tableTo": "user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "lesson_progress_user_id_lesson_id_pk": {
+          "name": "lesson_progress_user_id_lesson_id_pk",
+          "columns": [
+            "user_id",
+            "lesson_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.candles": {
       "name": "candles",
       "schema": "",
@@ -4616,13 +4694,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'workspace'"
-        },
-        "suggestion_density": {
-          "name": "suggestion_density",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'full'"
         },
         "rail_collapsed": {
           "name": "rail_collapsed",

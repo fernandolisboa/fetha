@@ -7,7 +7,11 @@ const e2eSecret = process.env.E2E_SECRET;
 
 test.skip(!e2eSecret, "E2E_SECRET is not set; skipping the workstation shell flow.");
 
-test("shell renders after login with the six destinations", async ({ page, baseURL, request }) => {
+test("shell renders after login with the seven destinations", async ({
+  page,
+  baseURL,
+  request,
+}) => {
   await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
 
   const rail = page.getByRole("navigation", { name: "Navegação principal" });
@@ -17,6 +21,7 @@ test("shell renders after login with the six destinations", async ({ page, baseU
     "Estratégias",
     "Carteira",
     "Diário",
+    "Aprender",
     "Configurações",
   ]) {
     await expect(rail.getByRole("link", { name })).toBeVisible();
@@ -24,7 +29,7 @@ test("shell renders after login with the six destinations", async ({ page, baseU
   await expect(page.getByTestId("market-bar")).toBeVisible();
 });
 
-test("under 768px the rail becomes a bottom tab bar with the six destinations", async ({
+test("under 768px the rail becomes a bottom tab bar with the seven destinations", async ({
   page,
   baseURL,
   request,
@@ -35,7 +40,15 @@ test("under 768px the rail becomes a bottom tab bar with the six destinations", 
   const navigation = page.getByRole("navigation", { name: "Navegação principal" });
   await expect(navigation).toHaveCount(1);
   await expect(navigation).toHaveAttribute("data-tour", "tab-bar");
-  const names = ["Watchlist", "Sinais", "Estratégias", "Carteira", "Diário", "Configurações"];
+  const names = [
+    "Watchlist",
+    "Sinais",
+    "Estratégias",
+    "Carteira",
+    "Diário",
+    "Aprender",
+    "Configurações",
+  ];
   for (const name of names) {
     const link = navigation.getByRole("link", { name });
     await expect(link).toBeVisible();
@@ -482,6 +495,7 @@ test("account menu opens the Como usar guide, one section per destination", asyn
     "Estratégias",
     "Carteira",
     "Diário",
+    "Aprender",
     "Configurações",
   ]) {
     await expect(main.getByRole("heading", { level: 2, name })).toBeVisible();
@@ -603,24 +617,48 @@ test("Como usar lays its sections in two columns on a wide monitor", async ({
   await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
   await page.goto("/como-usar");
   const main = page.getByRole("main");
-  const watchlist = main.getByRole("heading", { level: 2, name: "Watchlist" });
-  const portfolio = main.getByRole("heading", { level: 2, name: "Carteira" });
+
+  // Same split rule as `how-to-use-guide.tsx`'s `sectionColumns`: the first
+  // `ceil(n/2)` sections form the first column, so the first heading of the
+  // second column moves whenever a destination is added or removed, rather
+  // than naming one by hand.
+  const guideSectionNames = [
+    "Watchlist",
+    "Sinais",
+    "Estratégias",
+    "Carteira",
+    "Diário",
+    "Aprender",
+    "Configurações",
+  ];
+  const firstColumnSize = Math.ceil(guideSectionNames.length / 2);
+  const firstOfFirstColumn = guideSectionNames[0];
+  const firstOfSecondColumn = guideSectionNames[firstColumnSize];
+  if (!firstOfFirstColumn || !firstOfSecondColumn) {
+    throw new Error("fixture destination list is too short for a two-column check");
+  }
+
+  const firstColumnHeading = main.getByRole("heading", { level: 2, name: firstOfFirstColumn });
+  const secondColumnHeading = main.getByRole("heading", { level: 2, name: firstOfSecondColumn });
 
   await page.setViewportSize({ width: 1920, height: 1080 });
   await expect
     .poll(async () => {
-      const watchlistBox = await watchlist.boundingBox();
-      const portfolioBox = await portfolio.boundingBox();
-      return (portfolioBox?.x ?? 0) > (watchlistBox?.x ?? 0) && portfolioBox?.y === watchlistBox?.y;
+      const firstColumnBox = await firstColumnHeading.boundingBox();
+      const secondColumnBox = await secondColumnHeading.boundingBox();
+      return (
+        (secondColumnBox?.x ?? 0) > (firstColumnBox?.x ?? 0) &&
+        secondColumnBox?.y === firstColumnBox?.y
+      );
     })
     .toBe(true);
 
   await page.setViewportSize({ width: 390, height: 844 });
   await expect
     .poll(async () => {
-      const watchlistBox = await watchlist.boundingBox();
-      const portfolioBox = await portfolio.boundingBox();
-      return (portfolioBox?.y ?? 0) > (watchlistBox?.y ?? 0);
+      const firstColumnBox = await firstColumnHeading.boundingBox();
+      const secondColumnBox = await secondColumnHeading.boundingBox();
+      return (secondColumnBox?.y ?? 0) > (firstColumnBox?.y ?? 0);
     })
     .toBe(true);
 });

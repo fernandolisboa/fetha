@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { destinations, formatUnreadCount, isActiveDestination } from "../destinations";
 import { t } from "../strings";
 
-// The Studio layout's navigation (ADR-0069): the same six destinations as the
+// The Studio layout's navigation (ADR-0069): the same destinations as the
 // rail, as tabs in the header. Labels show from 1280px; below that the tabs
 // are icons with the label as their accessible name, like the collapsed rail.
 export function TopNav({ unreadSignalCount }: { unreadSignalCount: number }) {

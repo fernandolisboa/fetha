@@ -369,8 +369,15 @@
     {
       "idx": 52,
       "version": "7",
-      "when": 1795291355853,
-      "tag": "0052_suggestion_density",
+      "when": 1795284379678,
+      "tag": "0052_lesson_progress",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1795295031415,
+      "tag": "0053_suggestion_density",
       "breakpoints": true
     }
   ]

@@ -99,10 +99,10 @@ describe("SuggestionRow", () => {
       createElement(SuggestionRow, { suggestion: suggestion(), risk: null, actions: null }),
     );
     expect(html).toContain(
-      '<b class="text-foreground font-mono tabular-nums whitespace-nowrap">R$ 11,00</b>',
+      '<b class="text-foreground font-mono whitespace-nowrap tabular-nums">R$ 11,00</b>',
     );
     expect(html).toContain(
-      '<b class="font-mono tabular-nums whitespace-nowrap" style="color:var(--up)">R$ 39,00</b>',
+      '<b class="font-mono whitespace-nowrap tabular-nums" style="color:var(--up)">R$ 39,00</b>',
     );
     expect(html).toContain('<span class="whitespace-nowrap">R$ 8,89</span>');
     expect(html).toContain('<span class="whitespace-nowrap">R$ 9,67</span>');

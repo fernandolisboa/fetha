@@ -9,23 +9,25 @@ import {
   ILLUSTRATIVE_SPOT,
   ILLUSTRATIVE_UNDERLYING,
   illustrativeLegs,
-  loadOptions101Examples,
-} from "./options-101";
+  loadIllustrativeExamples,
+} from "./illustrative-market";
 import { catalog } from "@/modules/strategies";
 
-describe("loadOptions101Examples", () => {
-  it("prices the illustrative long call, long put and bull call spread through the engine", async () => {
-    const examples = await loadOptions101Examples();
+describe("loadIllustrativeExamples", () => {
+  it("prices the illustrative long call, long put, short call and bull call spread through the engine", async () => {
+    const examples = await loadIllustrativeExamples();
 
     expect(examples.underlying).toBe(ILLUSTRATIVE_UNDERLYING);
     expect(examples.spot).toBe(ILLUSTRATIVE_SPOT);
-    expect(examples.longCall.payoff.length).toBeGreaterThan(0);
-    expect(examples.longPut.payoff.length).toBeGreaterThan(0);
-    expect(examples.bullCallSpread.payoff.length).toBeGreaterThan(0);
+    expect(examples["long-call"].payoff.length).toBeGreaterThan(0);
+    expect(examples["long-put"].payoff.length).toBeGreaterThan(0);
+    expect(examples["short-call"].payoff.length).toBeGreaterThan(0);
+    expect(examples["bull-call-spread"].payoff.length).toBeGreaterThan(0);
   });
 
   it("bounds the long call's loss at the premium paid and leaves its gain unbounded", async () => {
-    const { longCall } = await loadOptions101Examples();
+    const examples = await loadIllustrativeExamples();
+    const longCall = examples["long-call"];
 
     expect(longCall.maxGain).toBe("unbounded");
     expect(longCall.maxLoss).not.toBe("unbounded");
@@ -33,8 +35,19 @@ describe("loadOptions101Examples", () => {
     expect(longCall.maxLoss).toBe(Math.round(Number(ILLUSTRATIVE_CALL_PREMIUM) * 100));
   });
 
+  it("mirrors the long call into an unbounded loss and a premium-sized gain for the short call", async () => {
+    const examples = await loadIllustrativeExamples();
+    const shortCall = examples["short-call"];
+
+    expect(shortCall.maxLoss).toBe("unbounded");
+    expect(shortCall.maxGain).not.toBe("unbounded");
+    if (shortCall.maxGain === "unbounded") return;
+    expect(shortCall.maxGain).toBe(Math.round(Number(ILLUSTRATIVE_CALL_PREMIUM) * 100));
+  });
+
   it("bounds the long put's loss at the premium paid and its gain at the strike minus the premium", async () => {
-    const { longPut } = await loadOptions101Examples();
+    const examples = await loadIllustrativeExamples();
+    const longPut = examples["long-put"];
 
     expect(longPut.maxGain).not.toBe("unbounded");
     expect(longPut.maxLoss).not.toBe("unbounded");
@@ -46,8 +59,8 @@ describe("loadOptions101Examples", () => {
   });
 
   it("bounds the bull call spread's loss and gain within the net debit and the strike width", async () => {
-    const { bullCallSpread } = await loadOptions101Examples();
-    const { maxLoss, maxGain, netPremium } = bullCallSpread;
+    const examples = await loadIllustrativeExamples();
+    const { maxLoss, maxGain, netPremium } = examples["bull-call-spread"];
 
     expect(maxLoss).not.toBe("unbounded");
     expect(maxGain).not.toBe("unbounded");
