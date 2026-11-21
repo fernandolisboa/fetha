@@ -2,7 +2,7 @@ import { expect, test } from "./tour";
 
 import { registerAndSignIn } from "./helpers";
 
-// Runs by hand against a Vercel preview deployment; see apps/web/e2e/README.md.
+// Runs in CI (and by hand) whenever E2E_SECRET is set; see apps/web/e2e/README.md.
 const e2eSecret = process.env.E2E_SECRET;
 
 test.skip(!e2eSecret, "E2E_SECRET is not set; skipping the learning flow.");

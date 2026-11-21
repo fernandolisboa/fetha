@@ -10,7 +10,7 @@ import { timingSafeEqualStrings } from "../verification-link/timing-safe-equal-s
 // without hardcoding them in the spec, where a content edit would silently
 // break the test. The catalog is shared reference data (ADR-0012), not
 // user-scoped, so this reads no one's data.
-export function GET(request: Request): Response {
+export async function GET(request: Request): Promise<Response> {
   const configuredSecret = readE2ESecret();
   if (isProductionDeployment() || !configuredSecret) {
     return new NextResponse(null, { status: 404 });
@@ -22,7 +22,7 @@ export function GET(request: Request): Response {
   }
 
   const lessonId = new URL(request.url).searchParams.get("lesson") ?? "";
-  const answers = getLessonQuizAnswersForE2E(lessonId);
+  const answers = await getLessonQuizAnswersForE2E(lessonId);
   if (!answers) {
     return NextResponse.json({ error: "unknown lesson" }, { status: 404 });
   }
