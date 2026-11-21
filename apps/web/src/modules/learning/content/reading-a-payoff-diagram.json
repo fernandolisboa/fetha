@@ -29,8 +29,8 @@
     {
       "type": "paragraph",
       "text": {
-        "en": "The T+0 line always sits below the expiry line for a position that cost a premium: it still carries time value that has not decayed away yet (the fundamentals lesson on intrinsic vs. time value, and theta, explain why). As expiry gets closer, the two lines converge; at expiry itself, T+0 and the expiry line are the same thing.",
-        "pt": "A linha de T+0 sempre fica abaixo da linha de vencimento numa posição que custou um prêmio: ela ainda carrega valor do tempo que não derreteu ainda (as lições de valor intrínseco vs. valor do tempo, e de theta, explicam o porquê). Conforme o vencimento se aproxima, as duas linhas se aproximam; no próprio vencimento, T+0 e a linha de vencimento são a mesma coisa."
+        "en": "For a single bought option, the T+0 line always sits above the expiry line: it still carries time value that has not decayed away yet, so it is worth more today than its bare intrinsic value at expiry (the fundamentals lesson on intrinsic vs. time value, and theta, explain why). As expiry gets closer, the two lines converge; at expiry itself, T+0 and the expiry line are the same thing. A multi-leg structure can order the two lines differently at different stock prices, since each leg's own time value decays at its own pace.",
+        "pt": "Numa opção comprada isolada, a linha de T+0 sempre fica acima da linha de vencimento: ela ainda carrega valor do tempo que não derreteu ainda, então vale mais hoje do que seu valor intrínseco puro no vencimento (as lições de valor intrínseco vs. valor do tempo, e de theta, explicam o porquê). Conforme o vencimento se aproxima, as duas linhas se aproximam; no próprio vencimento, T+0 e a linha de vencimento são a mesma coisa. Numa estrutura com várias pontas, a ordem entre as duas linhas pode variar conforme o preço da ação, já que o valor do tempo de cada ponta derrete no seu próprio ritmo."
       }
     },
     {
@@ -95,8 +95,8 @@
         {
           "id": "c",
           "text": {
-            "en": "Always above it",
-            "pt": "Sempre acima"
+            "en": "Always below it",
+            "pt": "Sempre abaixo"
           }
         },
         {
@@ -109,15 +109,15 @@
         {
           "id": "b",
           "text": {
-            "en": "Below it while time value has not decayed away yet",
-            "pt": "Abaixo dela enquanto o valor do tempo ainda não derreteu"
+            "en": "Above it while time value has not decayed away yet",
+            "pt": "Acima dela enquanto o valor do tempo ainda não derreteu"
           }
         }
       ],
       "correctOptionId": "b",
       "explanation": {
-        "en": "A position that still carries time value is worth less today than at expiry, so T+0 sits below the expiry line until that time value is gone.",
-        "pt": "Uma posição que ainda carrega valor do tempo vale menos hoje do que no vencimento, então T+0 fica abaixo da linha de vencimento até esse valor do tempo acabar."
+        "en": "A position that still carries time value is worth more today than its bare value at expiry, so T+0 sits above the expiry line until that time value is gone.",
+        "pt": "Uma posição que ainda carrega valor do tempo vale mais hoje do que seu valor puro no vencimento, então T+0 fica acima da linha de vencimento até esse valor do tempo acabar."
       }
     },
     {

@@ -20,16 +20,16 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "type": "payoff-example",
     },
     {
-      "text": "O ganho máximo é o crédito líquido recebido, R$ 0,90, mantido por completo abaixo do break-even de R$ 20,90. A perda máxima é travada em R$ 1,10 assim que a ação chega ao strike mais alto — a distância entre os dois strikes menos o crédito recebido.",
+      "text": "O ganho máximo é o crédito líquido recebido, R$ 0,73, mantido por completo no strike vendido ou abaixo dele; subindo a partir daí, ele encolhe até zero exatamente no break-even de R$ 20,73, e então se torna uma perda crescente. A perda máxima é travada em R$ 1,27 assim que a ação chega ao strike mais alto — a distância entre os dois strikes menos o crédito recebido.",
       "type": "paragraph",
     },
     {
-      "text": "A call vendida costuma ser do estilo americano, então carrega risco de atribuição antecipada se ficar bem dentro do dinheiro, especialmente perto de uma data de dividendo; a perda máxima de uma trava de crédito costuma ser várias vezes o crédito recebido, então dimensione por essa perda máxima; uma alta forte e rápida pode romper o break-even antes de dar tempo de reagir.",
+      "text": "A call vendida costuma ser do estilo americano, então carrega risco de atribuição antecipada se ficar bem dentro do dinheiro; na B3, porém, um provento em dinheiro ajusta o próprio strike (ADR-0070), então uma data de dividendo por si só raramente torna vantajoso exercer antecipadamente. Dimensione pela perda máxima, não pelo crédito — aqui R$ 1,27 contra um crédito de R$ 0,73; uma alta forte e rápida pode romper o break-even antes de dar tempo de reagir.",
       "tone": "warning",
       "type": "callout",
     },
     {
-      "text": "O Montar plano da Fetha define, para as duas pernas juntas, o alvo de lucro, o stop e a saída por dias até o vencimento da própria receita; o Rolar permite levar a trava inteira para um vencimento mais distante sem encerrar ela antes.",
+      "text": "O Montar plano da Fetha define, para as duas pernas juntas, o alvo de lucro, o stop e a saída por dias até o vencimento da própria receita; o Rolar permite levar a trava inteira para um vencimento mais distante sem encerrá-la antes.",
       "type": "paragraph",
     },
     {
@@ -49,11 +49,11 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "prompt": "O ganho máximo de uma trava de baixa com calls é recebido:",
     },
     {
-      "correctOptionId": "c",
-      "explanation": "Abaixo do break-even, o crédito inteiro fica como lucro; acima dele, o crédito começa a ser consumido pela perda crescente da trava.",
+      "correctOptionId": "b",
+      "explanation": "No strike vendido ou abaixo dele, nenhuma das calls tem valor intrínseco e o crédito inteiro fica como lucro; acima dele, o crédito começa a ser consumido pelo valor intrínseco crescente da call vendida, chegando a zero exatamente no break-even.",
       "options": [
         "Acima do strike mais alto",
-        "Exatamente no strike mais baixo",
+        "No strike mais baixo ou abaixo",
         "No break-even ou abaixo",
       ],
       "prompt": "Essa estrutura mantém o ganho máximo inteiro enquanto a ação terminar:",
@@ -69,7 +69,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "prompt": "Uma trava de baixa com calls encaixa melhor com a volatilidade implícita:",
     },
     {
-      "correctOptionId": "b",
+      "correctOptionId": "c",
       "explanation": "A maioria das calls sobre ações da B3 pode ser exercida em qualquer momento até o vencimento, então uma call vendida bem dentro do dinheiro pode ser atribuída antes do vencimento.",
       "options": [
         "Toda opção é do estilo europeu",
@@ -88,7 +88,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
 {
   "blocks": [
     {
-      "text": "Use uma trava de baixa com puts para a mesma visão de baixa da put comprada, quando abrir mão do ganho abaixo do strike mais baixo é aceitável por um prêmio líquido menor. Encaixa com IV rank baixo, como a put comprada: as duas pernas são puts, então uma alta de volatilidade ajuda um pouco mais a perna comprada do que machuca a vendida.",
+      "text": "Use uma trava de baixa com puts para a mesma visão de baixa da put comprada, quando abrir mão do ganho abaixo do strike mais baixo é aceitável por um prêmio líquido menor. Encaixa com IV rank baixo, como a put comprada: a perna comprada fica mais perto do dinheiro do que a vendida, então o vega dela costuma pesar mais, deixando o vega líquido da trava positivo como o de uma put comprada — confira o vega de cada perna em vez de supor pelos strikes.",
       "type": "paragraph",
     },
     {
@@ -104,7 +104,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "type": "payoff-example",
     },
     {
-      "text": "A perda máxima é o débito líquido pago, R$ 0,40, acima do break-even de R$ 19,60. O ganho máximo é travado em R$ 0,60 assim que a ação chega ao strike mais baixo — a distância entre os dois strikes menos o que foi pago pela trava.",
+      "text": "A perda máxima é o débito líquido pago, R$ 0,49, mantida por completo no strike comprado ou acima dele; caindo a partir daí, ela encolhe até zero exatamente no break-even de R$ 19,51, e então se torna um ganho crescente. O ganho máximo é travado em R$ 0,51 assim que a ação chega ao strike mais baixo — a distância entre os dois strikes menos o que foi pago pela trava.",
       "type": "paragraph",
     },
     {
@@ -113,7 +113,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "type": "callout",
     },
     {
-      "text": "O Montar plano da Fetha define, para as duas pernas juntas, o alvo de lucro, o stop e a saída por dias até o vencimento da própria receita; o Rolar permite levar a trava inteira para um vencimento mais distante sem encerrar ela antes.",
+      "text": "O Montar plano da Fetha define, para as duas pernas juntas, o alvo de lucro, o stop e a saída por dias até o vencimento da própria receita; o Rolar permite levar a trava inteira para um vencimento mais distante sem encerrá-la antes.",
       "type": "paragraph",
     },
     {
@@ -144,7 +144,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
     },
     {
       "correctOptionId": "a",
-      "explanation": "As duas pernas têm o mesmo sinal de vega de uma put comprada, então opções baratas (IV rank baixo) servem bem, como na put comprada.",
+      "explanation": "Só o vega líquido da trava carrega o sinal positivo da put comprada — o vega da própria perna vendida é negativo; opções baratas (IV rank baixo) ainda servem bem para a posição como um todo, como na put comprada.",
       "options": [
         "Baixa em relação ao normal recente deste ativo",
         "Alta em relação ao normal recente deste ativo",
@@ -172,7 +172,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
 {
   "blocks": [
     {
-      "text": "Use uma trava de alta com calls para a mesma visão de alta da call comprada, quando abrir mão do potencial sem limite acima do strike mais alto é uma troca aceitável por um prêmio líquido menor. Ainda funciona melhor com IV rank baixo, como a call comprada — as duas pernas são calls, então uma alta de volatilidade ajuda um pouco mais a perna comprada do que machuca a vendida.",
+      "text": "Use uma trava de alta com calls para a mesma visão de alta da call comprada, quando abrir mão do potencial sem limite acima do strike mais alto é uma troca aceitável por um prêmio líquido menor. Ainda funciona melhor com IV rank baixo, como a call comprada: a perna comprada fica mais perto do dinheiro do que a vendida, então o vega dela costuma pesar mais, deixando o vega líquido da trava positivo — confira o vega de cada perna em vez de supor pelos strikes.",
       "type": "paragraph",
     },
     {
@@ -188,11 +188,11 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "type": "payoff-example",
     },
     {
-      "text": "A perda máxima é o débito líquido pago, R$ 0,90, abaixo do break-even de R$ 20,90. O ganho máximo é travado em R$ 1,10 assim que a ação chega ao strike mais alto — a distância entre os dois strikes menos o que foi pago pela trava.",
+      "text": "A perda máxima é o débito líquido pago, R$ 0,73, mantida por completo no strike comprado ou abaixo dele; subindo a partir daí, ela encolhe até zero exatamente no break-even de R$ 20,73, e então se torna um ganho crescente. O ganho máximo é travado em R$ 1,27 assim que a ação chega ao strike mais alto — a distância entre os dois strikes menos o que foi pago pela trava.",
       "type": "paragraph",
     },
     {
-      "text": "A call vendida é do estilo americano na maioria das ações da B3, então pode ser atribuída antes do vencimento se ficar bem dentro do dinheiro, geralmente perto de uma data de dividendo; a liquidez da call comprada, não só da trava, importa ao encerrar as duas pernas de uma vez; abrir mão dos ganhos acima do strike mais alto significa que uma alta bem mais forte vira potencial perdido.",
+      "text": "A call vendida é do estilo americano na maioria das ações da B3, então pode ser atribuída antes do vencimento se ficar bem dentro do dinheiro; na B3, porém, um provento em dinheiro ajusta o próprio strike (ADR-0070), então uma data de dividendo por si só raramente torna vantajoso exercer antecipadamente. A liquidez da call comprada, não só da trava, importa ao encerrar as duas pernas de uma vez; abrir mão dos ganhos acima do strike mais alto significa que uma alta bem mais forte vira potencial perdido.",
       "tone": "warning",
       "type": "callout",
     },
@@ -218,7 +218,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
     },
     {
       "correctOptionId": "c",
-      "explanation": "A maioria das calls sobre ações da B3 é do estilo americano, então a perna vendida carrega risco de atribuição antecipada, especialmente bem dentro do dinheiro perto de um dividendo.",
+      "explanation": "A maioria das calls sobre ações da B3 é do estilo americano, então a perna vendida carrega risco de atribuição antecipada se ficar bem dentro do dinheiro — o ajuste de strike que a própria B3 faz para proventos em dinheiro (ADR-0070) faz com que uma data de dividendo por si só raramente seja o motivo.",
       "options": [
         "Convertida em put automaticamente",
         "Nunca atribuída antes do vencimento",
@@ -241,7 +241,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "explanation": "Rolar troca uma operação por outra, mais adiante no tempo, mantendo a posição aberta do início ao fim.",
       "options": [
         "Mudar os strikes sem mudar o vencimento",
-        "Levar a trava inteira para um vencimento mais distante sem encerrar ela antes",
+        "Levar a trava inteira para um vencimento mais distante sem encerrá-la antes",
         "Remover todo o risco da operação",
       ],
       "prompt": "O Rolar da Fetha, para essa estrutura, permite:",
@@ -272,16 +272,16 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "type": "payoff-example",
     },
     {
-      "text": "O ganho máximo é o crédito líquido recebido, R$ 0,40, mantido por completo acima do break-even de R$ 19,60. A perda máxima é travada em R$ 0,60 se a ação cair até o strike mais baixo ou abaixo — a distância entre os dois strikes menos o crédito recebido.",
+      "text": "O ganho máximo é o crédito líquido recebido, R$ 0,49, mantido por completo no strike vendido ou acima dele; caindo a partir daí, ele encolhe até zero exatamente no break-even de R$ 19,51, e então se torna uma perda crescente. A perda máxima é travada em R$ 0,51 se a ação cair até o strike mais baixo ou abaixo — a distância entre os dois strikes menos o crédito recebido.",
       "type": "paragraph",
     },
     {
-      "text": "A put vendida costuma ser do estilo europeu nas ações da B3, então sem risco de atribuição antecipada antes do vencimento, mas uma queda rápida da ação ainda apaga o crédito rapidamente; a perda máxima de uma trava de crédito pode ser várias vezes o crédito recebido, então dimensionar por essa perda máxima importa mais do que pelo crédito em si; baixa liquidez em qualquer perna encarece encerrar antes do vencimento.",
+      "text": "A put vendida costuma ser do estilo europeu nas ações da B3, então sem risco de atribuição antecipada antes do vencimento, mas uma queda rápida da ação ainda apaga o crédito rapidamente; dimensione a posição pela perda máxima, não pelo crédito — aqui R$ 0,51 contra um crédito de R$ 0,49; baixa liquidez em qualquer perna encarece encerrar antes do vencimento.",
       "tone": "warning",
       "type": "callout",
     },
     {
-      "text": "O Montar plano da Fetha define, para as duas pernas juntas, o alvo de lucro, o stop e a saída por dias até o vencimento da própria receita; o Rolar permite levar a trava inteira para um vencimento mais distante sem encerrar ela antes.",
+      "text": "O Montar plano da Fetha define, para as duas pernas juntas, o alvo de lucro, o stop e a saída por dias até o vencimento da própria receita; o Rolar permite levar a trava inteira para um vencimento mais distante sem encerrá-la antes.",
       "type": "paragraph",
     },
     {
@@ -311,14 +311,14 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "prompt": "Uma trava de alta com puts encaixa melhor com a volatilidade implícita:",
     },
     {
-      "correctOptionId": "b",
-      "explanation": "A distância entre os strikes menos o crédito costuma ser um múltiplo desse crédito, então o tamanho da posição deveria usar a perda máxima, não o crédito.",
+      "correctOptionId": "a",
+      "explanation": "A distância entre os strikes menos o crédito, R$ 0,51 aqui contra um crédito de R$ 0,49, é o que de fato está em risco; dimensionar só pelo crédito subestima isso sempre que a perda máxima acaba sendo maior.",
       "options": [
-        "Sempre menor que o crédito",
-        "Exatamente igual ao crédito",
-        "Várias vezes o crédito recebido",
+        "No crédito recebido, já que é o dinheiro recolhido na entrada",
+        "Na perda máxima, não no crédito recebido",
+        "Só no delta da opção",
       ],
-      "prompt": "A perda máxima de uma trava de crédito, comparada ao crédito recebido, costuma ser:",
+      "prompt": "O tamanho da posição numa trava de crédito deveria se basear:",
     },
     {
       "correctOptionId": "a",
@@ -340,7 +340,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
 {
   "blocks": [
     {
-      "text": "Quem compra paga o prêmio e fica com um direito. Por mais que a ação se mova, o pior resultado é a opção vencer sem valor: uma perda travada no prêmio pago, R$ 1,50 na call desta lição.",
+      "text": "Quem compra paga o prêmio e fica com um direito. Por mais que a ação se mova, o pior resultado é a opção vencer sem valor: uma perda travada no prêmio pago, R$ 1,51 na call desta lição.",
       "type": "paragraph",
     },
     {
@@ -348,12 +348,12 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "type": "paragraph",
     },
     {
-      "caption": "Comprando a call: perda travada no prêmio de R$ 1,50, ganho sem limite acima do ponto de equilíbrio.",
+      "caption": "Comprando a call: perda travada no prêmio de R$ 1,51, ganho sem limite acima do ponto de equilíbrio.",
       "exampleId": "long-call",
       "type": "payoff-example",
     },
     {
-      "caption": "Lançando a mesma call a descoberto: a imagem espelhada. Ganho travado no prêmio recebido de R$ 1,50, perda sem limite acima do ponto de equilíbrio.",
+      "caption": "Lançando a mesma call a descoberto: a imagem espelhada. Ganho travado no prêmio recebido de R$ 1,51, perda sem limite acima do ponto de equilíbrio.",
       "exampleId": "short-call",
       "type": "payoff-example",
     },
@@ -390,7 +390,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "options": [
         "Um valor sem limite superior",
         "O preço do strike",
-        "R$ 1,50, o prêmio recebido",
+        "R$ 1,51, o prêmio recebido",
       ],
       "prompt": "No exemplo desta lição, lançar a call a descoberto trava o ganho em:",
     },
@@ -431,16 +431,16 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "type": "payoff-example",
     },
     {
-      "text": "A perda máxima é o débito líquido pago, R$ 0,20, fora dos dois break-evens de R$ 18,20 e R$ 21,80. O ganho máximo, R$ 1,80, só é alcançado se a ação terminar exatamente no strike do meio.",
+      "text": "A perda máxima é o débito líquido pago, R$ 0,41, mantida por completo no strike externo ou além dele, de qualquer lado; voltando em direção ao meio, ela encolhe até zero exatamente no break-even mais próximo (R$ 18,41 ou R$ 21,59), e então se torna um ganho crescente. O ganho máximo, R$ 1,59, só é alcançado se a ação terminar exatamente no strike do meio.",
       "type": "paragraph",
     },
     {
-      "text": "As duas calls vendidas do meio costumam ser do estilo americano, então cada uma carrega seu próprio risco de atribuição antecipada; quatro pernas significam quatro séries precisando de liquidez real para abrir e encerrar direito, e o spread de cada uma vai somando; o ganho máximo inteiro só aparece com o fechamento bem travado no strike do meio — um pouco fora dele já entrega bem menos.",
+      "text": "As calls vendidas do meio costumam ser do estilo americano, então carregam seu próprio risco de atribuição antecipada; três séries — as duas externas mais a do meio, dobrada — precisam de liquidez real para abrir e encerrar direito em quatro contratos de opção, e o spread de cada série vai somando; o ganho máximo inteiro só aparece com o fechamento bem travado no strike do meio — um pouco fora dele já entrega bem menos.",
       "tone": "warning",
       "type": "callout",
     },
     {
-      "text": "O Montar plano da Fetha define, para as quatro pernas juntas, o stop e a saída por dias até o vencimento da própria receita, então um encerramento manual confuso perto do vencimento não é a única saída.",
+      "text": "O Montar plano da Fetha define, para os quatro contratos de opção juntos, o stop e a saída por dias até o vencimento da própria receita, então um encerramento manual confuso perto do vencimento não é a única saída.",
       "type": "paragraph",
     },
     {
@@ -460,14 +460,14 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "prompt": "Uma borboleta com calls paga o ganho máximo quando a ação termina:",
     },
     {
-      "correctOptionId": "c",
-      "explanation": "Uma borboleta com calls compra o strike mais baixo e o mais alto (um de cada) e vende duas no strike do meio — quatro pernas no total.",
+      "correctOptionId": "b",
+      "explanation": "Uma borboleta com calls compra o strike mais baixo e o mais alto uma vez cada e vende o strike do meio duas vezes, na mesma série — três séries distintas, quatro contratos de opção no total.",
       "options": [
-        "Quatro: duas compradas, duas vendidas",
+        "Quatro, uma por opção comprada ou vendida",
         "Duas",
-        "Três, todas compradas",
+        "Três — o strike do meio é vendido duas vezes, na mesma série",
       ],
-      "prompt": "Uma borboleta com calls tem quantas pernas?",
+      "prompt": "Uma borboleta com calls negocia quantas séries de opção?",
     },
     {
       "correctOptionId": "a",
@@ -481,13 +481,13 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
     },
     {
       "correctOptionId": "b",
-      "explanation": "Quatro séries carregam cada uma seu próprio spread de compra e venda, então entrar e sair de uma borboleta custa mais, relativamente, do que uma posição de uma ou duas pernas.",
+      "explanation": "Três séries carregam cada uma seu próprio spread de compra e venda, então entrar e sair de uma borboleta custa mais, relativamente, do que uma posição de uma ou duas pernas.",
       "options": [
-        "Nada extra — mais pernas não muda nada",
+        "Nada extra — mais séries não muda nada",
         "Custo de liquidez, já que cada série precisa cruzar seu próprio spread",
         "Perda sem limite",
       ],
-      "prompt": "Com quatro pernas em vez de uma ou duas, uma borboleta com calls fica mais exposta a:",
+      "prompt": "Com três séries em vez de uma ou duas, uma borboleta com calls fica mais exposta a:",
     },
   ],
   "summary": "Uma aposta barata e de risco definido de que a ação feche perto do strike do meio no vencimento.",
@@ -503,12 +503,12 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "type": "paragraph",
     },
     {
-      "caption": "Call comprada em EXMP3, com o ativo a R$ 20,00 e strike em R$ 20,00: a posição só fica no lucro depois que a ação passa o ponto de equilíbrio de R$ 21,50, o strike mais o prêmio de R$ 1,50 pago.",
+      "caption": "Call comprada em EXMP3, com o ativo a R$ 20,00 e strike em R$ 20,00: a posição só fica no lucro depois que a ação passa o ponto de equilíbrio de R$ 21,51, o strike mais o prêmio de R$ 1,51 pago.",
       "exampleId": "long-call",
       "type": "payoff-example",
     },
     {
-      "caption": "Put comprada em EXMP3, com o ativo a R$ 20,00 e strike em R$ 20,00: fica no lucro abaixo do ponto de equilíbrio de R$ 18,80, o strike menos o prêmio de R$ 1,20 pago.",
+      "caption": "Put comprada em EXMP3, com o ativo a R$ 20,00 e strike em R$ 20,00: fica no lucro abaixo do ponto de equilíbrio de R$ 18,49, o strike menos o prêmio de R$ 1,51 pago.",
       "exampleId": "long-put",
       "type": "payoff-example",
     },
@@ -545,7 +545,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
         "Prêmio",
         "Ponto de equilíbrio",
       ],
-      "prompt": "Nos exemplos desta lição, a call comprada precisa da ação acima de R$ 21,50 para dar lucro. Como esse valor é chamado?",
+      "prompt": "Nos exemplos desta lição, a call comprada precisa da ação acima de R$ 21,51 para dar lucro. Como esse valor é chamado?",
     },
     {
       "correctOptionId": "a",
@@ -578,16 +578,16 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "type": "list",
     },
     {
-      "caption": "Ação a R$ 20,00, com venda de uma call de strike R$ 22,00. A lição mantém uma proporção de 1 para 1 entre a ação e a call só para ler o gráfico com clareza — numa posição real a ação é dimensionada em lotes de 100 por call vendida.",
+      "caption": "Ação a R$ 20,00, com venda de uma call de strike R$ 22,00. A proporção de 1 para 1 aqui é a mesma da B3 na prática: uma opção de call por lote da ação — cada contrato de opção já cobre 100 ações, o mesmo tamanho de um lote.",
       "exampleId": "covered-call",
       "type": "payoff-example",
     },
     {
-      "text": "O ganho máximo é travado em R$ 2,60 assim que a ação chega ao strike — a call vendida trava ele ali, prêmio incluído. A perda máxima, R$ 19,40, é a própria queda da ação até zero, amortecida um pouco pelo prêmio recebido; o break-even fica em R$ 19,40, abaixo do preço de entrada da própria ação exatamente por esse prêmio.",
+      "text": "O ganho máximo é travado em R$ 2,78 assim que a ação chega ao strike — a call vendida trava-o ali, prêmio incluído. A perda máxima, R$ 19,22, é a própria queda da ação até zero, amortecida um pouco pelo prêmio recebido; o break-even fica em R$ 19,22, abaixo do preço de entrada da própria ação exatamente por esse prêmio.",
       "type": "paragraph",
     },
     {
-      "text": "A call vendida costuma ser do estilo americano, então pode ser atribuída antes do vencimento, mais comumente pouco antes de um dividendo pagar, se a call estiver bem dentro do dinheiro — a atribuição ali simplesmente entrega a ação pelo strike, perdendo o próximo dividendo junto com qualquer alta adicional; a queda da própria ação não é coberta pelo prêmio, só amortecida por ele.",
+      "text": "A call vendida costuma ser do estilo americano, então pode ser atribuída antes do vencimento se ficar bem dentro do dinheiro; na B3, porém, um provento em dinheiro ajusta o próprio strike (ADR-0070), então uma data de dividendo por si só raramente é motivo para quem comprou exercer antecipadamente — a atribuição, se acontecer, simplesmente entrega a ação pelo strike, abrindo mão de qualquer alta adicional. A queda da própria ação não é coberta pelo prêmio, só amortecida por ele.",
       "tone": "warning",
       "type": "callout",
     },
@@ -623,13 +623,13 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
     },
     {
       "correctOptionId": "b",
-      "explanation": "Uma call americana bem dentro do dinheiro tem mais chance de ser exercida antes do vencimento pouco antes de um dividendo, para capturar ele.",
+      "explanation": "ADR-0070: a própria B3 ajusta o strike por um provento em dinheiro, então exercer antes do vencimento só para capturá-lo raramente dá alguma vantagem a quem comprou — diferente de bolsas que deixam o strike intocado.",
       "options": [
-        "Pouco antes de um dividendo, se a call estiver bem dentro do dinheiro",
-        "No instante em que a call é vendida",
-        "Só depois do vencimento",
+        "Raramente vantajoso, já que a B3 ajusta o strike pelo provento",
+        "Sempre vantajoso, como numa bolsa americana",
+        "Impossível, já que toda opção da B3 é do estilo europeu",
       ],
-      "prompt": "A atribuição antecipada da call vendida mais costuma acontecer:",
+      "prompt": "Na B3, um provento em dinheiro torna o exercício antecipado de uma call bem dentro do dinheiro, só para capturá-lo:",
     },
     {
       "correctOptionId": "b",
@@ -725,7 +725,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "type": "paragraph",
     },
     {
-      "text": "O IV rank, na Fetha, é um percentil: diz qual fração das leituras recentes do próprio ativo ficou igual ou abaixo da volatilidade implícita de hoje — não uma escala de mínimo a máximo das leituras da janela, que é um cálculo diferente, mais comum em outros lugares, e que lê de outro jeito perto dos extremos.",
+      "text": "O IV rank, na Fetha, é um percentil: diz qual fração das leituras recentes do próprio ativo ficou estritamente abaixo da volatilidade implícita de hoje — não uma escala de mínimo a máximo das leituras da janela, que é um cálculo diferente, mais comum em outros lugares, e que lê de outro jeito perto dos extremos.",
       "tone": "info",
       "type": "callout",
     },
@@ -798,7 +798,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
     },
     {
       "items": [
-        "A call desta lição, com strike R$ 20,00 e a ação a R$ 20,00, está no dinheiro: seu valor intrínseco é zero, então o prêmio inteiro de R$ 1,50 é valor do tempo.",
+        "A call desta lição, com strike R$ 20,00 e a ação a R$ 20,00, está no dinheiro: seu valor intrínseco é zero, então o prêmio inteiro de R$ 1,51 é valor do tempo.",
         "Uma call mais funda, com strike abaixo da ação, também carrega valor intrínseco — o prêmio então se divide entre os dois, intrínseco mais o que sobrar de valor do tempo.",
       ],
       "type": "list",
@@ -838,7 +838,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
         "Zero intrínseco, tudo valor do tempo",
         "Tudo intrínseco, zero valor do tempo",
       ],
-      "prompt": "A call no dinheiro desta lição, prêmio R$ 1,50, se divide entre intrínseco e valor do tempo como:",
+      "prompt": "A call no dinheiro desta lição, prêmio R$ 1,51, se divide entre intrínseco e valor do tempo como:",
     },
     {
       "correctOptionId": "c",
@@ -878,16 +878,16 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "type": "payoff-example",
     },
     {
-      "text": "O ganho máximo é o crédito líquido recebido, R$ 0,70, mantido por completo entre os break-evens de R$ 18,30 e R$ 21,70. A perda máxima, R$ 0,30, é travada de qualquer lado — a largura de qual ponta for rompida, menos o crédito recebido.",
+      "text": "O ganho máximo é o crédito líquido recebido, R$ 0,68, mantido por completo entre os dois strikes vendidos. Passando qualquer um deles, ele encolhe até zero exatamente no break-even mais próximo (R$ 18,32 ou R$ 21,68), e então se torna uma perda crescente. A perda máxima, R$ 0,32, é travada de qualquer lado — a largura de qual ponta for rompida, menos o crédito recebido.",
       "type": "paragraph",
     },
     {
-      "text": "A call vendida costuma ser do estilo americano e carrega seu próprio risco de atribuição antecipada, especialmente perto de um dividendo se estiver bem dentro do dinheiro; quatro séries, como numa borboleta, significam quatro spreads de compra e venda para cruzar na entrada e na saída; um movimento forte e repentino além de qualquer strike vendido vira a posição contra si mesma rápido, com pouco tempo para reagir perto do vencimento.",
+      "text": "A call vendida costuma ser do estilo americano e carrega seu próprio risco de atribuição antecipada se ficar bem dentro do dinheiro; na B3, porém, um provento em dinheiro ajusta o próprio strike (ADR-0070), então uma data de dividendo por si só raramente é o motivo. Quatro strikes distintos significam quatro séries, e quatro spreads de compra e venda para cruzar na entrada e na saída; um movimento forte e repentino além de qualquer strike vendido vira a posição contra si mesma rápido, com pouco tempo para reagir perto do vencimento.",
       "tone": "warning",
       "type": "callout",
     },
     {
-      "text": "O Montar plano da Fetha define, para as quatro pernas juntas, o alvo de lucro, o stop e a saída por dias até o vencimento da própria receita; o Rolar permite levar o condor inteiro para um vencimento mais distante sem encerrar ele antes.",
+      "text": "O Montar plano da Fetha define, para as quatro pernas juntas, o alvo de lucro, o stop e a saída por dias até o vencimento da própria receita; o Rolar permite levar o condor inteiro para um vencimento mais distante sem encerrá-lo antes.",
       "type": "paragraph",
     },
     {
@@ -961,7 +961,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "type": "payoff-example",
     },
     {
-      "text": "A perda máxima é o prêmio pago, R$ 1,50, se a ação terminar no strike ou abaixo. O ganho máximo é sem limite acima do break-even de R$ 21,50. Não há piso de perda além do próprio prêmio — essa é a vantagem toda de comprar em vez de lançar.",
+      "text": "A perda máxima é o prêmio pago, R$ 1,51, se a ação terminar no strike ou abaixo. O ganho máximo é sem limite acima do break-even de R$ 21,51. Não há piso de perda além do próprio prêmio — essa é a vantagem toda de comprar em vez de lançar.",
       "type": "paragraph",
     },
     {
@@ -1017,7 +1017,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
         "Subir acima desse preço para a posição lucrar",
         "Ficar exatamente nesse preço para sempre",
       ],
-      "prompt": "No exemplo desta lição, o break-even da call é R$ 21,50. Isso significa que a ação precisa:",
+      "prompt": "No exemplo desta lição, o break-even da call é R$ 21,51. Isso significa que a ação precisa:",
     },
   ],
   "summary": "A aposta de alta mais simples: paga um prêmio por um potencial de alta sem limite, arriscando só esse prêmio.",
@@ -1044,7 +1044,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "type": "payoff-example",
     },
     {
-      "text": "A perda máxima é o prêmio pago, R$ 1,20, se a ação terminar no strike ou acima. O ganho máximo é travado, não sem limite — uma ação só pode cair até zero — em R$ 18,80, abaixo do break-even de R$ 18,80.",
+      "text": "A perda máxima é o prêmio pago, R$ 1,51, se a ação terminar no strike ou acima. O ganho máximo é travado, não sem limite — uma ação só pode cair até zero — em R$ 18,49, alcançado só se a ação cair até zero, bem abaixo do break-even de R$ 18,49.",
       "type": "paragraph",
     },
     {
@@ -1096,9 +1096,9 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "correctOptionId": "c",
       "explanation": "O payoff de uma put cresce conforme a ação cai, então ela só dá lucro abaixo do break-even.",
       "options": [
-        "Acima do break-even de R$ 18,80",
+        "Acima do break-even de R$ 18,49",
         "Exatamente no strike",
-        "Abaixo do break-even de R$ 18,80",
+        "Abaixo do break-even de R$ 18,49",
       ],
       "prompt": "Para essa posição dar lucro, a ação precisa terminar:",
     },
@@ -1128,7 +1128,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "type": "payoff-example",
     },
     {
-      "text": "A perda máxima é o prêmio combinado pago, R$ 2,70, se a ação terminar exatamente no strike. O ganho máximo é sem limite para qualquer lado, passando os break-evens de R$ 17,30 na queda e R$ 22,70 na alta — a ação precisa romper um desses dois, não só se mover um pouco.",
+      "text": "A perda máxima é o prêmio combinado pago, R$ 3,02, se a ação terminar exatamente no strike. O ganho máximo é sem limite para qualquer lado, passando os break-evens de R$ 16,98 na queda e R$ 23,02 na alta — a ação precisa romper um desses dois, não só se mover um pouco.",
       "type": "paragraph",
     },
     {
@@ -1212,7 +1212,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "type": "payoff-example",
     },
     {
-      "text": "A perda máxima é o prêmio combinado pago, R$ 1,80, entre os dois strikes. O ganho máximo é sem limite para qualquer lado, passando os break-evens de R$ 17,20 na queda e R$ 22,80 na alta — mais distantes do que os de um straddle, já que a ação precisa primeiro passar de um strike fora do dinheiro, não só do preço atual.",
+      "text": "A perda máxima é o prêmio combinado pago, R$ 2,11, entre os dois strikes. O ganho máximo é sem limite para qualquer lado, passando os break-evens de R$ 16,89 na queda e R$ 23,11 na alta — mais distantes do que os de um straddle, já que a ação precisa primeiro passar de um strike fora do dinheiro, não só do preço atual.",
       "type": "paragraph",
     },
     {
@@ -1232,7 +1232,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
   "quiz": [
     {
       "correctOptionId": "b",
-      "explanation": "Um straddle usa o mesmo strike para as duas pernas; um strangle espalha elas, um strike de put abaixo da ação e um de call acima.",
+      "explanation": "Um straddle usa o mesmo strike para as duas pernas; num strangle elas ficam em strikes diferentes, um de put abaixo da ação e um de call acima.",
       "options": [
         "A call e a put ficam em strikes diferentes, fora do dinheiro",
         "Só compra uma call",
@@ -1370,16 +1370,16 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "type": "payoff-example",
     },
     {
-      "text": "A perda máxima é o débito líquido pago, R$ 0,50, fora dos dois break-evens de R$ 18,50 e R$ 21,50. O ganho máximo, R$ 1,50, só é alcançado se a ação terminar exatamente no strike do meio — o mesmo formato de payoff da borboleta com calls, só que com puts.",
+      "text": "A perda máxima é o débito líquido pago, R$ 0,41, mantida por completo no strike externo ou além dele, de qualquer lado; voltando em direção ao meio, ela encolhe até zero exatamente no break-even mais próximo (R$ 18,41 ou R$ 21,59), e então se torna um ganho crescente. O ganho máximo, R$ 1,59, só é alcançado se a ação terminar exatamente no strike do meio — o mesmo formato de payoff da borboleta com calls, só que com puts.",
       "type": "paragraph",
     },
     {
-      "text": "Na B3, puts sobre ações costumam ser do estilo europeu, então com menos risco de atribuição antecipada do que a versão com calls, mas quatro pernas ainda significam quatro séries precisando de liquidez real para abrir e encerrar direito; como na borboleta com calls, o ganho máximo inteiro só aparece com o fechamento bem travado no strike do meio.",
+      "text": "Na B3, puts sobre ações costumam ser do estilo europeu, então com menos risco de atribuição antecipada do que a versão com calls, mas três séries — as duas externas mais a do meio, dobrada — ainda precisam de liquidez real para abrir e encerrar direito em quatro contratos de opção; como na borboleta com calls, o ganho máximo inteiro só aparece com o fechamento bem travado no strike do meio.",
       "tone": "warning",
       "type": "callout",
     },
     {
-      "text": "O Montar plano da Fetha define, para as quatro pernas juntas, o stop e a saída por dias até o vencimento da própria receita.",
+      "text": "O Montar plano da Fetha define, para os quatro contratos de opção juntos, o stop e a saída por dias até o vencimento da própria receita.",
       "type": "paragraph",
     },
     {
@@ -1420,13 +1420,13 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
     },
     {
       "correctOptionId": "c",
-      "explanation": "Mais pernas significam mais séries, cada uma com seu próprio custo de liquidez na entrada e na saída.",
+      "explanation": "Mais séries significam mais custo de liquidez na entrada e na saída — aqui três, contra as duas de uma trava de duas pernas.",
       "options": [
         "Sempre menor",
         "Exatamente o mesmo",
         "Relativamente maior, já que cada série extra soma seu próprio spread de compra e venda",
       ],
-      "prompt": "Comparado a uma trava de duas pernas, o custo de abrir e encerrar uma borboleta de quatro pernas é:",
+      "prompt": "Comparado a uma trava de duas séries, o custo de abrir e encerrar uma borboleta de três séries é:",
     },
   ],
   "summary": "A mesma aposta de lateralização e risco definido da borboleta com calls, montada com puts.",
@@ -1447,13 +1447,13 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "type": "payoff-example",
     },
     {
-      "text": "A linha de T+0 sempre fica abaixo da linha de vencimento numa posição que custou um prêmio: ela ainda carrega valor do tempo que não derreteu ainda (as lições de valor intrínseco vs. valor do tempo, e de theta, explicam o porquê). Conforme o vencimento se aproxima, as duas linhas se aproximam; no próprio vencimento, T+0 e a linha de vencimento são a mesma coisa.",
+      "text": "Numa opção comprada isolada, a linha de T+0 sempre fica acima da linha de vencimento: ela ainda carrega valor do tempo que não derreteu ainda, então vale mais hoje do que seu valor intrínseco puro no vencimento (as lições de valor intrínseco vs. valor do tempo, e de theta, explicam o porquê). Conforme o vencimento se aproxima, as duas linhas se aproximam; no próprio vencimento, T+0 e a linha de vencimento são a mesma coisa. Numa estrutura com várias pontas, a ordem entre as duas linhas pode variar conforme o preço da ação, já que o valor do tempo de cada ponta derrete no seu próprio ritmo.",
       "type": "paragraph",
     },
     {
       "items": [
-        "Break-even: onde a linha de vencimento cruza o zero. Nesta call é R$ 21,50.",
-        "Perda máxima: o pior ponto da linha de vencimento. Aqui ela está travada no prêmio pago, R$ 1,50.",
+        "Break-even: onde a linha de vencimento cruza o zero. Nesta call é R$ 21,51.",
+        "Perda máxima: o pior ponto da linha de vencimento. Aqui ela está travada no prêmio pago, R$ 1,51.",
         "Ganho máximo: o melhor ponto da linha de vencimento — sem limite para cima nesta call comprada, já que a ação não tem teto.",
       ],
       "type": "list",
@@ -1472,11 +1472,11 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
     },
     {
       "correctOptionId": "b",
-      "explanation": "Uma posição que ainda carrega valor do tempo vale menos hoje do que no vencimento, então T+0 fica abaixo da linha de vencimento até esse valor do tempo acabar.",
+      "explanation": "Uma posição que ainda carrega valor do tempo vale mais hoje do que seu valor puro no vencimento, então T+0 fica acima da linha de vencimento até esse valor do tempo acabar.",
       "options": [
-        "Sempre acima",
+        "Sempre abaixo",
         "Sempre exatamente em cima",
-        "Abaixo dela enquanto o valor do tempo ainda não derreteu",
+        "Acima dela enquanto o valor do tempo ainda não derreteu",
       ],
       "prompt": "A linha de T+0, comparada à linha de vencimento, fica:",
     },
@@ -1592,7 +1592,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "type": "list",
     },
     {
-      "text": "O prêmio é o preço da opção: R$ 1,50 pela call do exemplo desta lição, pago por quem compra a quem vende, na abertura da posição. Essa cotação é por ação; na B3 uma opção negocia em lotes de 100 ações, então o valor em dinheiro de fato é o prêmio cotado vezes 100 (e de novo vezes quantos lotes a posição tiver).",
+      "text": "O prêmio é o preço da opção: R$ 1,51 pela call do exemplo desta lição, pago por quem compra a quem vende, na abertura da posição. Essa cotação é por ação; na B3 uma opção negocia em lotes de 100 ações, então o valor em dinheiro de fato é o prêmio cotado vezes 100 (e de novo vezes quantos lotes a posição tiver).",
       "type": "paragraph",
     },
     {
@@ -1624,7 +1624,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
     },
     {
       "correctOptionId": "c",
-      "explanation": "O prêmio muda de mãos uma única vez, de quem compra para quem vende, no momento da negociação — R$ 1,50 na call desta lição.",
+      "explanation": "O prêmio muda de mãos uma única vez, de quem compra para quem vende, no momento da negociação — R$ 1,51 na call desta lição.",
       "options": [
         "Por quem vende a quem compra, no vencimento",
         "À B3, como uma taxa",
@@ -1656,12 +1656,12 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "type": "paragraph",
     },
     {
-      "caption": "A call comprada desta lição, a cerca de sete semanas do vencimento: a linha mais fina de T+0 já fica abaixo da linha grossa de vencimento mesmo com a ação parada em R$ 20,00 — essa diferença é valor do tempo, e o theta está corroendo ela, pregão a pregão.",
+      "caption": "A call comprada desta lição, a cerca de sete semanas do vencimento: a linha mais fina de T+0 já fica acima da linha grossa de vencimento mesmo com a ação parada em R$ 20,00 — essa diferença é valor do tempo, e o theta vai corroendo essa diferença, pregão a pregão.",
       "exampleId": "long-call",
       "type": "payoff-example",
     },
     {
-      "text": "No instante de hoje, o theta desta call diz que ela perde cerca de R$ 0,01 de valor justo só para o próximo pregão, com a ação parada em R$ 20,00 e nada mais mudando. Isso é uma leitura do modelo num instante, não uma promessa — o theta real do próximo pregão depende de onde a ação e a volatilidade dela estiverem até lá.",
+      "text": "No instante de hoje, o theta desta call diz que um lote inteiro (100 opções) perde cerca de R$ 2,09 de valor justo só para o próximo pregão, com a ação parada em R$ 20,00 e nada mais mudando. Isso é uma leitura do modelo num instante, não uma promessa — o theta real do próximo pregão depende de onde a ação e a volatilidade dela estiverem até lá.",
       "type": "paragraph",
     },
     {
@@ -1709,7 +1709,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
         "Uma leitura do modelo só para o próximo pregão, com o preço da ação e a volatilidade de hoje mantidos fixos",
         "O prêmio inteiro da opção",
       ],
-      "prompt": "Uma leitura de theta do modelo hoje, como o R$ 0,01 desta lição, é melhor entendida como:",
+      "prompt": "Uma leitura de theta do modelo hoje, como o R$ 2,09 desta lição, é melhor entendida como:",
     },
   ],
   "summary": "Todo dia que passa sem a ação se mover custa, para uma opção comprada, um pouco do seu valor do tempo.",
@@ -1736,7 +1736,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "type": "list",
     },
     {
-      "caption": "Uma call comprada no fictício EXMP3, cotado a R$ 20,00: pagando um prêmio de R$ 1,50 pelo direito de comprar depois. Não importa o quanto a ação caia, a perda para no prêmio pago.",
+      "caption": "Uma call comprada no fictício EXMP3, cotado a R$ 20,00: pagando um prêmio de R$ 1,51 pelo direito de comprar depois. Não importa o quanto a ação caia, a perda para no prêmio pago.",
       "exampleId": "long-call",
       "type": "payoff-example",
     },
@@ -1781,7 +1781,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "correctOptionId": "a",
       "explanation": "A perda de uma opção comprada para no prêmio pago, não importa o quanto a ação se mova contra a posição.",
       "options": [
-        "R$ 1,50, o prêmio pago",
+        "R$ 1,51, o prêmio pago",
         "Um valor sem limite superior",
         "O valor integral da ação-objeto",
       ],

@@ -29,8 +29,8 @@
       "type": "callout",
       "tone": "info",
       "text": {
-        "en": "IV rank, in Fetha, is a percentile: it says what share of the underlying's own recent readings sat at or below today's implied volatility — not a min-to-max scale from the lowest to the highest reading in the window, which is a different, more common calculation elsewhere and reads differently near the extremes.",
-        "pt": "O IV rank, na Fetha, é um percentil: diz qual fração das leituras recentes do próprio ativo ficou igual ou abaixo da volatilidade implícita de hoje — não uma escala de mínimo a máximo das leituras da janela, que é um cálculo diferente, mais comum em outros lugares, e que lê de outro jeito perto dos extremos."
+        "en": "IV rank, in Fetha, is a percentile: it says what share of the underlying's own recent readings sat strictly below today's implied volatility — not a min-to-max scale from the lowest to the highest reading in the window, which is a different, more common calculation elsewhere and reads differently near the extremes.",
+        "pt": "O IV rank, na Fetha, é um percentil: diz qual fração das leituras recentes do próprio ativo ficou estritamente abaixo da volatilidade implícita de hoje — não uma escala de mínimo a máximo das leituras da janela, que é um cálculo diferente, mais comum em outros lugares, e que lê de outro jeito perto dos extremos."
       }
     },
     {

@@ -3,8 +3,12 @@ import { describe, expect, it } from "vitest";
 import {
   ILLUSTRATIVE_CALL_PREMIUM,
   ILLUSTRATIVE_HIGHER_CALL_PREMIUM,
+  ILLUSTRATIVE_HIGHER_PUT_PREMIUM,
   ILLUSTRATIVE_HIGHER_STRIKE,
   ILLUSTRATIVE_LOWER_STRIKE,
+  ILLUSTRATIVE_LOWEST_CALL_PREMIUM,
+  ILLUSTRATIVE_LOWEST_PUT_PREMIUM,
+  ILLUSTRATIVE_LOWEST_STRIKE,
   ILLUSTRATIVE_PUT_PREMIUM,
   ILLUSTRATIVE_SPOT,
   ILLUSTRATIVE_UNDERLYING,
@@ -130,6 +134,43 @@ describe("loadIllustrativeExamples", () => {
     expect(netPremium).toBe(-netDebit);
     expect(maxLoss).toBe(netDebit);
     expect(maxGain).toBe(strikeWidth - netDebit);
+  });
+});
+
+// Every leg premium in this fixture comes from one flat vol through the engine's own
+// Black-Scholes (review round 2, finding #3): put-call parity at r=0 (`C - P = S - K`) must
+// hold for every strike within a cent of rounding, and a call butterfly and the equivalent put
+// butterfly (same wings, same body, same underlying) must cost the same.
+describe("the fixture's own put-call parity", () => {
+  it("holds C - P = S - K within a cent at r=0, at every strike with both a call and a put premium", () => {
+    const spot = Number(ILLUSTRATIVE_SPOT);
+    const byStrike: [number, number, number][] = [
+      [
+        Number(ILLUSTRATIVE_LOWEST_STRIKE),
+        Number(ILLUSTRATIVE_LOWEST_CALL_PREMIUM),
+        Number(ILLUSTRATIVE_LOWEST_PUT_PREMIUM),
+      ],
+      [
+        Number(ILLUSTRATIVE_LOWER_STRIKE),
+        Number(ILLUSTRATIVE_CALL_PREMIUM),
+        Number(ILLUSTRATIVE_PUT_PREMIUM),
+      ],
+      [
+        Number(ILLUSTRATIVE_HIGHER_STRIKE),
+        Number(ILLUSTRATIVE_HIGHER_CALL_PREMIUM),
+        Number(ILLUSTRATIVE_HIGHER_PUT_PREMIUM),
+      ],
+    ];
+    for (const [strike, call, put] of byStrike) {
+      expect(Math.abs(call - put - (spot - strike))).toBeLessThanOrEqual(0.01);
+    }
+  });
+
+  it("costs the call butterfly and the put butterfly the same amount", async () => {
+    const examples = await loadIllustrativeExamples();
+    expect(
+      Math.abs(examples["call-butterfly"].netPremium - examples["put-butterfly"].netPremium),
+    ).toBe(0);
   });
 });
 

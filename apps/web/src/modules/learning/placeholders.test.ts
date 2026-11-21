@@ -50,8 +50,8 @@ describe("resolvePlaceholder", () => {
 
   it("resolves an example's premium and max loss to a positive amount", async () => {
     const examples = await loadIllustrativeExamples();
-    expect(resolvePlaceholder("long-call.premiumAbs", examples)).toBe("R$ 1,50");
-    expect(resolvePlaceholder("long-call.maxLossAbs", examples)).toBe("R$ 1,50");
+    expect(resolvePlaceholder("long-call.premiumAbs", examples)).toBe("R$ 1,51");
+    expect(resolvePlaceholder("long-call.maxLossAbs", examples)).toBe("R$ 1,51");
   });
 
   it("throws resolving an unbounded field instead of printing a wrong number", async () => {
@@ -84,6 +84,6 @@ describe("resolveText", () => {
   it("replaces every placeholder in a sentence", async () => {
     const examples = await loadIllustrativeExamples();
     const text = resolveText("Spot {{spot}}, premium {{long-call.premiumAbs}}.", examples);
-    expect(text).toBe("Spot R$ 20,00, premium R$ 1,50.");
+    expect(text).toBe("Spot R$ 20,00, premium R$ 1,51.");
   });
 });

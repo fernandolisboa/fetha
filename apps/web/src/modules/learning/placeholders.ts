@@ -62,8 +62,11 @@ export function resolvePlaceholder(token: string, examples: IllustrativeExamples
     return formatPriceBRL(breakEven);
   }
   if (field === "thetaAbs") {
-    const magnitude = new Decimal(pricing.greeks.theta).abs().toFixed(6);
-    return formatPriceBRL(decimalStringSchema.parse(magnitude));
+    // Theta is per share; a real option contract is a 100-share lot (CLAUDE.md money rule: never
+    // show a per-share greek as if it were the position's own size), so this is the per-lot
+    // magnitude — also keeps it from rounding away to R$0,00 for a cheap, far-dated option.
+    const perLot = new Decimal(pricing.greeks.theta).abs().mul(100).toFixed(6);
+    return formatPriceBRL(decimalStringSchema.parse(perLot));
   }
   if (field === "ticker" || field === "tickerLetter") {
     if (pricing.legs.length !== 1) {

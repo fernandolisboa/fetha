@@ -36,23 +36,23 @@
       "type": "payoff-example",
       "exampleId": "covered-call",
       "caption": {
-        "en": "Holding the stock at {{spot}} and selling a call struck at {{higherStrike}}. The lesson keeps a 1-to-1 proportion between the share and the call to read the chart clearly — a real position sizes the stock in lots of 100 per call sold.",
-        "pt": "Ação a {{spot}}, com venda de uma call de strike {{higherStrike}}. A lição mantém uma proporção de 1 para 1 entre a ação e a call só para ler o gráfico com clareza — numa posição real a ação é dimensionada em lotes de 100 por call vendida."
+        "en": "Holding the stock at {{spot}} and selling a call struck at {{higherStrike}}. The 1-to-1 proportion here is the real B3 ratio: one call option per lot held — each option contract already covers 100 shares, same as one lot.",
+        "pt": "Ação a {{spot}}, com venda de uma call de strike {{higherStrike}}. A proporção de 1 para 1 aqui é a mesma da B3 na prática: uma opção de call por lote da ação — cada contrato de opção já cobre 100 ações, o mesmo tamanho de um lote."
       }
     },
     {
       "type": "paragraph",
       "text": {
         "en": "Max gain is capped at {{covered-call.maxGainAbs}} once the stock reaches the strike — the call sold caps it there, premium included. Max loss, {{covered-call.maxLossAbs}}, is the stock's own downside to zero, cushioned a little by the premium received; break-even sits at {{covered-call.breakEven0}}, below the stock's own entry price by exactly that premium.",
-        "pt": "O ganho máximo é travado em {{covered-call.maxGainAbs}} assim que a ação chega ao strike — a call vendida trava ele ali, prêmio incluído. A perda máxima, {{covered-call.maxLossAbs}}, é a própria queda da ação até zero, amortecida um pouco pelo prêmio recebido; o break-even fica em {{covered-call.breakEven0}}, abaixo do preço de entrada da própria ação exatamente por esse prêmio."
+        "pt": "O ganho máximo é travado em {{covered-call.maxGainAbs}} assim que a ação chega ao strike — a call vendida trava-o ali, prêmio incluído. A perda máxima, {{covered-call.maxLossAbs}}, é a própria queda da ação até zero, amortecida um pouco pelo prêmio recebido; o break-even fica em {{covered-call.breakEven0}}, abaixo do preço de entrada da própria ação exatamente por esse prêmio."
       }
     },
     {
       "type": "callout",
       "tone": "warning",
       "text": {
-        "en": "The sold call is usually American-style, so it can be assigned early, most often right before a dividend pays if the call is deep in the money — assignment there simply delivers the stock at the strike, losing the next dividend along with any further upside; the stock's own downside is not covered by the premium, only cushioned by it.",
-        "pt": "A call vendida costuma ser do estilo americano, então pode ser atribuída antes do vencimento, mais comumente pouco antes de um dividendo pagar, se a call estiver bem dentro do dinheiro — a atribuição ali simplesmente entrega a ação pelo strike, perdendo o próximo dividendo junto com qualquer alta adicional; a queda da própria ação não é coberta pelo prêmio, só amortecida por ele."
+        "en": "The sold call is usually American-style, so it can be assigned early if it goes deep in the money; on B3, though, a cash distribution adjusts the strike itself (ADR-0070), so a dividend date alone is rarely a reason for the buyer to exercise early — assignment, if it happens, simply delivers the stock at the strike, giving up any further upside. The stock's own downside is not covered by the premium, only cushioned by it.",
+        "pt": "A call vendida costuma ser do estilo americano, então pode ser atribuída antes do vencimento se ficar bem dentro do dinheiro; na B3, porém, um provento em dinheiro ajusta o próprio strike (ADR-0070), então uma data de dividendo por si só raramente é motivo para quem comprou exercer antecipadamente — a atribuição, se acontecer, simplesmente entrega a ação pelo strike, abrindo mão de qualquer alta adicional. A queda da própria ação não é coberta pelo prêmio, só amortecida por ele."
       }
     },
     {
@@ -144,36 +144,36 @@
     {
       "id": "q3",
       "prompt": {
-        "en": "Early assignment on the sold call most often happens:",
-        "pt": "A atribuição antecipada da call vendida mais costuma acontecer:"
+        "en": "On B3, a cash distribution makes early exercise of a deep-in-the-money call, just to capture it:",
+        "pt": "Na B3, um provento em dinheiro torna o exercício antecipado de uma call bem dentro do dinheiro, só para capturá-lo:"
       },
       "options": [
         {
           "id": "b",
           "text": {
-            "en": "Right before a dividend, if the call is deep in the money",
-            "pt": "Pouco antes de um dividendo, se a call estiver bem dentro do dinheiro"
+            "en": "Rarely worth it, since B3 adjusts the strike for the distribution",
+            "pt": "Raramente vantajoso, já que a B3 ajusta o strike pelo provento"
           }
         },
         {
           "id": "c",
           "text": {
-            "en": "The instant the call is sold",
-            "pt": "No instante em que a call é vendida"
+            "en": "Always worth it, the same as on a US exchange",
+            "pt": "Sempre vantajoso, como numa bolsa americana"
           }
         },
         {
           "id": "a",
           "text": {
-            "en": "Only after expiry",
-            "pt": "Só depois do vencimento"
+            "en": "Impossible, since every B3 option is European-style",
+            "pt": "Impossível, já que toda opção da B3 é do estilo europeu"
           }
         }
       ],
       "correctOptionId": "b",
       "explanation": {
-        "en": "A deep-in-the-money American-style call is most likely to be exercised early right before a dividend, to capture it.",
-        "pt": "Uma call americana bem dentro do dinheiro tem mais chance de ser exercida antes do vencimento pouco antes de um dividendo, para capturar ele."
+        "en": "ADR-0070: B3 adjusts the strike itself for a cash distribution, so exercising early just to capture it rarely gains the buyer anything — unlike exchanges that leave the strike untouched.",
+        "pt": "ADR-0070: a própria B3 ajusta o strike por um provento em dinheiro, então exercer antes do vencimento só para capturá-lo raramente dá alguma vantagem a quem comprou — diferente de bolsas que deixam o strike intocado."
       }
     },
     {

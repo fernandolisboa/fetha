@@ -37,8 +37,8 @@
     {
       "type": "paragraph",
       "text": {
-        "en": "Max loss is the premium paid, {{long-put.maxLossAbs}}, if the stock finishes at or above the strike. Max gain is capped, not unbounded — a stock can only fall to zero — at {{long-put.maxGainAbs}}, below the break-even of {{long-put.breakEven0}}.",
-        "pt": "A perda máxima é o prêmio pago, {{long-put.maxLossAbs}}, se a ação terminar no strike ou acima. O ganho máximo é travado, não sem limite — uma ação só pode cair até zero — em {{long-put.maxGainAbs}}, abaixo do break-even de {{long-put.breakEven0}}."
+        "en": "Max loss is the premium paid, {{long-put.maxLossAbs}}, if the stock finishes at or above the strike. Max gain is capped, not unbounded — a stock can only fall to zero — at {{long-put.maxGainAbs}}, reached only if the stock falls all the way to zero, well below the break-even of {{long-put.breakEven0}}.",
+        "pt": "A perda máxima é o prêmio pago, {{long-put.maxLossAbs}}, se a ação terminar no strike ou acima. O ganho máximo é travado, não sem limite — uma ação só pode cair até zero — em {{long-put.maxGainAbs}}, alcançado só se a ação cair até zero, bem abaixo do break-even de {{long-put.breakEven0}}."
       }
     },
     {

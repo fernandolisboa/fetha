@@ -22,15 +22,15 @@
       "type": "payoff-example",
       "exampleId": "long-call",
       "caption": {
-        "en": "This lesson's long call, roughly seven weeks from expiry: the thinner T+0 line already sits below the thick expiry line even with the stock unmoved at {{spot}} — that gap is time value theta is eating away at, session by session.",
-        "pt": "A call comprada desta lição, a cerca de sete semanas do vencimento: a linha mais fina de T+0 já fica abaixo da linha grossa de vencimento mesmo com a ação parada em {{spot}} — essa diferença é valor do tempo, e o theta está corroendo ela, pregão a pregão."
+        "en": "This lesson's long call, roughly seven weeks from expiry: the thinner T+0 line already sits above the thick expiry line even with the stock unmoved at {{spot}} — that gap is time value theta is eating away at, session by session.",
+        "pt": "A call comprada desta lição, a cerca de sete semanas do vencimento: a linha mais fina de T+0 já fica acima da linha grossa de vencimento mesmo com a ação parada em {{spot}} — essa diferença é valor do tempo, e o theta vai corroendo essa diferença, pregão a pregão."
       }
     },
     {
       "type": "paragraph",
       "text": {
-        "en": "At today's pricing instant, this call's own theta says it loses about {{long-call.thetaAbs}} of fair value for the next session alone, with the stock held at {{spot}} and nothing else changing. That is a model read at one moment, not a promise — the next session's actual theta depends on where the stock and its volatility are by then.",
-        "pt": "No instante de hoje, o theta desta call diz que ela perde cerca de {{long-call.thetaAbs}} de valor justo só para o próximo pregão, com a ação parada em {{spot}} e nada mais mudando. Isso é uma leitura do modelo num instante, não uma promessa — o theta real do próximo pregão depende de onde a ação e a volatilidade dela estiverem até lá."
+        "en": "At today's pricing instant, this call's own theta says a full lot (100 options) loses about {{long-call.thetaAbs}} of fair value for the next session alone, with the stock held at {{spot}} and nothing else changing. That is a model read at one moment, not a promise — the next session's actual theta depends on where the stock and its volatility are by then.",
+        "pt": "No instante de hoje, o theta desta call diz que um lote inteiro (100 opções) perde cerca de {{long-call.thetaAbs}} de valor justo só para o próximo pregão, com a ação parada em {{spot}} e nada mais mudando. Isso é uma leitura do modelo num instante, não uma promessa — o theta real do próximo pregão depende de onde a ação e a volatilidade dela estiverem até lá."
       }
     },
     {

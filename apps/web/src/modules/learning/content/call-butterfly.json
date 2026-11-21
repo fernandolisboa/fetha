@@ -45,23 +45,23 @@
     {
       "type": "paragraph",
       "text": {
-        "en": "Max loss is the net debit paid, {{call-butterfly.maxLossAbs}}, outside the two break-evens of {{call-butterfly.breakEven0}} and {{call-butterfly.breakEven1}}. Max gain, {{call-butterfly.maxGainAbs}}, is reached only if the stock finishes exactly at the middle strike.",
-        "pt": "A perda máxima é o débito líquido pago, {{call-butterfly.maxLossAbs}}, fora dos dois break-evens de {{call-butterfly.breakEven0}} e {{call-butterfly.breakEven1}}. O ganho máximo, {{call-butterfly.maxGainAbs}}, só é alcançado se a ação terminar exatamente no strike do meio."
+        "en": "Max loss is the net debit paid, {{call-butterfly.maxLossAbs}}, kept in full at or beyond either outer strike; moving back toward the middle, it shrinks to zero exactly at the nearer break-even ({{call-butterfly.breakEven0}} or {{call-butterfly.breakEven1}}), then turns into a growing gain. Max gain, {{call-butterfly.maxGainAbs}}, is reached only if the stock finishes exactly at the middle strike.",
+        "pt": "A perda máxima é o débito líquido pago, {{call-butterfly.maxLossAbs}}, mantida por completo no strike externo ou além dele, de qualquer lado; voltando em direção ao meio, ela encolhe até zero exatamente no break-even mais próximo ({{call-butterfly.breakEven0}} ou {{call-butterfly.breakEven1}}), e então se torna um ganho crescente. O ganho máximo, {{call-butterfly.maxGainAbs}}, só é alcançado se a ação terminar exatamente no strike do meio."
       }
     },
     {
       "type": "callout",
       "tone": "warning",
       "text": {
-        "en": "The two sold calls in the middle are usually American-style, so each carries its own early-assignment risk; four legs means four series need real liquidity to open and close cleanly, and the bid-ask on each adds up; the full max gain only shows up pinned exactly at the middle strike — a close a little off it gives much less.",
-        "pt": "As duas calls vendidas do meio costumam ser do estilo americano, então cada uma carrega seu próprio risco de atribuição antecipada; quatro pernas significam quatro séries precisando de liquidez real para abrir e encerrar direito, e o spread de cada uma vai somando; o ganho máximo inteiro só aparece com o fechamento bem travado no strike do meio — um pouco fora dele já entrega bem menos."
+        "en": "The calls sold in the middle are usually American-style, so they carry their own early-assignment risk; three series — the outer two plus the doubled middle one — need real liquidity to open and close cleanly across four option contracts, and the bid-ask on each series adds up; the full max gain only shows up pinned exactly at the middle strike — a close a little off it gives much less.",
+        "pt": "As calls vendidas do meio costumam ser do estilo americano, então carregam seu próprio risco de atribuição antecipada; três séries — as duas externas mais a do meio, dobrada — precisam de liquidez real para abrir e encerrar direito em quatro contratos de opção, e o spread de cada série vai somando; o ganho máximo inteiro só aparece com o fechamento bem travado no strike do meio — um pouco fora dele já entrega bem menos."
       }
     },
     {
       "type": "paragraph",
       "text": {
-        "en": "Fetha's Montar plano sets this recipe's own stop and days-before-expiry exit for all four legs together, so a messy manual close near expiry is not the only option.",
-        "pt": "O Montar plano da Fetha define, para as quatro pernas juntas, o stop e a saída por dias até o vencimento da própria receita, então um encerramento manual confuso perto do vencimento não é a única saída."
+        "en": "Fetha's Montar plano sets this recipe's own stop and days-before-expiry exit for all four option contracts together, so a messy manual close near expiry is not the only option.",
+        "pt": "O Montar plano da Fetha define, para os quatro contratos de opção juntos, o stop e a saída por dias até o vencimento da própria receita, então um encerramento manual confuso perto do vencimento não é a única saída."
       }
     },
     {
@@ -111,15 +111,15 @@
     {
       "id": "q2",
       "prompt": {
-        "en": "A call butterfly has how many legs?",
-        "pt": "Uma borboleta com calls tem quantas pernas?"
+        "en": "A call butterfly trades how many option series?",
+        "pt": "Uma borboleta com calls negocia quantas séries de opção?"
       },
       "options": [
         {
           "id": "c",
           "text": {
-            "en": "Four: two bought, two sold",
-            "pt": "Quatro: duas compradas, duas vendidas"
+            "en": "Four, one per option bought or sold",
+            "pt": "Quatro, uma por opção comprada ou vendida"
           }
         },
         {
@@ -132,15 +132,15 @@
         {
           "id": "b",
           "text": {
-            "en": "Three, all bought",
-            "pt": "Três, todas compradas"
+            "en": "Three — the middle strike sold twice, in the same series",
+            "pt": "Três — o strike do meio é vendido duas vezes, na mesma série"
           }
         }
       ],
-      "correctOptionId": "c",
+      "correctOptionId": "b",
       "explanation": {
-        "en": "A call butterfly buys the lower and higher strikes (one each) and sells two at the middle strike — four legs in all.",
-        "pt": "Uma borboleta com calls compra o strike mais baixo e o mais alto (um de cada) e vende duas no strike do meio — quatro pernas no total."
+        "en": "A call butterfly buys the lower and higher strikes once each and sells the middle strike twice, in the same series — three distinct series, four option contracts in all.",
+        "pt": "Uma borboleta com calls compra o strike mais baixo e o mais alto uma vez cada e vende o strike do meio duas vezes, na mesma série — três séries distintas, quatro contratos de opção no total."
       }
     },
     {
@@ -181,15 +181,15 @@
     {
       "id": "q4",
       "prompt": {
-        "en": "With four legs instead of one or two, a call butterfly is more exposed to:",
-        "pt": "Com quatro pernas em vez de uma ou duas, uma borboleta com calls fica mais exposta a:"
+        "en": "With three series instead of one or two, a call butterfly is more exposed to:",
+        "pt": "Com três séries em vez de uma ou duas, uma borboleta com calls fica mais exposta a:"
       },
       "options": [
         {
           "id": "a",
           "text": {
-            "en": "Nothing extra — more legs changes nothing",
-            "pt": "Nada extra — mais pernas não muda nada"
+            "en": "Nothing extra — more series changes nothing",
+            "pt": "Nada extra — mais séries não muda nada"
           }
         },
         {
@@ -209,8 +209,8 @@
       ],
       "correctOptionId": "b",
       "explanation": {
-        "en": "Four series each carry their own bid-ask spread, so entering and exiting a butterfly costs more, relatively, than a single-leg or two-leg position.",
-        "pt": "Quatro séries carregam cada uma seu próprio spread de compra e venda, então entrar e sair de uma borboleta custa mais, relativamente, do que uma posição de uma ou duas pernas."
+        "en": "Three series each carry their own bid-ask spread, so entering and exiting a butterfly costs more, relatively, than a single-leg or two-leg position.",
+        "pt": "Três séries carregam cada uma seu próprio spread de compra e venda, então entrar e sair de uma borboleta custa mais, relativamente, do que uma posição de uma ou duas pernas."
       }
     }
   ]

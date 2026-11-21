@@ -15,8 +15,8 @@
     {
       "type": "paragraph",
       "text": {
-        "en": "Use a bull call spread for the same bullish view as a long call, when giving up the unlimited upside above the higher strike is an acceptable trade for a smaller net premium. It still works best with low IV rank, same as the long call — both legs are calls, so a rise in volatility helps the bought leg a little more than it hurts the sold one.",
-        "pt": "Use uma trava de alta com calls para a mesma visão de alta da call comprada, quando abrir mão do potencial sem limite acima do strike mais alto é uma troca aceitável por um prêmio líquido menor. Ainda funciona melhor com IV rank baixo, como a call comprada — as duas pernas são calls, então uma alta de volatilidade ajuda um pouco mais a perna comprada do que machuca a vendida."
+        "en": "Use a bull call spread for the same bullish view as a long call, when giving up the unlimited upside above the higher strike is an acceptable trade for a smaller net premium. It still works best with low IV rank, same as the long call: the bought leg sits closer to the money than the sold one, so its vega usually outweighs the sold leg's, leaving the spread's net vega positive — check both legs' own vega rather than assume it from the strikes alone.",
+        "pt": "Use uma trava de alta com calls para a mesma visão de alta da call comprada, quando abrir mão do potencial sem limite acima do strike mais alto é uma troca aceitável por um prêmio líquido menor. Ainda funciona melhor com IV rank baixo, como a call comprada: a perna comprada fica mais perto do dinheiro do que a vendida, então o vega dela costuma pesar mais, deixando o vega líquido da trava positivo — confira o vega de cada perna em vez de supor pelos strikes."
       }
     },
     {
@@ -43,16 +43,16 @@
     {
       "type": "paragraph",
       "text": {
-        "en": "Max loss is the net debit paid, {{bull-call-spread.maxLossAbs}}, below the break-even of {{bull-call-spread.breakEven0}}. Max gain is capped at {{bull-call-spread.maxGainAbs}} once the stock reaches the higher strike — the width between the two strikes minus what was paid for the spread.",
-        "pt": "A perda máxima é o débito líquido pago, {{bull-call-spread.maxLossAbs}}, abaixo do break-even de {{bull-call-spread.breakEven0}}. O ganho máximo é travado em {{bull-call-spread.maxGainAbs}} assim que a ação chega ao strike mais alto — a distância entre os dois strikes menos o que foi pago pela trava."
+        "en": "Max loss is the net debit paid, {{bull-call-spread.maxLossAbs}}, kept in full at or below the lower strike bought; rising from there, it shrinks to zero exactly at the break-even of {{bull-call-spread.breakEven0}}, then turns into a growing gain. Max gain is capped at {{bull-call-spread.maxGainAbs}} once the stock reaches the higher strike — the width between the two strikes minus what was paid for the spread.",
+        "pt": "A perda máxima é o débito líquido pago, {{bull-call-spread.maxLossAbs}}, mantida por completo no strike comprado ou abaixo dele; subindo a partir daí, ela encolhe até zero exatamente no break-even de {{bull-call-spread.breakEven0}}, e então se torna um ganho crescente. O ganho máximo é travado em {{bull-call-spread.maxGainAbs}} assim que a ação chega ao strike mais alto — a distância entre os dois strikes menos o que foi pago pela trava."
       }
     },
     {
       "type": "callout",
       "tone": "warning",
       "text": {
-        "en": "The sold call is American-style on most B3 equities, so it can be assigned before expiry if it goes deep in the money, usually around a dividend date; the bought call's liquidity, not just the spread's, matters when closing both legs at once; giving up gains above the higher strike means a much stronger rally is wasted upside.",
-        "pt": "A call vendida é do estilo americano na maioria das ações da B3, então pode ser atribuída antes do vencimento se ficar bem dentro do dinheiro, geralmente perto de uma data de dividendo; a liquidez da call comprada, não só da trava, importa ao encerrar as duas pernas de uma vez; abrir mão dos ganhos acima do strike mais alto significa que uma alta bem mais forte vira potencial perdido."
+        "en": "The sold call is American-style on most B3 equities, so it can be assigned before expiry if it goes deep in the money; on B3, though, a cash distribution adjusts the strike itself (ADR-0070), so a dividend date alone rarely makes early exercise worth it. The bought call's liquidity, not just the spread's, matters when closing both legs at once; giving up gains above the higher strike means a much stronger rally is wasted upside.",
+        "pt": "A call vendida é do estilo americano na maioria das ações da B3, então pode ser atribuída antes do vencimento se ficar bem dentro do dinheiro; na B3, porém, um provento em dinheiro ajusta o próprio strike (ADR-0070), então uma data de dividendo por si só raramente torna vantajoso exercer antecipadamente. A liquidez da call comprada, não só da trava, importa ao encerrar as duas pernas de uma vez; abrir mão dos ganhos acima do strike mais alto significa que uma alta bem mais forte vira potencial perdido."
       }
     },
     {
@@ -137,8 +137,8 @@
       ],
       "correctOptionId": "c",
       "explanation": {
-        "en": "Most B3 equity calls are American-style, so the sold leg carries early-assignment risk, especially deep in the money near a dividend.",
-        "pt": "A maioria das calls sobre ações da B3 é do estilo americano, então a perna vendida carrega risco de atribuição antecipada, especialmente bem dentro do dinheiro perto de um dividendo."
+        "en": "Most B3 equity calls are American-style, so the sold leg carries early-assignment risk if it goes deep in the money — B3's own strike adjustment for cash distributions (ADR-0070) means a dividend date alone is rarely the reason.",
+        "pt": "A maioria das calls sobre ações da B3 é do estilo americano, então a perna vendida carrega risco de atribuição antecipada se ficar bem dentro do dinheiro — o ajuste de strike que a própria B3 faz para proventos em dinheiro (ADR-0070) faz com que uma data de dividendo por si só raramente seja o motivo."
       }
     },
     {
@@ -194,7 +194,7 @@
           "id": "b",
           "text": {
             "en": "Move the whole spread to a later expiry without closing it first",
-            "pt": "Levar a trava inteira para um vencimento mais distante sem encerrar ela antes"
+            "pt": "Levar a trava inteira para um vencimento mais distante sem encerrá-la antes"
           }
         },
         {

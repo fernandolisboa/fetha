@@ -15,8 +15,8 @@
     {
       "type": "paragraph",
       "text": {
-        "en": "Use a bear put spread for the same bearish view as a long put, when giving up the gain below the lower strike is acceptable for a smaller net premium. It fits low IV rank, same as the long put: both legs are puts, so a rise in volatility helps the bought leg a little more than it hurts the sold one.",
-        "pt": "Use uma trava de baixa com puts para a mesma visão de baixa da put comprada, quando abrir mão do ganho abaixo do strike mais baixo é aceitável por um prêmio líquido menor. Encaixa com IV rank baixo, como a put comprada: as duas pernas são puts, então uma alta de volatilidade ajuda um pouco mais a perna comprada do que machuca a vendida."
+        "en": "Use a bear put spread for the same bearish view as a long put, when giving up the gain below the lower strike is acceptable for a smaller net premium. It fits low IV rank, same as the long put: the bought leg sits closer to the money than the sold one, so its vega usually outweighs the sold leg's, leaving the spread's net vega positive like a bought put's — check both legs' own vega rather than assume it from the strikes alone.",
+        "pt": "Use uma trava de baixa com puts para a mesma visão de baixa da put comprada, quando abrir mão do ganho abaixo do strike mais baixo é aceitável por um prêmio líquido menor. Encaixa com IV rank baixo, como a put comprada: a perna comprada fica mais perto do dinheiro do que a vendida, então o vega dela costuma pesar mais, deixando o vega líquido da trava positivo como o de uma put comprada — confira o vega de cada perna em vez de supor pelos strikes."
       }
     },
     {
@@ -43,8 +43,8 @@
     {
       "type": "paragraph",
       "text": {
-        "en": "Max loss is the net debit paid, {{bear-put-spread.maxLossAbs}}, above the break-even of {{bear-put-spread.breakEven0}}. Max gain is capped at {{bear-put-spread.maxGainAbs}} once the stock reaches the lower strike — the width between the two strikes minus what was paid for the spread.",
-        "pt": "A perda máxima é o débito líquido pago, {{bear-put-spread.maxLossAbs}}, acima do break-even de {{bear-put-spread.breakEven0}}. O ganho máximo é travado em {{bear-put-spread.maxGainAbs}} assim que a ação chega ao strike mais baixo — a distância entre os dois strikes menos o que foi pago pela trava."
+        "en": "Max loss is the net debit paid, {{bear-put-spread.maxLossAbs}}, kept in full at or above the higher strike bought; falling from there, it shrinks to zero exactly at the break-even of {{bear-put-spread.breakEven0}}, then turns into a growing gain. Max gain is capped at {{bear-put-spread.maxGainAbs}} once the stock reaches the lower strike — the width between the two strikes minus what was paid for the spread.",
+        "pt": "A perda máxima é o débito líquido pago, {{bear-put-spread.maxLossAbs}}, mantida por completo no strike comprado ou acima dele; caindo a partir daí, ela encolhe até zero exatamente no break-even de {{bear-put-spread.breakEven0}}, e então se torna um ganho crescente. O ganho máximo é travado em {{bear-put-spread.maxGainAbs}} assim que a ação chega ao strike mais baixo — a distância entre os dois strikes menos o que foi pago pela trava."
       }
     },
     {
@@ -59,7 +59,7 @@
       "type": "paragraph",
       "text": {
         "en": "Fetha's Montar plano sets this recipe's own profit target, stop and days-before-expiry exit for both legs together; Rolar lets the whole spread move to a later expiry without closing it first.",
-        "pt": "O Montar plano da Fetha define, para as duas pernas juntas, o alvo de lucro, o stop e a saída por dias até o vencimento da própria receita; o Rolar permite levar a trava inteira para um vencimento mais distante sem encerrar ela antes."
+        "pt": "O Montar plano da Fetha define, para as duas pernas juntas, o alvo de lucro, o stop e a saída por dias até o vencimento da própria receita; o Rolar permite levar a trava inteira para um vencimento mais distante sem encerrá-la antes."
       }
     },
     {
@@ -172,8 +172,8 @@
       ],
       "correctOptionId": "a",
       "explanation": {
-        "en": "Both legs are bought and sold puts with the same vega sign as a bought put, so cheap options (low IV rank) suit it, same as a long put.",
-        "pt": "As duas pernas têm o mesmo sinal de vega de uma put comprada, então opções baratas (IV rank baixo) servem bem, como na put comprada."
+        "en": "Only the spread's net vega carries the bought put's positive sign — the sold leg's own vega is negative; cheap options (low IV rank) still suit the position overall, same as a long put.",
+        "pt": "Só o vega líquido da trava carrega o sinal positivo da put comprada — o vega da própria perna vendida é negativo; opções baratas (IV rank baixo) ainda servem bem para a posição como um todo, como na put comprada."
       }
     },
     {

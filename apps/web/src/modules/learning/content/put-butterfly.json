@@ -45,23 +45,23 @@
     {
       "type": "paragraph",
       "text": {
-        "en": "Max loss is the net debit paid, {{put-butterfly.maxLossAbs}}, outside the two break-evens of {{put-butterfly.breakEven0}} and {{put-butterfly.breakEven1}}. Max gain, {{put-butterfly.maxGainAbs}}, is reached only if the stock finishes exactly at the middle strike — same payoff shape as the call butterfly, with puts instead.",
-        "pt": "A perda máxima é o débito líquido pago, {{put-butterfly.maxLossAbs}}, fora dos dois break-evens de {{put-butterfly.breakEven0}} e {{put-butterfly.breakEven1}}. O ganho máximo, {{put-butterfly.maxGainAbs}}, só é alcançado se a ação terminar exatamente no strike do meio — o mesmo formato de payoff da borboleta com calls, só que com puts."
+        "en": "Max loss is the net debit paid, {{put-butterfly.maxLossAbs}}, kept in full at or beyond either outer strike; moving back toward the middle, it shrinks to zero exactly at the nearer break-even ({{put-butterfly.breakEven0}} or {{put-butterfly.breakEven1}}), then turns into a growing gain. Max gain, {{put-butterfly.maxGainAbs}}, is reached only if the stock finishes exactly at the middle strike — same payoff shape as the call butterfly, with puts instead.",
+        "pt": "A perda máxima é o débito líquido pago, {{put-butterfly.maxLossAbs}}, mantida por completo no strike externo ou além dele, de qualquer lado; voltando em direção ao meio, ela encolhe até zero exatamente no break-even mais próximo ({{put-butterfly.breakEven0}} ou {{put-butterfly.breakEven1}}), e então se torna um ganho crescente. O ganho máximo, {{put-butterfly.maxGainAbs}}, só é alcançado se a ação terminar exatamente no strike do meio — o mesmo formato de payoff da borboleta com calls, só que com puts."
       }
     },
     {
       "type": "callout",
       "tone": "warning",
       "text": {
-        "en": "On B3 equity puts are usually European-style, so less early-assignment risk than the call version, but four legs still means four series needing real liquidity to open and close cleanly; as with the call butterfly, the full max gain only shows up pinned exactly at the middle strike.",
-        "pt": "Na B3, puts sobre ações costumam ser do estilo europeu, então com menos risco de atribuição antecipada do que a versão com calls, mas quatro pernas ainda significam quatro séries precisando de liquidez real para abrir e encerrar direito; como na borboleta com calls, o ganho máximo inteiro só aparece com o fechamento bem travado no strike do meio."
+        "en": "On B3 equity puts are usually European-style, so less early-assignment risk than the call version, but three series — the outer two plus the doubled middle one — still need real liquidity to open and close cleanly across four option contracts; as with the call butterfly, the full max gain only shows up pinned exactly at the middle strike.",
+        "pt": "Na B3, puts sobre ações costumam ser do estilo europeu, então com menos risco de atribuição antecipada do que a versão com calls, mas três séries — as duas externas mais a do meio, dobrada — ainda precisam de liquidez real para abrir e encerrar direito em quatro contratos de opção; como na borboleta com calls, o ganho máximo inteiro só aparece com o fechamento bem travado no strike do meio."
       }
     },
     {
       "type": "paragraph",
       "text": {
-        "en": "Fetha's Montar plano sets this recipe's own stop and days-before-expiry exit for all four legs together.",
-        "pt": "O Montar plano da Fetha define, para as quatro pernas juntas, o stop e a saída por dias até o vencimento da própria receita."
+        "en": "Fetha's Montar plano sets this recipe's own stop and days-before-expiry exit for all four option contracts together.",
+        "pt": "O Montar plano da Fetha define, para os quatro contratos de opção juntos, o stop e a saída por dias até o vencimento da própria receita."
       }
     },
     {
@@ -181,8 +181,8 @@
     {
       "id": "q4",
       "prompt": {
-        "en": "Compared to a two-leg spread, a four-leg butterfly's cost to open and close is:",
-        "pt": "Comparado a uma trava de duas pernas, o custo de abrir e encerrar uma borboleta de quatro pernas é:"
+        "en": "Compared to a two-series spread, a three-series butterfly's cost to open and close is:",
+        "pt": "Comparado a uma trava de duas séries, o custo de abrir e encerrar uma borboleta de três séries é:"
       },
       "options": [
         {
@@ -209,8 +209,8 @@
       ],
       "correctOptionId": "c",
       "explanation": {
-        "en": "More legs means more series, each with its own liquidity cost at entry and exit.",
-        "pt": "Mais pernas significam mais séries, cada uma com seu próprio custo de liquidez na entrada e na saída."
+        "en": "More series means more liquidity cost at entry and exit — here three, against a two-leg spread's two.",
+        "pt": "Mais séries significam mais custo de liquidez na entrada e na saída — aqui três, contra as duas de uma trava de duas pernas."
       }
     }
   ]

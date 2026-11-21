@@ -34,18 +34,23 @@ export const ILLUSTRATIVE_LOWER_STRIKE: DecimalString = decimalStringSchema.pars
 export const ILLUSTRATIVE_LOWER_MID_STRIKE: DecimalString = decimalStringSchema.parse("19.00");
 export const ILLUSTRATIVE_UPPER_MID_STRIKE: DecimalString = decimalStringSchema.parse("21.00");
 export const ILLUSTRATIVE_HIGHER_STRIKE: DecimalString = decimalStringSchema.parse("22.00");
-export const ILLUSTRATIVE_CALL_PREMIUM: DecimalString = decimalStringSchema.parse("1.50");
-export const ILLUSTRATIVE_HIGHER_CALL_PREMIUM: DecimalString = decimalStringSchema.parse("0.60");
-export const ILLUSTRATIVE_PUT_PREMIUM: DecimalString = decimalStringSchema.parse("1.20");
-// Premiums for the strikes PR 2's spreads, butterflies, the condor and the straddle/strangle
-// need: calls fall and puts rise as the strike rises, same as the pair above (CLAUDE.md
-// principle 1 lets a fixture's own inputs be chosen; only a lesson's *resolved* numbers may never
-// be hand-written).
-const ILLUSTRATIVE_LOWEST_CALL_PREMIUM: DecimalString = decimalStringSchema.parse("2.60");
-const ILLUSTRATIVE_UPPER_MID_CALL_PREMIUM: DecimalString = decimalStringSchema.parse("1.00");
-const ILLUSTRATIVE_LOWEST_PUT_PREMIUM: DecimalString = decimalStringSchema.parse("0.50");
-const ILLUSTRATIVE_LOWER_MID_PUT_PREMIUM: DecimalString = decimalStringSchema.parse("0.80");
-const ILLUSTRATIVE_HIGHER_PUT_PREMIUM: DecimalString = decimalStringSchema.parse("2.40");
+// Every premium below is the Black-Scholes price (ADR-0002) of its own strike, from one flat
+// annualized vol (50%) and r=0 (no CDI point in this fixture's market view resolves to the
+// engine's own default, `resolveRiskFreeRate`), at this fixture's own T = 36/252 years (35
+// trading sessions strictly after `AT`'s session up to and including `ILLUSTRATIVE_EXPIRY`, plus
+// the whole of `AT`'s own session, ADR-0013's day-count rule) — never chosen by hand, derived
+// once with `bsmPriceRaw` (`packages/engine/src/internal/black-scholes.ts`) from inside the
+// engine package and rounded to the cent, so put-call parity (`C - P = S - K` at r=0) holds
+// across every strike (review round 2, finding #3). Flat vol means the lessons' own IV-rank
+// lesson never cites these as evidence of a skew or a term structure.
+export const ILLUSTRATIVE_CALL_PREMIUM: DecimalString = decimalStringSchema.parse("1.51");
+export const ILLUSTRATIVE_HIGHER_CALL_PREMIUM: DecimalString = decimalStringSchema.parse("0.78");
+export const ILLUSTRATIVE_PUT_PREMIUM: DecimalString = decimalStringSchema.parse("1.51");
+export const ILLUSTRATIVE_LOWEST_CALL_PREMIUM: DecimalString = decimalStringSchema.parse("2.65");
+export const ILLUSTRATIVE_UPPER_MID_CALL_PREMIUM: DecimalString = decimalStringSchema.parse("1.09");
+export const ILLUSTRATIVE_LOWEST_PUT_PREMIUM: DecimalString = decimalStringSchema.parse("0.65");
+export const ILLUSTRATIVE_LOWER_MID_PUT_PREMIUM: DecimalString = decimalStringSchema.parse("1.02");
+export const ILLUSTRATIVE_HIGHER_PUT_PREMIUM: DecimalString = decimalStringSchema.parse("2.78");
 
 const AT = instantSchema.parse("2026-01-02T13:00:00.000Z");
 const CALENDAR_START = "2026-01-02";
@@ -64,16 +69,23 @@ const PUT_LOWER_MID_TICKER: Ticker = tickerSchema.parse("EXMPN135");
 const PUT_LOWER_TICKER: Ticker = tickerSchema.parse("EXMPN105");
 const PUT_HIGHER_TICKER: Ticker = tickerSchema.parse("EXMPN112");
 
+// A trading calendar never includes Saturday or Sunday (B3 never opens on either): the fixed
+// illustrative market follows that rule too, so the sessions-to-expiry figure a lesson shows is
+// the real count of trading days between two dates, not the calendar day count a naive walk
+// would give (review round 2, finding #3).
 function dailySessions(startDate: string, count: number): TradingSession[] {
   const sessions: TradingSession[] = [];
   let cursor = new Date(`${startDate}T00:00:00.000Z`);
-  for (let i = 0; i < count; i += 1) {
-    const date = sessionDateSchema.parse(cursor.toISOString().slice(0, 10));
-    sessions.push({
-      date,
-      open: instantSchema.parse(`${date}T13:00:00.000Z`),
-      close: instantSchema.parse(`${date}T21:00:00.000Z`),
-    });
+  while (sessions.length < count) {
+    const dayOfWeek = cursor.getUTCDay();
+    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+      const date = sessionDateSchema.parse(cursor.toISOString().slice(0, 10));
+      sessions.push({
+        date,
+        open: instantSchema.parse(`${date}T13:00:00.000Z`),
+        close: instantSchema.parse(`${date}T21:00:00.000Z`),
+      });
+    }
     cursor = new Date(cursor.getTime() + 24 * 60 * 60 * 1000);
   }
   return sessions;

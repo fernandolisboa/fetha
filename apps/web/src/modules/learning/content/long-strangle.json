@@ -100,7 +100,7 @@
       "correctOptionId": "b",
       "explanation": {
         "en": "A straddle uses the same strike for both legs; a strangle spreads them apart, one put strike below the stock and one call strike above.",
-        "pt": "Um straddle usa o mesmo strike para as duas pernas; um strangle espalha elas, um strike de put abaixo da ação e um de call acima."
+        "pt": "Um straddle usa o mesmo strike para as duas pernas; num strangle elas ficam em strikes diferentes, um de put abaixo da ação e um de call acima."
       }
     },
     {

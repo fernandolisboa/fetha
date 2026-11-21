@@ -43,23 +43,23 @@
     {
       "type": "paragraph",
       "text": {
-        "en": "Max gain is the net credit received, {{bear-call-spread.maxGainAbs}}, kept in full below the break-even of {{bear-call-spread.breakEven0}}. Max loss is capped at {{bear-call-spread.maxLossAbs}} once the stock reaches the higher strike — the width between the two strikes minus the credit received.",
-        "pt": "O ganho máximo é o crédito líquido recebido, {{bear-call-spread.maxGainAbs}}, mantido por completo abaixo do break-even de {{bear-call-spread.breakEven0}}. A perda máxima é travada em {{bear-call-spread.maxLossAbs}} assim que a ação chega ao strike mais alto — a distância entre os dois strikes menos o crédito recebido."
+        "en": "Max gain is the net credit received, {{bear-call-spread.maxGainAbs}}, kept in full at or below the lower strike sold; climbing from there, it shrinks to zero exactly at the break-even of {{bear-call-spread.breakEven0}}, then turns into a growing loss. Max loss is capped at {{bear-call-spread.maxLossAbs}} once the stock reaches the higher strike — the width between the two strikes minus the credit received.",
+        "pt": "O ganho máximo é o crédito líquido recebido, {{bear-call-spread.maxGainAbs}}, mantido por completo no strike vendido ou abaixo dele; subindo a partir daí, ele encolhe até zero exatamente no break-even de {{bear-call-spread.breakEven0}}, e então se torna uma perda crescente. A perda máxima é travada em {{bear-call-spread.maxLossAbs}} assim que a ação chega ao strike mais alto — a distância entre os dois strikes menos o crédito recebido."
       }
     },
     {
       "type": "callout",
       "tone": "warning",
       "text": {
-        "en": "The sold call is usually American-style, so it carries early-assignment risk if it goes deep in the money, especially around a dividend date; a credit spread's max loss is typically several times the credit received, so size by that max loss; a sharp, fast rally can breach the break-even before there is time to react.",
-        "pt": "A call vendida costuma ser do estilo americano, então carrega risco de atribuição antecipada se ficar bem dentro do dinheiro, especialmente perto de uma data de dividendo; a perda máxima de uma trava de crédito costuma ser várias vezes o crédito recebido, então dimensione por essa perda máxima; uma alta forte e rápida pode romper o break-even antes de dar tempo de reagir."
+        "en": "The sold call is usually American-style, so it carries early-assignment risk if it goes deep in the money; on B3, though, a cash distribution adjusts the strike itself (ADR-0070), so a dividend date alone rarely makes early exercise worth it. Size by the max loss, not the credit — here {{bear-call-spread.maxLossAbs}} against a {{bear-call-spread.maxGainAbs}} credit; a sharp, fast rally can breach the break-even before there is time to react.",
+        "pt": "A call vendida costuma ser do estilo americano, então carrega risco de atribuição antecipada se ficar bem dentro do dinheiro; na B3, porém, um provento em dinheiro ajusta o próprio strike (ADR-0070), então uma data de dividendo por si só raramente torna vantajoso exercer antecipadamente. Dimensione pela perda máxima, não pelo crédito — aqui {{bear-call-spread.maxLossAbs}} contra um crédito de {{bear-call-spread.maxGainAbs}}; uma alta forte e rápida pode romper o break-even antes de dar tempo de reagir."
       }
     },
     {
       "type": "paragraph",
       "text": {
         "en": "Fetha's Montar plano sets this recipe's own profit target, stop and days-before-expiry exit for both legs together; Rolar lets the whole spread move to a later expiry without closing it first.",
-        "pt": "O Montar plano da Fetha define, para as duas pernas juntas, o alvo de lucro, o stop e a saída por dias até o vencimento da própria receita; o Rolar permite levar a trava inteira para um vencimento mais distante sem encerrar ela antes."
+        "pt": "O Montar plano da Fetha define, para as duas pernas juntas, o alvo de lucro, o stop e a saída por dias até o vencimento da própria receita; o Rolar permite levar a trava inteira para um vencimento mais distante sem encerrá-la antes."
       }
     },
     {
@@ -123,8 +123,8 @@
         {
           "id": "b",
           "text": {
-            "en": "Exactly at the lower strike",
-            "pt": "Exatamente no strike mais baixo"
+            "en": "At or below the lower strike",
+            "pt": "No strike mais baixo ou abaixo"
           }
         },
         {
@@ -135,10 +135,10 @@
           }
         }
       ],
-      "correctOptionId": "c",
+      "correctOptionId": "b",
       "explanation": {
-        "en": "Below its break-even the full credit stands as the profit; above it, the credit starts getting eaten by the spread's growing loss.",
-        "pt": "Abaixo do break-even, o crédito inteiro fica como lucro; acima dele, o crédito começa a ser consumido pela perda crescente da trava."
+        "en": "At or below the strike sold, neither call has any intrinsic value and the full credit stands as the profit; above it, the credit starts getting eaten by the sold call's growing intrinsic value, reaching zero right at the break-even.",
+        "pt": "No strike vendido ou abaixo dele, nenhuma das calls tem valor intrínseco e o crédito inteiro fica como lucro; acima dele, o crédito começa a ser consumido pelo valor intrínseco crescente da call vendida, chegando a zero exatamente no break-even."
       }
     },
     {
@@ -184,28 +184,28 @@
       },
       "options": [
         {
-          "id": "c",
+          "id": "a",
           "text": {
             "en": "Every option is European-style",
             "pt": "Toda opção é do estilo europeu"
           }
         },
         {
-          "id": "a",
+          "id": "b",
           "text": {
             "en": "Calls can never be assigned",
             "pt": "Calls nunca podem ser atribuídas"
           }
         },
         {
-          "id": "b",
+          "id": "c",
           "text": {
             "en": "Most equity calls are American-style",
             "pt": "A maioria das calls sobre ações é do estilo americano"
           }
         }
       ],
-      "correctOptionId": "b",
+      "correctOptionId": "c",
       "explanation": {
         "en": "Most B3 equity calls can be exercised any time up to expiry, so a short call deep in the money can be assigned early.",
         "pt": "A maioria das calls sobre ações da B3 pode ser exercida em qualquer momento até o vencimento, então uma call vendida bem dentro do dinheiro pode ser atribuída antes do vencimento."
