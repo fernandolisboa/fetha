@@ -50,6 +50,26 @@ describe("suggestRollAction", () => {
       })?.action,
     ).toBe("roll");
   });
+
+  it("watches an in-the-money short before its own roll trigger or the assignment-risk window, rather than suggesting it expire", () => {
+    expect(
+      suggestRollAction({
+        ...base,
+        sessionsToExpiry: 8,
+        anyShortLegInTheMoney: true,
+      })?.action,
+    ).toBe("watch");
+  });
+
+  it("still suggests letting it expire when every short leg is out of the money", () => {
+    expect(
+      suggestRollAction({
+        ...base,
+        sessionsToExpiry: 8,
+        anyShortLegInTheMoney: false,
+      })?.action,
+    ).toBe("let_expire");
+  });
 });
 
 describe("buildRollAgenda", () => {

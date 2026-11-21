@@ -39,10 +39,3 @@ export const getMyRollChain = cache(async (operationId: string): Promise<RollCha
   }
   return aggregateRollChainByMonth(entries);
 });
-
-export const getMyRollChainLength = cache(async (operationId: string): Promise<number> => {
-  const repository = await forCurrentUser(getDb(), PortfolioRepository);
-  await recordAccess("portfolio_read");
-  const operations = await repository.listOperations();
-  return chainIdsFrom(operations, operationId).length;
-});

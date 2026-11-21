@@ -1,5 +1,5 @@
 import { cache } from "react";
-import type { SessionDate, Ticker } from "@fetha/contracts";
+import { decimalStringSchema, type SessionDate, type Ticker } from "@fetha/contracts";
 
 import { getDb } from "@/db/client";
 import {
@@ -7,13 +7,14 @@ import {
   latestCandle,
   tradingSessionForDate,
 } from "@/modules/market-data";
+import { todaySaoPauloDate } from "@/lib/today-sao-paulo";
 
 import { holdingKey } from "../bookkeeping";
-import { distanceToSpot, moneyness } from "../builder/series-picker-model";
 import { getMyPortfolio } from "../portfolio-queries";
 import { seriesByHolding } from "../portfolio-service";
 
 import { buildRollAgenda, type RollAgendaInput, type RollAgendaItem } from "./roll-agenda";
+import { isShortLegAssignmentRisk } from "./roll-assignment-risk";
 
 // The agenda's own trigger when an operation cannot be linked to a saved plan (ADR-0080
 // addendum "agenda trigger without a plan link"): nothing in the `operations` table names which
@@ -28,8 +29,8 @@ const DEFAULT_ROLL_SESSIONS_BEFORE_EXPIRY = 5;
 // Each open operation's own `RollAgendaInput`, read from the already-loaded portfolio
 // (`getMyPortfolio`, React-cached so the Início and Carteira pages share one read) plus the
 // underlying's last close and the calendar's own session count to expiry — never a number this
-// module computes itself (CLAUDE.md principle 1): `moneyness` and `distanceToSpot` are the same
-// pure functions the builder's own series picker already uses.
+// module computes itself (CLAUDE.md principle 1): strike and spot are the engine's own series
+// facts and the latest ingested candle, compared by `isShortLegAssignmentRisk`.
 export const getMyRollAgenda = cache(async (): Promise<RollAgendaItem[]> => {
   const db = getDb();
   const model = await getMyPortfolio();
@@ -64,15 +65,22 @@ export const getMyRollAgenda = cache(async (): Promise<RollAgendaItem[]> => {
         .some((leg) => {
           const facts = series.get(holdingKey(leg.ticker, heldExpiry));
           if (!facts) return false;
-          const distance = distanceToSpot(facts.strike, candle.close);
-          return moneyness(facts.right, distance) === "in";
+          return isShortLegAssignmentRisk(
+            facts.right,
+            decimalStringSchema.parse(facts.strike),
+            decimalStringSchema.parse(candle.close),
+          );
         });
 
     const expirySession = await tradingSessionForDate(db, heldExpiry);
     if (!expirySession || !candle) continue;
+    // Anchored on today, not on the latest ingested candle's own session (#382 review
+    // advisory "session count anchor"): a candle that lags by one session (ingestion has not
+    // run yet today) would overcount every expiry by one session and the "vence hoje" branch
+    // (count === 0) could never fire on the expiry day itself.
     const sessionsToExpiry = await countSessionsClosedAfter(
       db,
-      candle.session,
+      todaySaoPauloDate(),
       new Date(expirySession.close),
     );
 

@@ -1,4 +1,4 @@
-import type { Centavos, DecimalString, Ticker } from "@fetha/contracts";
+import type { Centavos, DecimalString, SessionDate, Ticker } from "@fetha/contracts";
 import type { Leg, OperationPricing, Side } from "@fetha/engine";
 
 // A roll's two legs of pricing (#382): `closing` is the engine's own
@@ -21,6 +21,10 @@ export interface RollOrder {
   side: Side;
   quantity: Leg["quantity"];
   price: DecimalString | null;
+  // The session the engine's own close is stale against, carried from `LegValuation.stale`
+  // (#382 review item 5): a dialog showing this order's price as current when it is actually
+  // this many sessions old would misrepresent the net as live when it is not.
+  stale: { session: SessionDate } | null;
 }
 
 export interface RollProposal {
@@ -38,6 +42,7 @@ function ordersFor(action: RollOrderAction, pricing: Pick<OperationPricing, "leg
     side: valuation.leg.side,
     quantity: valuation.leg.quantity,
     price: valuation.price,
+    stale: valuation.stale,
   }));
 }
 

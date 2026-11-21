@@ -63,6 +63,7 @@ import {
   type GeneratePlanResult,
   type LotPricing,
 } from "./generate-plan";
+import { DEFAULT_ROLL_SESSIONS_BEFORE_EXPIRY } from "./exit-rules";
 import { ivDisplayFromLabel, ivRegimeFromReading, type IvDisplay } from "./iv-regime";
 import { planFingerprint } from "./fingerprint";
 import { legSelectionFor } from "./plan-selection";
@@ -73,7 +74,6 @@ import { recipeForView } from "./select-recipe";
 import { planViewSchema, type PlanView } from "./view";
 
 const DEFAULT_TOLERANCE: DecimalString = decimalStringSchema.parse("0.010000");
-const DEFAULT_ROLL_SESSIONS_BEFORE_EXPIRY = 5;
 // A decision auto-recorded alongside a saved plan states no conviction of its own (ADR-0079):
 // the decision form itself starts with no confidence filled in, so there is no existing default
 // to copy; 50% (0.5, the schema's own fraction of 1) is the most neutral value that is still a

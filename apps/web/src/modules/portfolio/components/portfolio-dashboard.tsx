@@ -254,10 +254,12 @@ function OperationsTable({
   model,
   decisionSlot,
   analysisSlot,
+  rollSessionDefault,
 }: {
   model: PortfolioReadModel;
   decisionSlot?: OperationDecisionSlot;
   analysisSlot?: OperationDecisionSlot;
+  rollSessionDefault: SessionDate;
 }) {
   if (model.operations.length === 0) {
     return <p className="text-muted-foreground text-[13px]">{labels.operations.empty}</p>;
@@ -343,7 +345,11 @@ function OperationsTable({
                     {analysisSlot?.(operation.id)}
                     {decisionSlot?.(operation.id)}
                     {state?.legs.some((leg) => leg.role !== "stock") && (
-                      <RollDialog operationId={operation.id} underlying={operation.underlying} />
+                      <RollDialog
+                        operationId={operation.id}
+                        underlying={operation.underlying}
+                        today={rollSessionDefault}
+                      />
                     )}
                     <UngroupButton operationId={operation.id} />
                   </span>
@@ -430,10 +436,12 @@ export function PortfolioDashboard({
   model,
   decisionSlot,
   analysisSlot,
+  rollSessionDefault,
 }: {
   model: PortfolioReadModel;
   decisionSlot?: OperationDecisionSlot;
   analysisSlot?: OperationDecisionSlot;
+  rollSessionDefault: SessionDate;
 }) {
   const labelOf = new Map(
     model.operations.map(({ operation }) => [
@@ -480,6 +488,7 @@ export function PortfolioDashboard({
               model={model}
               decisionSlot={decisionSlot}
               analysisSlot={analysisSlot}
+              rollSessionDefault={rollSessionDefault}
             />
           </Panel>
           <OpenOperationPayoffsPanel operations={model.operations} />

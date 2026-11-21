@@ -144,6 +144,16 @@ function toOperationRecord(row: typeof operations.$inferSelect): OperationRecord
   };
 }
 
+// Thrown inside `roll`'s transaction on every post-write refusal, so Postgres rolls every write
+// of that attempt back instead of committing a half-executed roll (#382 review item 1):
+// returning `{ ok: false }` from a Drizzle transaction callback still commits whatever the
+// callback already wrote.
+class RollRefusal extends Error {
+  constructor(public readonly reason: Exclude<RollResult, { ok: true }>["reason"]) {
+    super(`roll refused: ${reason}`);
+  }
+}
+
 export class PortfolioRepository extends UserScopedRepository {
   async listFills(): Promise<FillRecord[]> {
     const rows = await this.db
@@ -378,7 +388,8 @@ export class PortfolioRepository extends UserScopedRepository {
   // Records a roll (#382): closes the source operation with `closingFills`, then groups
   // `openingFills` into a brand new operation that points back at it. `expectedFillIds` guards
   // the same way `settle`'s does, against the source operation having changed since the
-  // proposal was priced.
+  // proposal was priced. A covered call's stock leg is never closed: its fills carry forward,
+  // `operationId` reassigned to the new operation, so the cost basis is kept (ADR-0080).
   async roll(
     operationId: string,
     expectedFillIds: readonly string[],
@@ -390,78 +401,94 @@ export class PortfolioRepository extends UserScopedRepository {
     if (openingFills.length === 0) {
       return { ok: false, reason: "empty" };
     }
-    return this.db.transaction(async (tx) => {
-      const [existing] = await tx
-        .select({ id: operations.id })
-        .from(operations)
-        .where(
-          and(
-            eq(operations.id, operationId),
-            eq(operations.userId, this.userId),
-            eq(operations.status, "open"),
-          ),
-        )
-        .for("update");
-      if (!existing) {
-        return { ok: false, reason: "not_found" };
-      }
-      const current = await tx
-        .select(FILL_COLUMNS)
-        .from(fills)
-        .where(and(eq(fills.operationId, operationId), eq(fills.userId, this.userId)))
-        .for("update");
-      const expected = new Set(expectedFillIds);
-      if (current.length !== expected.size || current.some((row) => !expected.has(row.id))) {
-        return { ok: false, reason: "conflict" };
-      }
-
-      const insertedClosing =
-        closingFills.length > 0
-          ? await tx
-              .insert(fills)
-              .values(closingFills.map((fill) => ({ ...fill, userId: this.userId, operationId })))
-              .returning(FILL_COLUMNS)
-          : [];
-      const closedPlan = plan([...current, ...insertedClosing].map(toFillRecord));
-      if (!closedPlan.ok) {
-        return { ok: false, reason: closedPlan.reason };
-      }
-      if (closedPlan.state.status !== "closed") {
-        return { ok: false, reason: "conflict" };
-      }
-      await tx
-        .update(operations)
-        .set({ status: "closed", closedAt: rolledAt })
-        .where(and(eq(operations.id, operationId), eq(operations.userId, this.userId)));
-
-      const insertedOpening = await tx
-        .insert(fills)
-        .values(openingFills.map((fill) => ({ ...fill, userId: this.userId })))
-        .returning(FILL_COLUMNS);
-      const openedPlan = plan(insertedOpening.map(toFillRecord));
-      if (!openedPlan.ok) {
-        return { ok: false, reason: openedPlan.reason };
-      }
-      const [created] = await tx
-        .insert(operations)
-        .values({ ...openedPlan.state, userId: this.userId, rolledFromOperationId: operationId })
-        .returning({ id: operations.id });
-      if (!created) {
-        throw new Error("failed to create rolled operation");
-      }
-      await tx
-        .update(fills)
-        .set({ operationId: created.id })
-        .where(
-          and(
-            inArray(
-              fills.id,
-              insertedOpening.map((row) => row.id),
+    try {
+      const newOperationId = await this.db.transaction(async (tx) => {
+        const [existing] = await tx
+          .select({ id: operations.id })
+          .from(operations)
+          .where(
+            and(
+              eq(operations.id, operationId),
+              eq(operations.userId, this.userId),
+              eq(operations.status, "open"),
             ),
-            eq(fills.userId, this.userId),
-          ),
-        );
-      return { ok: true, newOperationId: created.id };
-    });
+          )
+          .for("update");
+        if (!existing) {
+          throw new RollRefusal("not_found");
+        }
+        const current = await tx
+          .select(FILL_COLUMNS)
+          .from(fills)
+          .where(and(eq(fills.operationId, operationId), eq(fills.userId, this.userId)))
+          .for("update");
+        const expected = new Set(expectedFillIds);
+        if (current.length !== expected.size || current.some((row) => !expected.has(row.id))) {
+          throw new RollRefusal("conflict");
+        }
+
+        const stockFills = current.filter((row) => row.assetClass === "stock");
+        const nonStockFills = current.filter((row) => row.assetClass !== "stock");
+
+        const insertedClosing =
+          closingFills.length > 0
+            ? await tx
+                .insert(fills)
+                .values(closingFills.map((fill) => ({ ...fill, userId: this.userId, operationId })))
+                .returning(FILL_COLUMNS)
+            : [];
+        const closedPlan = plan([...nonStockFills, ...insertedClosing].map(toFillRecord));
+        if (!closedPlan.ok) {
+          throw new RollRefusal(closedPlan.reason);
+        }
+        if (closedPlan.state.status !== "closed") {
+          throw new RollRefusal("conflict");
+        }
+
+        const insertedOpening = await tx
+          .insert(fills)
+          .values(openingFills.map((fill) => ({ ...fill, userId: this.userId })))
+          .returning(FILL_COLUMNS);
+        const openedPlan = plan([...stockFills, ...insertedOpening].map(toFillRecord));
+        if (!openedPlan.ok) {
+          throw new RollRefusal(openedPlan.reason);
+        }
+        if (openedPlan.state.status !== "open") {
+          throw new RollRefusal("conflict");
+        }
+
+        await tx
+          .update(operations)
+          .set({ status: "closed", closedAt: rolledAt })
+          .where(and(eq(operations.id, operationId), eq(operations.userId, this.userId)));
+
+        const [created] = await tx
+          .insert(operations)
+          .values({
+            ...openedPlan.state,
+            userId: this.userId,
+            rolledFromOperationId: operationId,
+          })
+          .returning({ id: operations.id });
+        if (!created) {
+          throw new Error("failed to create rolled operation");
+        }
+        const carriedIds = [
+          ...stockFills.map((row) => row.id),
+          ...insertedOpening.map((row) => row.id),
+        ];
+        await tx
+          .update(fills)
+          .set({ operationId: created.id })
+          .where(and(inArray(fills.id, carriedIds), eq(fills.userId, this.userId)));
+        return created.id;
+      });
+      return { ok: true, newOperationId };
+    } catch (error) {
+      if (error instanceof RollRefusal) {
+        return { ok: false, reason: error.reason };
+      }
+      throw error;
+    }
   }
 }

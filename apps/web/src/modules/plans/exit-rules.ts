@@ -9,9 +9,12 @@ export const ROLLABLE_STRUCTURE_IDS: ReadonlySet<string> = new Set([
   "bear-call-spread",
 ]);
 
-// Exported (#382): the roll agenda has no structure id to look up (a held operation's own
-// `operations` row never stores one, ADR-0080 addendum "no cheap plan link"), so it reuses this
-// same default rather than a second constant.
+// The default a structure's own roll rule falls back to when its recipe names no
+// `days_before_expiry` exit rule. Not reused by the portfolio roll agenda (#382,
+// `roll/roll-agenda-queries.ts`): the agenda has no structure id to look up (a held operation's
+// own `operations` row never stores one, ADR-0080 addendum "no cheap plan link"), and importing
+// this value there would couple `portfolio` to a `plans` default that is a coincidence of
+// today's catalog, not a shared invariant, so the agenda duplicates the literal instead.
 export const DEFAULT_ROLL_SESSIONS_BEFORE_EXPIRY = 5;
 
 // Every exit rule the recipe carries, with the one date it can resolve to: a

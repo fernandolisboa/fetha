@@ -13,6 +13,7 @@ import {
 import { getDb } from "@/db/client";
 import { requireUser } from "@/modules/auth";
 import { isAnalysisAvailable } from "@/modules/ai-models";
+import { latestSessionOnOrBefore } from "@/modules/market-data";
 import {
   allowedDecisionKinds,
   defaultHorizonsForHeldOperations,
@@ -51,7 +52,16 @@ export const maxDuration = 120;
 
 export default async function PortfolioPage() {
   await requireUser();
-  const [portfolio, operations] = await Promise.all([getMyPortfolio(), getMyOperations()]);
+  const [portfolio, operations, lastOpenSession] = await Promise.all([
+    getMyPortfolio(),
+    getMyOperations(),
+    latestSessionOnOrBefore(getDb(), new Date()),
+  ]);
+  // The roll dialog's own default execution session (#382 review item 4): the latest trading
+  // session that has already opened and closed, never the raw calendar date, so clicking
+  // straight through never hits `recordRollAction`'s own "not a session" refusal on a weekend
+  // or a holiday.
+  const rollSessionDefault = lastOpenSession?.date ?? todaySaoPauloDate();
 
   const operationIds = operations.map((operation) => operation.id);
   const heldOperations = new Map(
@@ -136,6 +146,7 @@ export default async function PortfolioPage() {
         model={portfolio}
         decisionSlot={heldOperationDecision}
         analysisSlot={heldOperationAnalysis}
+        rollSessionDefault={rollSessionDefault}
       />
 
       <Panel title={t.list.title}>

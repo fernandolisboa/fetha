@@ -56,6 +56,9 @@ picked the defaults below on 2026-09-25; they are pending the owner's review on 
    to zero, and becomes `expired` only through a confirmed settlement. An open operation can be
    ungrouped (its fills go back to unassigned); a closed or expired one cannot. Adjusted and
    rolled lifecycles stay out of v1.
+   **Amended by #382 (ADR-0080):** a rolled lifecycle shipped after all: `operations` gained a
+   nullable, self-referencing `rolled_from_operation_id`, and the Carteira's own "Rolar" action
+   records one. Adjusted lifecycles are still out of v1.
 5. **Mark to market.** The dashboard calls `markToMarket` at the current instant with the current
    risk profile, the open operations, and the positions whose series has not expired. An option
    position whose expiry session has closed is not passed in (the engine would resolve its reused

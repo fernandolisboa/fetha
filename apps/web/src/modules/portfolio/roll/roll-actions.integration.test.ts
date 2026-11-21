@@ -62,6 +62,10 @@ function uniqueTicker(label: string): string {
 const SESSIONS = businessDays("2026-11-16", 45);
 const OPENED_SESSION = SESSIONS[0] ?? "";
 const ANCHOR_SESSION = SESSIONS[2] ?? "";
+// A real trading session the fixture seeds but never gives a candle to: the user's own
+// execution session has to differ from the pricing session (the latest ingested candle) for
+// the regression this file's own tests guard (#382 review item 4) to mean anything.
+const EXECUTION_SESSION = SESSIONS[3] ?? "";
 const CURRENT_EXPIRY = SESSIONS[24] ?? "";
 const NEXT_EXPIRY = SESSIONS[44] ?? "";
 
@@ -69,6 +73,7 @@ interface Market {
   underlying: string;
   currentTicker: string;
   nextTicker: string;
+  closedTicker: string;
 }
 
 async function seedMarket(): Promise<Market> {
@@ -76,6 +81,7 @@ async function seedMarket(): Promise<Market> {
   const underlying = uniqueTicker("U");
   const currentTicker = `${underlying}F30`;
   const nextTicker = `${underlying}G30`;
+  const closedTicker = `${underlying}F32`;
 
   await db
     .insert(tradingSessions)
@@ -126,23 +132,47 @@ async function seedMarket(): Promise<Market> {
       style: "european",
       asOf: new Date(`${OPENED_SESSION}T13:00:00.000Z`),
     },
+    {
+      isin: `ISIN-${closedTicker}`,
+      ticker: closedTicker,
+      underlying,
+      right: "call",
+      strike: "32.00000000",
+      expiry: CURRENT_EXPIRY,
+      style: "european",
+      asOf: new Date(`${OPENED_SESSION}T13:00:00.000Z`),
+    },
   ]);
 
   await ensureMonthlyPartition(db, "option_daily_prices", ANCHOR_SESSION);
-  await db.insert(optionDailyPrices).values({
-    ticker: nextTicker,
-    session: ANCHOR_SESSION,
-    asOf: new Date(`${ANCHOR_SESSION}T20:00:00.000Z`),
-    right: "call",
-    strike: "30.00000000",
-    expiry: NEXT_EXPIRY,
-    average: "1.000000",
-    close: "1.000000",
-    trades: 10,
-    tradedQuantity: 1000,
-  });
+  await db.insert(optionDailyPrices).values([
+    {
+      ticker: currentTicker,
+      session: ANCHOR_SESSION,
+      asOf: new Date(`${ANCHOR_SESSION}T20:00:00.000Z`),
+      right: "call",
+      strike: "30.00000000",
+      expiry: CURRENT_EXPIRY,
+      average: "1.500000",
+      close: "1.500000",
+      trades: 10,
+      tradedQuantity: 1000,
+    },
+    {
+      ticker: nextTicker,
+      session: ANCHOR_SESSION,
+      asOf: new Date(`${ANCHOR_SESSION}T20:00:00.000Z`),
+      right: "call",
+      strike: "30.00000000",
+      expiry: NEXT_EXPIRY,
+      average: "1.000000",
+      close: "1.000000",
+      trades: 10,
+      tradedQuantity: 1000,
+    },
+  ]);
 
-  return { underlying, currentTicker, nextTicker };
+  return { underlying, currentTicker, nextTicker, closedTicker };
 }
 
 const createdEmails: string[] = [];
@@ -197,6 +227,46 @@ async function openShortCall(market: Market): Promise<string> {
   );
   if (!operation) throw new Error("fixture setup failed");
   return operation.id;
+}
+
+// A ticker that traded, and fully netted to zero, earlier in the operation's own fill history
+// (#382 review item 3): a round trip on `closedTicker`, grouped into the same operation as the
+// still-open short call.
+async function addClosedTickerHistory(market: Market, operationId: string): Promise<void> {
+  const user0 = currentUser;
+  if (!user0) throw new Error("fixture setup failed");
+  const db = getDb();
+  const repository = new PortfolioRepository(db, user0);
+
+  const opened = await recordFillAction({
+    ticker: market.closedTicker,
+    side: "sell",
+    quantity: 100,
+    price: "1,50",
+    session: OPENED_SESSION,
+    costs: "",
+  });
+  expect(opened).toEqual({ status: "ok" });
+  const openFill = (await repository.listFills()).find(
+    (candidate) => candidate.ticker === market.closedTicker && candidate.operationId === null,
+  );
+  if (!openFill) throw new Error("fixture setup failed");
+  expect((await groupFillsAction({ fillIds: [openFill.id], operationId })).status).toBe("ok");
+
+  const closed = await recordFillAction({
+    ticker: market.closedTicker,
+    side: "buy",
+    quantity: 100,
+    price: "1,00",
+    session: ANCHOR_SESSION,
+    costs: "",
+  });
+  expect(closed).toEqual({ status: "ok" });
+  const closeFill = (await repository.listFills()).find(
+    (candidate) => candidate.ticker === market.closedTicker && candidate.operationId === null,
+  );
+  if (!closeFill) throw new Error("fixture setup failed");
+  expect((await groupFillsAction({ fillIds: [closeFill.id], operationId })).status).toBe("ok");
 }
 
 describe("buildRollProposalAction", () => {
@@ -278,6 +348,7 @@ describe("recordRollAction", () => {
     });
     const result = await recordRollAction({
       operationId,
+      session: EXECUTION_SESSION,
       closingFills: proposal.proposal.orders.filter((o) => o.action === "close").map(toInput),
       openingFills: proposal.proposal.orders.filter((o) => o.action === "open").map(toInput),
     });
@@ -291,6 +362,102 @@ describe("recordRollAction", () => {
     expect(created).toMatchObject({ status: "open", rolledFromOperationId: operationId });
   });
 
+  it("stamps the roll with the user's own execution session, not the pricing session (#382 review item 4)", async () => {
+    const market = await seedMarket();
+    const owner = await signIn("record-session");
+    const operationId = await openShortCall(market);
+
+    const proposal = await buildRollProposalAction({ operationId });
+    expect(proposal.status).toBe("ok");
+    if (proposal.status !== "ok") return;
+
+    const toInput = (order: (typeof proposal.proposal.orders)[number]) => ({
+      ticker: order.ticker,
+      side: order.side,
+      quantity: order.quantity,
+      price: "1,00",
+      costs: "",
+    });
+    const result = await recordRollAction({
+      operationId,
+      session: EXECUTION_SESSION,
+      closingFills: proposal.proposal.orders.filter((o) => o.action === "close").map(toInput),
+      openingFills: proposal.proposal.orders.filter((o) => o.action === "open").map(toInput),
+    });
+    expect(result.status).toBe("ok");
+    if (result.status !== "ok") return;
+
+    expect(EXECUTION_SESSION).not.toBe(ANCHOR_SESSION);
+    const repository = new PortfolioRepository(getDb(), owner);
+    const operations = await repository.listOperations();
+    const source = operations.find((candidate) => candidate.id === operationId);
+    const created = operations.find((candidate) => candidate.id === result.newOperationId);
+    expect(source?.closedAt).toBe(EXECUTION_SESSION);
+    expect(created?.openedAt).toBe(EXECUTION_SESSION);
+    const fills = await repository.listFills();
+    const newFills = fills.filter((fill) => fill.operationId === result.newOperationId);
+    expect(newFills.length).toBeGreaterThan(0);
+    expect(newFills.every((fill) => fill.session === EXECUTION_SESSION)).toBe(true);
+  });
+
+  it("rolls an operation whose history has a now-closed option ticker (#382 review item 3)", async () => {
+    const market = await seedMarket();
+    const owner = await signIn("record-closed-ticker-history");
+    const operationId = await openShortCall(market);
+    await addClosedTickerHistory(market, operationId);
+
+    const proposal = await buildRollProposalAction({ operationId });
+    expect(proposal.status).toBe("ok");
+    if (proposal.status !== "ok") return;
+
+    const toInput = (order: (typeof proposal.proposal.orders)[number]) => ({
+      ticker: order.ticker,
+      side: order.side,
+      quantity: order.quantity,
+      price: "1,00",
+      costs: "",
+    });
+    const result = await recordRollAction({
+      operationId,
+      session: EXECUTION_SESSION,
+      closingFills: proposal.proposal.orders.filter((o) => o.action === "close").map(toInput),
+      openingFills: proposal.proposal.orders.filter((o) => o.action === "open").map(toInput),
+    });
+    expect(result.status).toBe("ok");
+    if (result.status !== "ok") return;
+
+    const operations = await new PortfolioRepository(getDb(), owner).listOperations();
+    expect(operations.find((candidate) => candidate.id === operationId)?.status).toBe("closed");
+    expect(operations.find((candidate) => candidate.id === result.newOperationId)?.status).toBe(
+      "open",
+    );
+  });
+
+  it("refuses a session that has not opened yet", async () => {
+    const market = await seedMarket();
+    await signIn("record-future-session");
+    const operationId = await openShortCall(market);
+
+    const proposal = await buildRollProposalAction({ operationId });
+    expect(proposal.status).toBe("ok");
+    if (proposal.status !== "ok") return;
+
+    const toInput = (order: (typeof proposal.proposal.orders)[number]) => ({
+      ticker: order.ticker,
+      side: order.side,
+      quantity: order.quantity,
+      price: "1,00",
+      costs: "",
+    });
+    const result = await recordRollAction({
+      operationId,
+      session: NEXT_EXPIRY,
+      closingFills: proposal.proposal.orders.filter((o) => o.action === "close").map(toInput),
+      openingFills: proposal.proposal.orders.filter((o) => o.action === "open").map(toInput),
+    });
+    expect(result).toEqual({ status: "error", error: "invalid" });
+  });
+
   it("refuses when the client's orders no longer match the recomputed roll", async () => {
     const market = await seedMarket();
     await signIn("record-conflict");
@@ -302,6 +469,7 @@ describe("recordRollAction", () => {
 
     const result = await recordRollAction({
       operationId,
+      session: EXECUTION_SESSION,
       closingFills: [
         { ticker: market.currentTicker, side: "buy", quantity: 999, price: "1,00", costs: "" },
       ],
@@ -326,6 +494,7 @@ describe("recordRollAction", () => {
 
     const result = await recordRollAction({
       operationId,
+      session: EXECUTION_SESSION,
       closingFills: [
         { ticker: market.currentTicker, side: "buy", quantity: 100, price: "1,00", costs: "" },
       ],

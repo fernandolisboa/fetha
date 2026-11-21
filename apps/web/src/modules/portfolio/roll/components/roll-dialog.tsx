@@ -1,5 +1,6 @@
 "use client";
 
+import { Decimal } from "decimal.js";
 import { startTransition, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Centavos } from "@fetha/contracts";
@@ -15,8 +16,10 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { formatBRL } from "@/lib/format/brl";
 import { formatDecimal } from "@/lib/format/decimal";
+import { parsePtBrDecimal } from "@/lib/format/parse-decimal";
 
 import { buildRollProposalAction, recordRollAction, type RollActionError } from "../roll-actions";
 import type { RollOrder, RollProposal } from "../roll-proposal";
@@ -51,7 +54,14 @@ function errorLabel(error: RollActionError, ticker?: string): string {
       return errors.no_traded_series(ticker ?? "");
     case "invalid":
       return errors.invalid_input;
-    default:
+    case "not_found":
+    case "no_option_legs":
+    case "no_expiry":
+    case "no_data":
+    case "unpriceable":
+    case "conflict":
+    case "not_a_session":
+    case "rate_limited":
       return errors[error];
   }
 }
@@ -105,6 +115,11 @@ function OrdersList({
                   }}
                 />
               </div>
+              {order.stale && (
+                <p className="text-[11px]" style={{ color: "var(--warning)" }}>
+                  {labels.stale(order.stale.session)}
+                </p>
+              )}
             </div>
           );
         })}
@@ -117,12 +132,32 @@ function signedBRL(value: Centavos): string {
   return value > 0 ? `+ ${formatBRL(value)}` : formatBRL(value);
 }
 
+// The net credit/debit recomputed from the prices the user actually edited (#382 review item
+// 5), never the engine's own mark: shown as "antes de custos" since it excludes each order's
+// costs, unlike the final recorded fills.
+function editedNetCentavos(
+  orders: readonly RollOrder[],
+  edits: Record<string, OrderEdit>,
+): Centavos | null {
+  let total = new Decimal(0);
+  for (const order of orders) {
+    const raw = edits[keyOf(order)]?.price ?? "";
+    const price = parsePtBrDecimal(raw, 6);
+    if (!price) return null;
+    const signed = order.side === "buy" ? price.negated() : price;
+    total = total.plus(signed.times(order.quantity).times(100));
+  }
+  return total.toDecimalPlaces(0).toNumber() as Centavos;
+}
+
 export function RollDialog({
   operationId,
   underlying,
+  today,
 }: {
   operationId: string;
   underlying: string;
+  today: string;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -130,6 +165,7 @@ export function RollDialog({
   const [pending, setPending] = useState(false);
   const [proposal, setProposal] = useState<RollProposal | null>(null);
   const [edits, setEdits] = useState<Record<string, OrderEdit>>({});
+  const [session, setSession] = useState(today);
   const [error, setError] = useState<string | null>(null);
 
   function updateOrder(key: string, patch: Partial<OrderEdit>) {
@@ -175,6 +211,7 @@ export function RollDialog({
     startTransition(() => {
       recordRollAction({
         operationId,
+        session,
         closingFills: proposal.orders.filter((order) => order.action === "close").map(toInput),
         openingFills: proposal.orders.filter((order) => order.action === "open").map(toInput),
       })
@@ -193,6 +230,8 @@ export function RollDialog({
         });
     });
   }
+
+  const editedNet = proposal ? editedNetCentavos(proposal.orders, edits) : null;
 
   return (
     <Dialog
@@ -222,6 +261,19 @@ export function RollDialog({
 
         {proposal && (
           <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="roll-session">{labels.session}</Label>
+              <Input
+                id="roll-session"
+                type="date"
+                max={today}
+                value={session}
+                className="font-mono tabular-nums"
+                onChange={(event) => {
+                  setSession(event.target.value);
+                }}
+              />
+            </div>
             <OrdersList
               title={labels.toClose}
               orders={proposal.orders.filter((order) => order.action === "close")}
@@ -250,6 +302,12 @@ export function RollDialog({
                 {signedBRL(proposal.netCreditDebitCentavos)}
               </span>
             </div>
+            {editedNet !== null && (
+              <div className="text-muted-foreground flex items-baseline justify-between text-[12px]">
+                <span>{labels.netBeforeCosts}</span>
+                <span className="font-mono tabular-nums">{signedBRL(editedNet)}</span>
+              </div>
+            )}
           </div>
         )}
 

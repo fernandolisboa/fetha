@@ -29,7 +29,12 @@ export function RollChainDownloadButton({ operationId }: { operationId: string }
               link.href = url;
               link.download = `rolagens-${operationId}.csv`;
               link.click();
-              URL.revokeObjectURL(url);
+              // Revoked on a later tick: some browsers start the download asynchronously, and
+              // revoking the URL in the same tick as `click()` can cancel it (#382 review
+              // advisory).
+              setTimeout(() => {
+                URL.revokeObjectURL(url);
+              }, 0);
             })
             .catch(() => {
               setPending(false);

@@ -1,3 +1,3 @@
 ALTER TABLE "operations" ADD COLUMN "rolled_from_operation_id" text;--> statement-breakpoint
 ALTER TABLE "operations" ADD CONSTRAINT "operations_rolled_from_operation_id_user_id_operations_id_user_id_fk" FOREIGN KEY ("rolled_from_operation_id","user_id") REFERENCES "public"."operations"("id","user_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "operations_rolled_from_operation_id_idx" ON "operations" USING btree ("rolled_from_operation_id");
+CREATE UNIQUE INDEX "operations_rolled_from_operation_id_idx" ON "operations" USING btree ("rolled_from_operation_id");

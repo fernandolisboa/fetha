@@ -25,6 +25,7 @@ import {
 import { holdingKey, type LedgerFill } from "./bookkeeping";
 import { parseNegotiationRows, type SkipReason } from "./b3-import/parse-negotiation";
 import { readFirstSheet } from "./b3-import/read-xlsx";
+import { idSchema } from "./id-schema";
 import { removeIndexStockLegs } from "./import-index-refusal";
 import { planOperation, type SeriesByHolding } from "./operation-plan";
 import { parsePriceInput } from "./parse-price";
@@ -252,8 +253,6 @@ export async function recordFillAction(input: unknown): Promise<PortfolioActionR
     return { status: "ok" as const };
   });
 }
-
-const idSchema = z.string().min(1).max(64);
 
 export async function deleteFillAction(id: unknown): Promise<PortfolioActionResult> {
   const parsed = idSchema.safeParse(id);

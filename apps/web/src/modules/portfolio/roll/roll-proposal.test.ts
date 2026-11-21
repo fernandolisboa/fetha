@@ -10,19 +10,23 @@ import type { LegValuation } from "@fetha/engine";
 import { buildRollProposal } from "./roll-proposal";
 
 function leg(
-  partial: Partial<LegValuation["leg"]> & { price: DecimalString | null },
+  partial: Partial<LegValuation["leg"]> & {
+    price: DecimalString | null;
+    stale?: LegValuation["stale"];
+  },
 ): LegValuation {
+  const { stale, price, ...legPartial } = partial;
   return {
     leg: {
       role: "call",
       side: "buy",
       ticker: "PETR4F300",
       quantity: quantitySchema.parse(100),
-      ...partial,
+      ...legPartial,
     },
-    price: partial.price,
+    price,
     priceSource: "mid",
-    stale: null,
+    stale: stale ?? null,
     fairValue: null,
     impliedVolatility: null,
     volatilitySource: null,
@@ -37,11 +41,13 @@ describe("buildRollProposal", () => {
     const proposal = buildRollProposal({
       underlying: "PETR4",
       closing: {
-        netPremium: centavosSchema.parse(-120),
+        // buy 100 @ 1.20 costs R$ 120.00: a debit, -12000 centavos.
+        netPremium: centavosSchema.parse(-12000),
         legs: [leg({ side: "buy", ticker: "PETR4F300", price: decimalStringSchema.parse("1.20") })],
       },
       opening: {
-        netPremium: centavosSchema.parse(450),
+        // sell 100 @ 4.50 brings in R$ 450.00: a credit, +45000 centavos.
+        netPremium: centavosSchema.parse(45000),
         legs: [
           leg({ side: "sell", ticker: "PETR4G310", price: decimalStringSchema.parse("4.50") }),
         ],
@@ -49,9 +55,24 @@ describe("buildRollProposal", () => {
     });
 
     expect(proposal.orders).toEqual([
-      { action: "close", ticker: "PETR4F300", side: "buy", quantity: 100, price: "1.20" },
-      { action: "open", ticker: "PETR4G310", side: "sell", quantity: 100, price: "4.50" },
+      {
+        action: "close",
+        ticker: "PETR4F300",
+        side: "buy",
+        quantity: 100,
+        price: "1.20",
+        stale: null,
+      },
+      {
+        action: "open",
+        ticker: "PETR4G310",
+        side: "sell",
+        quantity: 100,
+        price: "4.50",
+        stale: null,
+      },
     ]);
+    expect(proposal.netCreditDebitCentavos).toBe(33000);
   });
 
   it("nets the closing and opening cash flows into one signed credit/debit", () => {
@@ -85,5 +106,25 @@ describe("buildRollProposal", () => {
     });
 
     expect(proposal.orders[0]?.price).toBeNull();
+  });
+
+  it("carries the engine's own stale flag through per order", () => {
+    const proposal = buildRollProposal({
+      underlying: "PETR4",
+      closing: {
+        netPremium: centavosSchema.parse(-12000),
+        legs: [
+          leg({
+            side: "buy",
+            ticker: "PETR4F300",
+            price: decimalStringSchema.parse("1.20"),
+            stale: { session: "2026-10-30" },
+          }),
+        ],
+      },
+      opening: { netPremium: centavosSchema.parse(0), legs: [] },
+    });
+
+    expect(proposal.orders[0]?.stale).toEqual({ session: "2026-10-30" });
   });
 });

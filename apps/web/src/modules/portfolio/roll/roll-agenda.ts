@@ -9,7 +9,7 @@ export const ROLL_AGENDA_WINDOW_SESSIONS = 10;
 // can land before the user next looks at the app.
 const ASSIGNMENT_RISK_SESSIONS = 1;
 
-export type RollAgendaAction = "roll" | "let_expire" | "close_early_assignment_risk";
+export type RollAgendaAction = "roll" | "let_expire" | "watch" | "close_early_assignment_risk";
 
 export interface RollAgendaItem {
   operationId: string;
@@ -24,9 +24,9 @@ export interface RollAgendaInput {
   underlying: Ticker;
   expiry: SessionDate;
   sessionsToExpiry: number;
-  // True once any short leg (the one a buyer could exercise) is in the money at the last close;
-  // engine-computed moneyness (ADR-0062's dividend-protected B3 strikes already feed this),
-  // never estimated here.
+  // True once any short leg (the one a buyer could exercise) is in the money at the last close:
+  // the literal strike-vs-spot comparison (`roll/roll-assignment-risk.ts`), never the display
+  // moneyness a series picker shows with its own at-the-money band.
   anyShortLegInTheMoney: boolean;
   // `rollTriggerSessionsBeforeExpiry` (plans/exit-rules.ts): the business-day count the held
   // structure's own roll rule fires at, or null when the structure does not roll.
@@ -39,7 +39,10 @@ export interface RollAgendaInput {
 //    operation: closing before expiry beats waiting, whether or not the structure normally rolls.
 // 2. Otherwise, a structure that rolls at all, once today's `sessionsToExpiry` reaches its own
 //    trigger, is a roll.
-// 3. Otherwise the position is left to expire worthless.
+// 3. Otherwise, a short leg already in the money (but not yet at the assignment-risk window)
+//    is only watched: "let it expire" would be wrong advice for a leg a buyer could still
+//    exercise before the trigger fires (#382 review item 7).
+// 4. Otherwise every short leg is out of the money, so the position is left to expire worthless.
 //
 // Returns null when the operation is outside the agenda window (CLAUDE.md: the engine computes,
 // nothing here guesses a number) or carries no expiry to plan around.
@@ -52,7 +55,9 @@ export function suggestRollAction(input: RollAgendaInput): RollAgendaItem | null
       ? "close_early_assignment_risk"
       : input.rollTriggerSessions !== null && input.sessionsToExpiry <= input.rollTriggerSessions
         ? "roll"
-        : "let_expire";
+        : input.anyShortLegInTheMoney
+          ? "watch"
+          : "let_expire";
   return {
     operationId: input.operationId,
     underlying: input.underlying,

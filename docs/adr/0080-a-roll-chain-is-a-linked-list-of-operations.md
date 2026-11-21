@@ -3,9 +3,13 @@ status: accepted
 date: 2026-11-21
 ---
 
-# A roll chain is a linked list of operations, not a new table
+# A roll chain is a linked list of operations, not a new table (amends ADR-0021)
 
 ## Context
+
+Amends ADR-0021 item 4, which read "adjusted and rolled lifecycles stay out of v1": a rolled
+lifecycle ships after all, through this ADR. Adjusted lifecycles (changing a held operation's
+legs without closing it) are still out of v1.
 
 Ticket #382 ("Rolar" in the Carteira) asks for three things against a held operation: a
 "Rolar" action that proposes closing the current legs and opening the next monthly expiry's
@@ -118,3 +122,51 @@ read a structure-specific trigger from.
   a shared invariant. Once execution linking (#380/#381) lets an operation name the plan it came
   from, the agenda should read that plan's own trigger instead — this default is this ticket's
   interim, not the final rule.
+
+## Addendum (round 3): review fixes
+
+- **The roll is atomic.** `PortfolioRepository.roll` throws a typed `RollRefusal` on every
+  post-write refusal instead of returning `{ ok: false }` from inside `db.transaction`: a bare
+  return still commits whatever the callback already wrote, so every refusal path now throws
+  and the transaction rolls every write of that attempt back, including the one that refuses
+  because the newly opened operation would not come out `open`.
+- **A covered call rolls.** The stock leg is never closed, never repriced, and never part of the
+  pricing proposal's two legs of pricing: `PortfolioRepository.roll` reads the source operation's
+  current fills, splits them by `assetClass`, replans the source as closed from its non-stock
+  fills plus the closing fills, and carries every stock fill forward by reassigning its
+  `operationId` to the new operation — `fills` has no immutability trigger (unlike `decisions` or
+  `backtest_runs`, ADR-0009/ADR-0008), so moving `operationId` is the natural fit and keeps the
+  stock leg's own average cost exactly as it was, fill for fill, rather than approximating a new
+  cost basis.
+- **The series map covers the operation's whole fill history, not only today's legs.** The
+  repository replans the source operation from every fill it has ever carried, including a
+  ticker that closed earlier in its life; `recordRollAction` now builds its `SeriesByHolding` from
+  `seriesByHolding(db, operationFills)` over the operation's complete fill history, merged with
+  the opening legs' own target series (the only facts not yet in that history), rather than from
+  only the legs currently rolling.
+- **The execution session is the user's, not the pricing session.** A roll is priced against the
+  latest ingested candle's own session (`roll-resolve.ts`'s `resolvePricingSessionFor`, unchanged)
+  but recorded against the session the user names when confirming it, validated the same way
+  `recordFillAction` validates a fill's own session (not in the future, a trading session that has
+  already opened). The dialog defaults this field to today but the user can backdate it to the
+  day they actually executed the roll. `loadPortfolio` still silently drops an operation whose
+  `openedAt` is after the mark session it is being valued at (ADR-0021's own guard against a
+  mis-dated fill); a roll executed today, before the day's own candle has been ingested, can
+  briefly hit that same gap for the new operation. Left as-is: closing it needs a same-day
+  ingestion guarantee this ticket does not add, and the gap self-heals once the day's candle
+  lands.
+- **Recording a roll does not journal a decision.** Unlike executing a saved plan (#380/#381),
+  confirming a roll writes only the fills and the two operations; it never writes a `decisions`
+  row. Journaling the executed roll as an `adjust` decision is #381's own scope, not this one's.
+- **Assignment risk is the literal strike-vs-spot comparison, never the builder's own display
+  band.** `roll/roll-assignment-risk.ts`'s `isShortLegAssignmentRisk` compares a short leg's
+  strike to the last close directly (`spot >= strike` for a call, `spot <= strike` for a put, so
+  at-the-money counts as risky too); the builder's series-picker `moneyness` exists only so two
+  adjacent rows in a picker never flip labels on a rounding difference, and reusing it here missed
+  a call struck fractionally below spot because it fell inside that display band. The sessions-
+  to-expiry count the agenda compares against the roll trigger is anchored on today
+  (`todaySaoPauloDate()`), not on the latest ingested candle's own session, so the "vence hoje"
+  branch can actually fire on the expiry day itself even before that day's own candle lands.
+- **A short leg already in the money, before its own roll trigger or the one-session
+  assignment-risk window, is `watch`, not `let_expire`.** `let_expire` is reserved for a position
+  every short leg of which is out of the money.
