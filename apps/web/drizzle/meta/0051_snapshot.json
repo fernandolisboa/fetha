@@ -1,6 +1,6 @@
 {
-  "id": "bbab1110-ae58-447b-b189-8352b82da8cd",
-  "prevId": "77416888-21a7-494a-a161-989b443e17e2",
+  "id": "eca03c20-a700-4d44-85bd-9c2596a0ff53",
+  "prevId": "822ca4e1-2f73-495e-bc54-73813a34770c",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -4469,6 +4469,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "rolled_from_operation_id": {
+          "name": "rolled_from_operation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -4519,6 +4525,21 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "operations_rolled_from_operation_id_idx": {
+          "name": "operations_rolled_from_operation_id_idx",
+          "columns": [
+            {
+              "expression": "rolled_from_operation_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -4533,6 +4554,21 @@
             "id"
           ],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "operations_rolled_from_operation_id_user_id_operations_id_user_id_fk": {
+          "name": "operations_rolled_from_operation_id_user_id_operations_id_user_id_fk",
+          "tableFrom": "operations",
+          "tableTo": "operations",
+          "columnsFrom": [
+            "rolled_from_operation_id",
+            "user_id"
+          ],
+          "columnsTo": [
+            "id",
+            "user_id"
+          ],
+          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },

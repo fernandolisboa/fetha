@@ -77,17 +77,15 @@ describe("runNightlyJob", () => {
       .mockImplementation((_db: unknown, asOfSession: string) =>
         Promise.resolve({ asOfSession, scored: 0, skipped: 0, errors: 0 }),
       );
-    evaluatePlanSignalsMock
-      .mockReset()
-      .mockImplementation(() =>
-        Promise.resolve({
-          usersEvaluated: 0,
-          usersSkipped: 0,
-          signalsWritten: 0,
-          signalsCleared: 0,
-          errors: 0,
-        }),
-      );
+    evaluatePlanSignalsMock.mockReset().mockImplementation(() =>
+      Promise.resolve({
+        usersEvaluated: 0,
+        usersSkipped: 0,
+        signalsWritten: 0,
+        signalsCleared: 0,
+        errors: 0,
+      }),
+    );
     scoreDueResearchMock
       .mockReset()
       .mockImplementation((_db: unknown, asOfSession: string) =>

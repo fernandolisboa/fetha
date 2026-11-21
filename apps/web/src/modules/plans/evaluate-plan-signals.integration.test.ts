@@ -5,7 +5,6 @@ import {
   instantSchema,
   tickerSchema,
   type ContemplatedLeg,
-  type DecimalString,
   type Instant,
   type SessionDate,
 } from "@fetha/contracts";
@@ -202,7 +201,7 @@ async function setupExecutedStockPlan(
         {
           rule: {
             kind: "profit_target",
-            fractionOfPremium: decimalStringSchema.parse(targetFraction) as DecimalString,
+            fractionOfPremium: decimalStringSchema.parse(targetFraction),
           },
           session: null,
         },

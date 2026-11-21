@@ -180,14 +180,10 @@ export class PortfolioRepository extends UserScopedRepository {
   // caller already inside its own `db.transaction`
   // (`recordFillsAsOperation`, which inserts fills, groups them and lets
   // its own caller link a plan, all in one transaction) passes that `tx`
-  // instead, so this runs inside it rather than opening a nested one — an
-  // overload, not a runtime `Database | Transaction` union, so no cast is
-  // ever needed to tell the two apart (review round 2, #381).
-  async insertFills(newFills: readonly NewFill[]): Promise<{ inserted: number; ids: string[] }>;
-  async insertFills(
-    newFills: readonly NewFill[],
-    tx: Transaction,
-  ): Promise<{ inserted: number; ids: string[] }>;
+  // instead, so this runs inside it rather than opening a nested one — a
+  // statically typed `Transaction` parameter, not a runtime
+  // `Database | Transaction` union, so no cast is ever needed to tell the
+  // two apart (#381).
   async insertFills(
     newFills: readonly NewFill[],
     tx?: Transaction,
@@ -245,19 +241,8 @@ export class PortfolioRepository extends UserScopedRepository {
   // Assigns unassigned fills to a new operation (operationId null) or to an
   // open one, re-planning the operation from its whole fill set under row
   // locks so a concurrent grouping cannot take the same fill twice.
-  // `insertFills`'s own overload pattern: without a `tx`, opens a fresh
+  // `insertFills`'s own pattern: without a `tx`, opens a fresh
   // transaction; with one, runs inside a caller's own.
-  async group(
-    operationId: string | null,
-    fillIds: readonly string[],
-    plan: PlanFromFills,
-  ): Promise<GroupResult>;
-  async group(
-    operationId: string | null,
-    fillIds: readonly string[],
-    plan: PlanFromFills,
-    tx: Transaction,
-  ): Promise<GroupResult>;
   async group(
     operationId: string | null,
     fillIds: readonly string[],
