@@ -1,36 +1,37 @@
 import type { ReactNode } from "react";
+import { ChevronRight } from "lucide-react";
 import type { ExpectedMove, ThesisClaim } from "@fetha/contracts";
 
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { formatBRL, formatPriceBRL } from "@/lib/format/brl";
+import { formatPriceBRL } from "@/lib/format/brl";
 import { AssetReadingChips } from "@/modules/market-data";
 import { PayoffChart } from "@/modules/portfolio/client";
-import { conditionLines, recipeCards } from "@/modules/recipes";
+import { conditionLines, recipeSummary, type RuleLine } from "@/modules/recipes";
 
 import type { SuggestionView } from "../suggestion-view";
 import { getSuggestionCalibration } from "../queries";
-import { gainToRiskRatio, payoffSummarySentence, summarizePayoff } from "../payoff-summary";
+import { payoffSummarySentence, premiumChipKind, summarizePayoff } from "../payoff-summary";
 import { t } from "../strings";
-import { Figure } from "./lot-parts";
+import { PayoffFigures } from "./lot-parts";
 import { GreekNotes } from "./greek-notes";
 import { LegsTable } from "./legs-table";
-import { displayDate, Facts } from "./radar-facts";
+import { displayDate, observeOperand } from "./radar-facts";
 
 export function suggestionHeadline(suggestion: SuggestionView): string {
   return t.suggestions.cardTitle(suggestion.structure.name, suggestion.underlying);
 }
 
-function betLabel(expectedMove: ExpectedMove): string {
+function scenarioLabel(expectedMove: ExpectedMove): string {
   switch (expectedMove) {
     case "up":
-      return t.suggestions.bet.up;
+      return t.suggestions.scenario.up;
     case "down":
-      return t.suggestions.bet.down;
+      return t.suggestions.scenario.down;
     case "sideways":
-      return t.suggestions.bet.sideways;
+      return t.suggestions.scenario.sideways;
     case "big_move":
-      return t.suggestions.bet.big_move;
+      return t.suggestions.scenario.big_move;
   }
 }
 
@@ -45,23 +46,46 @@ function claimText(claim: ThesisClaim, underlying: string, horizon: string): str
   }
 }
 
-// The card's "Por que agora" (docs/adr/0067's redesign): the recipe's own plain-language summary,
-// then the exact condition it checked and the readings that matched it today.
+function readingLineText(line: RuleLine): string {
+  return line.observed ? `${line.text}: ${line.observed}` : line.text;
+}
+
+// Pairs each condition with the figure that actually matched it today. A genuinely flat
+// top-level "and" (or a single condition) reads as one joined line; anything with its own
+// connective (or/not, or an "and" nested under one of those) keeps the indented rendering so the
+// connective is not lost (review finding #10).
+function ConditionLines({ lines }: { lines: RuleLine[] }) {
+  if (lines.every((line) => line.depth === 0)) {
+    return (
+      <p className="text-muted-foreground text-xs">{lines.map(readingLineText).join(" · ")}</p>
+    );
+  }
+  return (
+    <ul className="text-muted-foreground flex flex-col gap-0.5 text-xs">
+      {lines.map((line, index) => (
+        <li key={index} style={{ marginLeft: `${String(line.depth * 12)}px` }}>
+          {readingLineText(line)}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// The card's "Por que agora" (docs/adr/0067, amended 2026-11-21): the recipe's own plain-language
+// summary, then the exact condition it checked paired with what it read today.
 function Why({ suggestion }: { suggestion: SuggestionView }) {
-  const card = recipeCards().find((entry) => entry.id === suggestion.recipeId);
+  const summary = recipeSummary(suggestion.recipeId);
+  const lines = conditionLines(suggestion.recipe.definition.entry, 0, (operand) =>
+    observeOperand(operand, suggestion.facts),
+  );
   return (
     <div className="flex flex-col gap-1.5">
       <p className="text-muted-foreground text-[11px] tracking-[0.06em] uppercase">
         {t.suggestions.whyTitle}
       </p>
-      {card && <p className="text-[13px] text-pretty">{card.summary}</p>}
-      <p className="text-muted-foreground text-xs">
-        {conditionLines(suggestion.recipe.definition.entry)
-          .map((line) => line.text)
-          .join(" · ")}
-      </p>
+      {summary && <p className="text-[13px] text-pretty">{summary}</p>}
+      <ConditionLines lines={lines} />
       {suggestion.reading && <AssetReadingChips reading={suggestion.reading} />}
-      <Facts facts={suggestion.facts} />
     </div>
   );
 }
@@ -71,12 +95,20 @@ async function Details({ suggestion }: { suggestion: SuggestionView }) {
   const line =
     calibration?.byRecipe.find((entry) => entry.recipeId === suggestion.recipeId) ?? null;
   return (
-    <Collapsible className="border-line-soft border-t pt-2.5">
-      <CollapsibleTrigger className="text-primary text-[13px]">
+    <Collapsible className="group/details border-line-soft border-t pt-2.5">
+      <CollapsibleTrigger className="text-primary flex items-center gap-1 text-[13px]">
         {t.suggestions.detailsTitle}
+        <ChevronRight
+          aria-hidden="true"
+          className="size-4 transition-transform group-data-[panel-open]/details:rotate-90"
+        />
       </CollapsibleTrigger>
       <CollapsibleContent className="flex flex-col gap-2 pt-2">
-        <GreekNotes greeks={suggestion.pricing.greeks} calibration={line} />
+        <GreekNotes
+          greeks={suggestion.pricing.greeks}
+          notes={suggestion.pricing.notes}
+          calibration={line}
+        />
         <p className="text-muted-foreground text-xs">
           {claimText(suggestion.claim, suggestion.underlying, suggestion.horizon)}
         </p>
@@ -85,12 +117,12 @@ async function Details({ suggestion }: { suggestion: SuggestionView }) {
   );
 }
 
-// One suggestion as the cards and its own page show it (docs/adr/0067): a title, the bet it
-// makes and when it expires, one sentence that says what the viewer pays or receives and where
-// the profit zone is, three figures, the payoff chart, why the recipe found it, the lot as a
-// table, and a closed-by-default "Detalhes" with the greeks and this recipe's own track record.
-// Risk check and actions come from the page. On its own page the page header already carries the
-// title, so the card leaves it out.
+// One suggestion as the cards and its own page show it (docs/adr/0067, amended 2026-11-21): a
+// title, the scenario it needs and when it expires, one sentence that says what the viewer pays
+// or receives and where the profit zone is, three figures, the payoff chart, why the recipe
+// found it, the lot as a table, and a closed-by-default "Detalhes" with the greeks and this
+// recipe's own track record. Risk check and actions come from the page. On its own page the page
+// header already carries the title, so the card leaves it out.
 export function SuggestionCard({
   suggestion,
   risk,
@@ -115,6 +147,7 @@ export function SuggestionCard({
     date: displayDate(suggestion.horizon),
     hasStockLeg,
   });
+  const chipKind = premiumChipKind(summary);
 
   return (
     <article
@@ -136,7 +169,7 @@ export function SuggestionCard({
               variant="outline"
               style={{ color: "var(--accent)", borderColor: "var(--accent)" }}
             >
-              {betLabel(suggestion.recipe.expectedMove)}
+              {scenarioLabel(suggestion.recipe.expectedMove)}
             </Badge>
           </li>
           <li>
@@ -144,40 +177,19 @@ export function SuggestionCard({
               {t.suggestions.expiresChip(displayDate(suggestion.horizon))}
             </Badge>
           </li>
-          <li>
-            <Badge variant="secondary">
-              {summary.isDebit ? t.suggestions.debitChip : t.suggestions.creditChip}
-            </Badge>
-          </li>
+          {chipKind && (
+            <li>
+              <Badge variant="secondary">
+                {chipKind === "debit" ? t.suggestions.debitChip : t.suggestions.creditChip}
+              </Badge>
+            </li>
+          )}
         </ul>
       </header>
       <div className="flex flex-col gap-3 @min-[44rem]:grid @min-[44rem]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] @min-[44rem]:gap-x-6 @min-[44rem]:gap-y-4 @min-[44rem]:[grid-template-areas:'lead_chart'_'why_chart'_'legs_chart']">
         <div className="@container flex min-w-0 flex-col gap-3 @min-[44rem]:[grid-area:lead]">
           <p className="text-[15px] text-pretty">{sentence}</p>
-          <dl
-            aria-label={t.suggestions.numbersLabel}
-            className="grid grid-cols-2 gap-x-6 gap-y-2 @min-[26rem]:grid-cols-4"
-          >
-            <Figure
-              label={t.suggestions.figures.risked}
-              value={formatBRL(suggestion.maxLoss)}
-              hint={t.suggestions.figures.riskedHint}
-            />
-            <Figure
-              label={t.suggestions.figures.gainUpTo}
-              value={
-                suggestion.pricing.maxGain === "unbounded"
-                  ? t.suggestions.figures.gainUnbounded
-                  : formatBRL(suggestion.pricing.maxGain)
-              }
-              token="--up"
-            />
-            <Figure
-              label={t.suggestions.figures.gainToRisk}
-              value={gainToRiskRatio(suggestion.pricing.maxGain, suggestion.maxLoss)}
-              hint={t.suggestions.figures.gainToRiskHint}
-            />
-          </dl>
+          <PayoffFigures maxLoss={suggestion.maxLoss} maxGain={suggestion.pricing.maxGain} />
         </div>
         <div className="min-w-0 @min-[44rem]:[grid-area:chart]">
           <PayoffChart

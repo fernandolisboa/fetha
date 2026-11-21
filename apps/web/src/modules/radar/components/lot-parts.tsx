@@ -1,4 +1,10 @@
 import type { ReactNode } from "react";
+import type { Centavos } from "@fetha/contracts";
+
+import { formatBRL } from "@/lib/format/brl";
+
+import { gainToRiskRatio } from "../payoff-summary";
+import { t } from "../strings";
 
 export function Figure({
   label,
@@ -22,5 +28,40 @@ export function Figure({
       </dd>
       {hint && <span className="text-faint text-[11px]">{hint}</span>}
     </div>
+  );
+}
+
+// Arrisca / Ganha até / Ganho ÷ risco, the three figures both the suggestion and the research
+// idea card open with: shared so the two never drift apart on labels or formatting.
+export function PayoffFigures({
+  maxLoss,
+  maxGain,
+  className,
+}: {
+  maxLoss: Centavos;
+  maxGain: Centavos | "unbounded";
+  className?: string;
+}) {
+  return (
+    <dl
+      aria-label={t.suggestions.numbersLabel}
+      className={className ?? "grid grid-cols-2 gap-x-6 gap-y-2 @min-[26rem]:grid-cols-4"}
+    >
+      <Figure
+        label={t.suggestions.figures.risked}
+        value={formatBRL(maxLoss)}
+        hint={t.suggestions.figures.riskedHint}
+      />
+      <Figure
+        label={t.suggestions.figures.gainUpTo}
+        value={maxGain === "unbounded" ? t.suggestions.figures.gainUnbounded : formatBRL(maxGain)}
+        token="--up"
+      />
+      <Figure
+        label={t.suggestions.figures.gainToRisk}
+        value={gainToRiskRatio(maxGain, maxLoss)}
+        hint={t.suggestions.figures.gainToRiskHint}
+      />
+    </dl>
   );
 }

@@ -4,7 +4,7 @@ import { TriangleAlert } from "lucide-react";
 
 import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { formatBRL, formatPriceBRL } from "@/lib/format/brl";
+import { formatPriceBRL } from "@/lib/format/brl";
 import { cn } from "@/lib/utils";
 import { formatSessionDate } from "@/lib/format/date-time";
 import { AssetReadingChips } from "@/modules/market-data/client";
@@ -12,9 +12,9 @@ import { PayoffChart, RiskNotice } from "@/modules/portfolio/client";
 
 import type { IdeaCard } from "../research";
 import type { IdeaAlert } from "../research-rules";
-import { gainToRiskRatio, payoffSummarySentence, summarizePayoff } from "../payoff-summary";
+import { payoffSummarySentence, summarizePayoff } from "../payoff-summary";
 import { t } from "../strings";
-import { Figure } from "./lot-parts";
+import { PayoffFigures } from "./lot-parts";
 import { LegsTable } from "./legs-table";
 
 function alertText(alert: Exclude<IdeaAlert, { kind: "limit_breach" }>): string {
@@ -105,33 +105,14 @@ export function ResearchIdeaCard({
       </div>
       <IdeaAlerts alerts={idea.alerts} />
       <p className={cn("text-[13px] text-pretty", stale && "opacity-75")}>{sentence}</p>
-      <dl
-        aria-label={t.suggestions.numbersLabel}
+      <PayoffFigures
+        maxLoss={idea.maxLoss}
+        maxGain={idea.maxGain}
         className={cn(
           "grid grid-cols-2 gap-x-6 gap-y-2 @min-[26rem]:grid-cols-4",
           stale && "opacity-75",
         )}
-      >
-        <Figure
-          label={t.suggestions.figures.risked}
-          value={formatBRL(idea.maxLoss)}
-          hint={t.suggestions.figures.riskedHint}
-        />
-        <Figure
-          label={t.suggestions.figures.gainUpTo}
-          value={
-            idea.maxGain === "unbounded"
-              ? t.suggestions.figures.gainUnbounded
-              : formatBRL(idea.maxGain)
-          }
-          token="--up"
-        />
-        <Figure
-          label={t.suggestions.figures.gainToRisk}
-          value={gainToRiskRatio(idea.maxGain, idea.maxLoss)}
-          hint={t.suggestions.figures.gainToRiskHint}
-        />
-      </dl>
+      />
       <LegsTable legs={idea.legs} />
       <PayoffChart
         points={idea.chart.payoff}
