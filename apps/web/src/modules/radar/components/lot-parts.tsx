@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
-import type { Centavos } from "@fetha/contracts";
+import type { Centavos, DecimalString } from "@fetha/contracts";
 
 import { formatBRL } from "@/lib/format/brl";
+import { formatProbabilityOfProfit } from "@/lib/format/probability-of-profit";
 
 import { gainToRiskRatio } from "../payoff-summary";
 import { t } from "../strings";
@@ -36,10 +37,12 @@ export function Figure({
 export function PayoffFigures({
   maxLoss,
   maxGain,
+  probabilityOfProfit,
   className,
 }: {
   maxLoss: Centavos;
   maxGain: Centavos | "unbounded";
+  probabilityOfProfit?: DecimalString | null;
   className?: string;
 }) {
   return (
@@ -62,6 +65,13 @@ export function PayoffFigures({
         value={gainToRiskRatio(maxGain, maxLoss)}
         hint={t.suggestions.figures.gainToRiskHint}
       />
+      {probabilityOfProfit != null && (
+        <Figure
+          label={t.suggestions.figures.probabilityOfProfit}
+          value={formatProbabilityOfProfit(probabilityOfProfit)}
+          hint={t.suggestions.figures.probabilityOfProfitHint}
+        />
+      )}
     </dl>
   );
 }

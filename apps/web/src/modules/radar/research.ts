@@ -58,9 +58,11 @@ export interface Idea {
   pricing: OperationPricing;
 }
 
-// What a card draws and what reaches the browser: of the pricing, only what the payoff chart needs.
+// What a card draws and what reaches the browser: of the pricing, only what the payoff chart
+// needs, plus the probability of profit (ADR-0082) the card prints next to the other figures.
 export type IdeaCard = Omit<Idea, "pricing"> & {
   chart: Pick<OperationPricing, "payoff" | "spot">;
+  probabilityOfProfit: DecimalString | null;
 };
 
 export function ideaCardOf(idea: Idea): IdeaCard {
@@ -80,6 +82,7 @@ export function ideaCardOf(idea: Idea): IdeaCard {
     alerts: idea.alerts,
     suggestionId: idea.suggestionId,
     chart: { payoff: idea.pricing.payoff, spot: idea.pricing.spot },
+    probabilityOfProfit: idea.pricing.probabilityOfProfit?.probability ?? null,
   };
 }
 

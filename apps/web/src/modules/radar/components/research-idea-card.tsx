@@ -108,6 +108,7 @@ export function ResearchIdeaCard({
       <PayoffFigures
         maxLoss={idea.maxLoss}
         maxGain={idea.maxGain}
+        probabilityOfProfit={idea.probabilityOfProfit}
         className={cn(
           "grid grid-cols-2 gap-x-6 gap-y-2 @min-[26rem]:grid-cols-4",
           stale && "opacity-75",

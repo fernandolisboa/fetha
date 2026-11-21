@@ -82,6 +82,7 @@ function idea(overrides: Partial<IdeaCard> = {}): IdeaCard {
       ],
       spot: decimal("39.06"),
     },
+    probabilityOfProfit: decimal("0.4085"),
     ...overrides,
   };
 }
