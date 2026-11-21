@@ -129,6 +129,31 @@ export function summarizePayoff(input: {
   return { zone, isDebit, isCredit, netPremium, maxGain, maxLoss };
 }
 
+// The compact row's zone line (ticket: card B): the same classification `summarizePayoff` already
+// reads off the curve, as the short "Lucro entre/acima/abaixo..." phrase the row shows next to
+// "vence <data>". An unclassified shape has no short phrase to show, so the row omits this line
+// rather than guess at one.
+export function profitZoneText(zone: ProfitZone): string | null {
+  switch (zone.kind) {
+    case "between":
+      return t.suggestions.compactRow.zoneBetween(
+        formatPriceBRL(zone.lower),
+        formatPriceBRL(zone.upper),
+      );
+    case "outside":
+      return t.suggestions.compactRow.zoneOutside(
+        formatPriceBRL(zone.lower),
+        formatPriceBRL(zone.upper),
+      );
+    case "above":
+      return t.suggestions.compactRow.zoneAbove(formatPriceBRL(zone.level));
+    case "below":
+      return t.suggestions.compactRow.zoneBelow(formatPriceBRL(zone.level));
+    case "unclassified":
+      return null;
+  }
+}
+
 export type PremiumChipKind = "debit" | "credit" | null;
 
 // Review finding #6: a zero-premium structure is neither a debit nor a credit, so the card's

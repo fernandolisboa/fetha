@@ -211,6 +211,46 @@ test("choose when seen suggestions leave today's suggestions", async ({
   );
 });
 
+test("switch to compact suggestions, expand a row to see the full card, then switch back", async ({
+  page,
+  baseURL,
+  request,
+}) => {
+  test.setTimeout(90_000);
+
+  await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
+  const seeded = await page.request.post("/api/e2e/seed-radar", {
+    headers: { "x-e2e-secret": e2eSecret ?? "" },
+  });
+  expect(seeded.status()).toBe(201);
+
+  await page.goto("/configuracoes/aparencia");
+  await page.getByRole("radio", { name: /Compactas/ }).click();
+  await expect(page.getByRole("radio", { name: /Compactas/ })).toBeChecked();
+
+  await page.goto("/");
+  const panel = page.getByTestId("today-suggestions");
+  const trigger = panel.getByRole("button", { name: HEADLINE });
+  await expect(trigger).toHaveAttribute("aria-expanded", "false");
+  await expect(trigger).toContainText("Arrisca");
+  await expect(panel.getByRole("article", { name: HEADLINE })).toHaveCount(0);
+
+  await trigger.click();
+  await expect(trigger).toHaveAttribute("aria-expanded", "true");
+  const card = panel.getByRole("article", { name: HEADLINE });
+  await expect(card).toBeVisible();
+  await expect(card.getByText(/^Você paga /)).toBeVisible();
+
+  await page.goto("/configuracoes/aparencia");
+  await page.getByRole("radio", { name: /Completas/ }).click();
+  await expect(page.getByRole("radio", { name: /Completas/ })).toBeChecked();
+
+  await page.goto("/");
+  await expect(
+    page.getByTestId("today-suggestions").getByRole("article", { name: HEADLINE }),
+  ).toBeVisible();
+});
+
 test("caps a structure's suggestions at the top of the panel, with the rest behind a disclosure that stays in the DOM", async ({
   page,
   baseURL,
