@@ -4,6 +4,9 @@ import { invariant } from "./invariant";
 
 export const PRICE_SCALE = 2;
 export const RATIO_SCALE = 6;
+// ADR-0082: probabilities (currently only `OperationPricing.probabilityOfProfit`) are reported
+// at four decimal places, the precision their break-even inputs (rounded to the cent) support.
+export const PROBABILITY_SCALE = 4;
 export const CENTAVOS_PER_REAL = 10 ** PRICE_SCALE;
 
 export function parseDecimal(value: DecimalString): Decimal {

@@ -40,6 +40,7 @@ import { resolveOptionStrike } from "./option-strike";
 import { priceOptionLegWithModel, type OptionLegModel } from "./option-pricing";
 import { computePayoffNow } from "./payoff-now";
 import { resolvePriceFactor } from "./price-factor";
+import { computeProbabilityOfProfit } from "./probability-of-profit";
 import type { ProvenanceBase } from "./provenance";
 import { resolveDividendYield, resolveRiskFreeRate } from "./rates";
 import { resolveLegSelection } from "./resolve-leg-selection";
@@ -313,7 +314,9 @@ function legIntrinsicSlopeAtInfinity(
 
 const PAYOFF_SPOT_RANGE_UPPER = 1.2;
 
-function payoffAt(legs: readonly PricedLeg[], underlying: Decimal): Decimal {
+// Exported for probability-of-profit.ts (ADR-0082): the profit region's sign probe is this
+// same per-sample payoff, never a value re-derived from the rounded `PayoffPoint[]` samples.
+export function payoffAt(legs: readonly PricedLeg[], underlying: Decimal): Decimal {
   return legs.reduce((acc, leg) => {
     const role = leg.valuation.leg.role;
     // `underlying` and `leg.strike` are both on the series' quotation unit; an option leg's
@@ -759,6 +762,9 @@ function priceConcreteLegs(
         dividendYield,
       )
     : undefined;
+  const probabilityOfProfit = withPayoffNow
+    ? computeProbabilityOfProfit(priced, spot, breakEvens, riskFreeRate, dividendYield)
+    : undefined;
 
   const greeks: Greeks = GREEK_KEYS.reduce(
     (acc, key) => {
@@ -798,6 +804,7 @@ function priceConcreteLegs(
       payoff,
       ...(payoffNow === undefined ? {} : { payoffNow }),
       breakEvens,
+      ...(probabilityOfProfit === undefined ? {} : { probabilityOfProfit }),
       maxLoss,
       maxGain,
       limitBreaches,

@@ -165,6 +165,7 @@ describe("markToMarket", () => {
     expect(pricing?.legs[0]?.fairValue).not.toBeNull();
     expect(pricing?.payoff.length).toBeGreaterThan(0);
     expect(pricing).not.toHaveProperty("payoffNow");
+    expect(pricing).not.toHaveProperty("probabilityOfProfit");
   });
 
   it("aggregates greeks across operations, signed by side and quantity", () => {
