@@ -11,16 +11,3 @@ export function clampLots(lots: number): number {
 export function stepLots(current: number, direction: 1 | -1): number {
   return clampLots(current + direction);
 }
-
-// Whether a lot count's own max loss breaches the risk limit (ticket #380, "respecting the risk
-// limit; show the plain warning when over"): the stepper itself never blocks on this — the
-// engine's own `limitBreaches` already carries the same fact for the screen's existing
-// `RiskNotice` to render — this is only what decides whether that warning shows for a given
-// preview, so a test can assert it without a full `OperationPricing` fixture.
-export function overRiskLimit(
-  maxLossCentavos: number | "unbounded",
-  riskLimitCentavos: number,
-): boolean {
-  if (maxLossCentavos === "unbounded") return riskLimitCentavos >= 0;
-  return maxLossCentavos > riskLimitCentavos;
-}

@@ -1,5 +1,8 @@
 import type { DecimalString, SessionDate, Ticker } from "@fetha/contracts";
-import type { MarketView, OptionRight } from "@fetha/engine";
+import type { MarketView, OptionRight, TradingSession } from "@fetha/engine";
+
+import { isWithinPlanWindow } from "./plan-window";
+import { tradedTickersAt } from "./traded-series";
 
 // A listed series the drag-to-adjust chart can offer as a strike handle position (ticket
 // #380): `traded` mirrors `filterToTradedSeries`'s own rule (at least one trade recorded at the
@@ -22,11 +25,7 @@ export function chainFromMonthlyView(
   session: SessionDate,
   at: string,
 ): PlanChainEntry[] {
-  const traded = new Set(
-    monthlyView.optionPrices
-      .filter((price) => price.session === session && price.trades > 0)
-      .map((price) => price.ticker),
-  );
+  const traded = tradedTickersAt(monthlyView, session);
   const latestByTicker = new Map<string, MarketView["optionSeries"][number]>();
   for (const series of monthlyView.optionSeries) {
     if (series.asOf > at) continue;
@@ -43,16 +42,22 @@ export function chainFromMonthlyView(
 }
 
 // The chips for "next monthly expiries" (ticket #380): every distinct expiry in the monthly
-// chain that still has at least one traded series, from the anchor session onward, closest
-// first — capped at six so the row never wraps past what a phone-width chip row can show.
+// chain that still has at least one traded series, inside the plan's own 20-50-session window
+// (round 4 review item 7: outside it, the exit horizon could land in the past or past the
+// plan's own ceiling) — closest first, capped at six so the row never wraps past what a
+// phone-width chip row can show.
 const MAX_EXPIRY_CHIPS = 6;
 
 export function expiryOptionsFrom(
   chain: readonly PlanChainEntry[],
   session: SessionDate,
+  calendar: readonly TradingSession[],
 ): SessionDate[] {
   const expiries = new Set(
     chain.filter((entry) => entry.traded && entry.expiry >= session).map((entry) => entry.expiry),
   );
-  return [...expiries].sort().slice(0, MAX_EXPIRY_CHIPS);
+  return [...expiries]
+    .filter((expiry) => isWithinPlanWindow(calendar, session, expiry))
+    .sort()
+    .slice(0, MAX_EXPIRY_CHIPS);
 }

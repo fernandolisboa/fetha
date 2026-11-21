@@ -1,5 +1,3 @@
-import { centavosSchema, type Centavos } from "@fetha/contracts";
-
 import type { BuildPlanActionInput, BuildPlanOutcome } from "../actions";
 import { PlanAdjuster } from "./plan-adjuster";
 
@@ -10,23 +8,16 @@ import { PlanAdjuster } from "./plan-adjuster";
 export function PlanScreen({
   outcome,
   riskLimitCentavos,
-  cashTodayCentavos,
   input,
 }: {
   outcome: Extract<BuildPlanOutcome, { status: "ok" }>;
   riskLimitCentavos: number;
-  cashTodayCentavos: Centavos;
   input: BuildPlanActionInput;
 }) {
   return (
     <div className="flex flex-col gap-6">
       <p className="text-[15px] text-pretty">{outcome.plan.summary}</p>
-      <PlanAdjuster
-        outcome={outcome}
-        riskLimitCentavos={riskLimitCentavos}
-        cashTodayCentavos={centavosSchema.parse(cashTodayCentavos)}
-        input={input}
-      />
+      <PlanAdjuster outcome={outcome} riskLimitCentavos={riskLimitCentavos} input={input} />
     </div>
   );
 }

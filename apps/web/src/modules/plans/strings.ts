@@ -78,6 +78,7 @@ const en = {
       no_market_price: "At least one leg has no market price today.",
       plan_changed: "This plan changed since you opened it; review it again.",
       rate_limited: "Too many plans built in a short time; try again shortly.",
+      invalid_adjustment: "This edit no longer matches the structure; try a different strike.",
     },
     backToSuggestion: "Back to the suggestion",
   },
@@ -91,7 +92,6 @@ const en = {
     decreaseLots: "One fewer lot",
     increaseLots: "One more lot",
     expiryLabel: "Expiry",
-    overRiskLimit: "This size is over your risk limit.",
     preview: "Previewing, not yet official.",
     whatChanged: {
       title: "What changed from Fetha's plan",
@@ -104,6 +104,8 @@ const en = {
     adjusting: "Repricing...",
     errors: {
       adjust_failed: "Fetha could not reprice this edit; try again.",
+      expiry_remap_failed:
+        "Could not move every leg to that expiry; the plan stays on its current one.",
     },
   },
 } satisfies Record<string, unknown>;
@@ -186,6 +188,7 @@ const ptBR = {
       no_market_price: "Pelo menos uma ponta não tem preço de mercado hoje.",
       plan_changed: "Esse plano mudou desde que você abriu; revise de novo.",
       rate_limited: "Muitos planos montados em pouco tempo; tente novamente em breve.",
+      invalid_adjustment: "Esse ajuste não corresponde mais à estrutura; tente outro strike.",
     },
     backToSuggestion: "Voltar para a sugestão",
   },
@@ -199,7 +202,6 @@ const ptBR = {
     decreaseLots: "Um lote a menos",
     increaseLots: "Um lote a mais",
     expiryLabel: "Vencimento",
-    overRiskLimit: "Esse tamanho está acima do seu limite de risco.",
     preview: "Pré-visualização, ainda não é o valor oficial.",
     whatChanged: {
       title: "O que mudou em relação ao plano da Fetha",
@@ -212,6 +214,8 @@ const ptBR = {
     adjusting: "Reprecificando...",
     errors: {
       adjust_failed: "A Fetha não conseguiu reprecificar esse ajuste; tente de novo.",
+      expiry_remap_failed:
+        "Não foi possível mover todas as pontas para esse vencimento; o plano continua no vencimento atual.",
     },
   },
 } satisfies typeof en;

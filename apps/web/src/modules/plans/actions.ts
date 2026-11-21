@@ -62,10 +62,12 @@ import { planFingerprint } from "./fingerprint";
 import { filterToMonthlyExpiries } from "./monthly-expiry";
 import { filterToTradedSeries } from "./traded-series";
 import { legSelectionFor } from "./plan-selection";
+import { isWithinPlanWindow } from "./plan-window";
 import { PlanRulesRepository } from "./plan-rules-repository";
 import { priceExactLegs } from "./reprice-legs";
 import { riskLimitCentavos } from "./risk-limit";
 import { recipeForView } from "./select-recipe";
+import { validateStructuralAdjustment } from "./validate-adjustment";
 import { planViewSchema, type PlanView } from "./view";
 
 const DEFAULT_ROLL_SESSIONS_BEFORE_EXPIRY = 5;
@@ -84,7 +86,8 @@ export type PlanActionError =
   | "stale_prices"
   | "no_market_price"
   | "plan_changed"
-  | "rate_limited";
+  | "rate_limited"
+  | "invalid_adjustment";
 
 export interface PlanLegSeries {
   // The series' own underlying (round 4 review): the ticket's decoded order line names it, not
@@ -119,6 +122,10 @@ export type BuildPlanOutcome =
       chain: PlanChainEntry[];
       expiryOptions: SessionDate[];
       preview: PlanPreviewContext;
+      // The structure's own template (ticket #380): the client identifies and bounds each leg
+      // by its position here (role, side, ratio, strike rank), never by role+side alone, which
+      // collides for a butterfly's two same-role, same-side wings.
+      structure: Structure;
     }
   | { status: "error"; error: PlanActionError; oneLotMaxLossCentavos?: number };
 
@@ -350,7 +357,7 @@ async function buildPlan(target: ResolvedTarget): Promise<BuiltPlan> {
   );
   const marketView = filterToTradedSeries(monthlyView, date);
   const chain = chainFromMonthlyView(monthlyView, date, at);
-  const expiryOptions = expiryOptionsFrom(chain, date);
+  const expiryOptions = expiryOptionsFrom(chain, date, monthlyView.calendar);
 
   const riskProfile = (await getCurrentRiskProfile()) ?? DEFAULT_RISK_PROFILE;
   const user = await requireUser();
@@ -437,6 +444,7 @@ function toOutcome(built: BuiltPlan): BuildPlanOutcome {
         riskProfile: built.riskProfile,
         openOperationCount: built.openOperationCount,
       },
+      structure: built.target.structure,
     };
   }
   if (result.reason === "does_not_fit") {
@@ -461,15 +469,19 @@ const fromSuggestionInputSchema = z.strictObject({
 const buildInputSchema = z.union([fromViewInputSchema, fromSuggestionInputSchema]);
 export type BuildPlanActionInput = z.infer<typeof buildInputSchema>;
 
-const adjustLegInputSchema = z.strictObject({
-  role: z.enum(["stock", "call", "put"]),
-  side: z.enum(["buy", "sell"]),
-  ticker: tickerSchema,
-});
+// The client sends only the listed ticker per template slot (round 4 review, blocking item 2/3):
+// role, side and ratio always come from the structure's own template
+// (`legsFromTemplate`), never trusted from the client — a client that sent its own role/side
+// could otherwise rename a leg into one the structure never had.
+const adjustLegInputSchema = z.strictObject({ ticker: tickerSchema });
 // The drag-to-adjust screen's own edit of a plan (ticket #380): the user's chosen legs and lot
 // count, optional on both `adjustPlanAction` (the live repricing round trip) and
 // `savePlanAction` (absent: the user never touched a handle, saves Fetha's own plan exactly as
-// `buildPlanAction` showed it, unchanged from before this ticket).
+// `buildPlanAction` showed it, unchanged from before this ticket). Loosely bounded here (`legs`
+// non-empty, `lots` a positive int); the real structural conformance check
+// (`validateStructuralAdjustment`, exact leg count, role vs. listed right, one shared expiry,
+// strictly increasing strikes, `lots` within `MAX_LOTS_SEARCHED`) runs server-side against the
+// resolved target's own structure, since this schema alone has no structure to check against.
 const adjustmentFieldsSchema = z.strictObject({
   legs: z.array(adjustLegInputSchema).min(1),
   lots: z.int().positive(),
@@ -555,21 +567,51 @@ async function buildEdited(
   );
   const marketView = filterToTradedSeries(monthlyView, date);
   const chain = chainFromMonthlyView(monthlyView, date, at);
-  const expiryOptions = expiryOptionsFrom(chain, date);
+  const expiryOptions = expiryOptionsFrom(chain, date, monthlyView.calendar);
 
   const riskProfile = (await getCurrentRiskProfile()) ?? DEFAULT_RISK_PROFILE;
   const user = await requireUser();
   const openOperationCount = await countLiveOpenOperations(getDb(), user, at);
   const limitCentavos = riskLimitCentavos(riskProfile);
 
+  function invalidAdjustmentOutcome(): BuiltPlan {
+    return {
+      target,
+      result: { ok: false, reason: "invalid_adjustment" },
+      seriesByTicker: new Map<string, PlanLegSeries>(),
+      riskLimitCentavos: limitCentavos,
+      marketView,
+      riskProfile,
+      openOperationCount,
+      chain,
+      expiryOptions,
+    };
+  }
+
+  // Never trusts the client's own ticker list to already be a valid instance of this
+  // structure (round 4 review, blocking item 4): a wrong leg count, a role≠right, a mixed
+  // expiry, or equal/inverted strikes by rank are refused here, before any engine pricing call,
+  // rather than priced and saved under the recipe's structure anyway.
+  const optionTickers = legs.map((leg) => leg.ticker);
+  if (!validateStructuralAdjustment(target.structure, chain, optionTickers, lots)) {
+    return invalidAdjustmentOutcome();
+  }
+
   const expiry = expiryOfLegs(chain, legs);
+  // The plan's own 20-50-session window (ticket #380, round 4 review item 7): an edit (an
+  // expiry chip or a strike move that lands on a different-expiry series) may never resolve to
+  // an expiry outside it, even though the chips themselves are already filtered to it — the
+  // chips are a client-side convenience, never the source of truth.
+  if (!expiry || !isWithinPlanWindow(monthlyView.calendar, date, expiry)) {
+    return invalidAdjustmentOutcome();
+  }
+
   const sessionsByDays = new Map<number, SessionDate | null>();
   for (const days of new Set(daysBeforeExpiryValues(target.recipe))) {
     if (days === 0) {
       sessionsByDays.set(0, expiry);
       continue;
     }
-    if (!expiry) continue;
     const beforeExpiry = await nthSessionBefore(getDb(), expiry, days);
     sessionsByDays.set(days, beforeExpiry ? beforeExpiry.date : null);
   }
@@ -578,6 +620,7 @@ async function buildEdited(
     recipe: target.recipe,
     structureId: target.structureId,
     structureName: target.structureName,
+    structure: target.structure,
     underlying: target.underlying,
     view: target.view,
     ivDisplay: target.ivDisplay,

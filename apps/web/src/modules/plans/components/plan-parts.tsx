@@ -1,8 +1,6 @@
 import { Decimal } from "decimal.js";
 import { centavosSchema, type Centavos, type DecimalString } from "@fetha/contracts";
 
-import { formatBRL, formatPriceBRL } from "@/lib/format/brl";
-
 import type { PlanLegSeries } from "../actions";
 import { instrumentLabel } from "../instrument-label";
 import { t } from "../strings";
@@ -52,5 +50,3 @@ export function riskUsedText(maxLoss: number | "unbounded", riskLimitCentavos: n
 export function legTotalCentavos(limitPrice: DecimalString, quantity: number): Centavos {
   return centavosSchema.parse(new Decimal(limitPrice).mul(100).mul(quantity).round().toNumber());
 }
-
-export { formatBRL, formatPriceBRL };

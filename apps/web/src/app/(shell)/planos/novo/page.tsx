@@ -54,7 +54,6 @@ export default async function NewPlanPage({
         <PlanScreen
           outcome={outcome}
           riskLimitCentavos={outcome.riskLimitCentavos}
-          cashTodayCentavos={outcome.plan.netPremiumCentavos}
           input={input}
         />
       ) : (

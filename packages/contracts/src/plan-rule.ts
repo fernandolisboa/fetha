@@ -26,7 +26,8 @@ export type RollRule = z.infer<typeof rollRuleSchema>;
 // (Fetha's plan, unedited, when they changed nothing), so this is what lets a later scoring
 // pass ("Fetha's plan vs. the user's edits", still #380/#381's own scope to compute) diff the
 // two without a second table — the saved operation's legs are the edited (or unedited) side,
-// this is the original side.
+// this is the original side. Absent for a plan saved before ticket #380 shipped: those rows
+// never wrote this field, and `planRulesSchema.parse` must still read them back.
 export const planOriginalSchema = z.strictObject({
   legs: z.array(contemplatedLegSchema).min(1),
   // A count of ADR-0067's standard, 100-share lot — the same unit the plan screen's lot
@@ -44,6 +45,6 @@ export const planRulesSchema = z.strictObject({
   summary: z.string().min(1).max(2000),
   exitRules: z.array(resolvedExitRuleSchema).min(1),
   roll: rollRuleSchema,
-  original: planOriginalSchema,
+  original: planOriginalSchema.optional(),
 });
 export type PlanRules = z.infer<typeof planRulesSchema>;

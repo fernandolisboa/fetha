@@ -6,12 +6,12 @@ import type { LotPricing } from "./generate-plan";
 
 const DEFAULT_TOLERANCE = decimalStringSchema.parse("0.010000");
 
-// One set of legs' two-rung pricing (ADR-0079 round 1 review item 3, factored out for ticket
-// #380 so the auto-sized path (`legSelectionFor`'s own resolved legs) and the drag-to-adjust
-// path (the user's own chosen legs) share one implementation): a probe at the market's own
-// last price (also where a stale or untraded leg is caught), then a second call pricing the
-// same legs with each leg's own limit price given explicitly, so the numbers a plan reports can
-// never be beaten by a limit fill.
+// One set of legs' two-rung pricing (ADR-0079; factored out for ticket #380 so the auto-sized
+// path (`legSelectionFor`'s own resolved legs) and the drag-to-adjust path (the user's own
+// chosen legs) share one implementation): a probe at the market's own last price (also where a
+// stale or untraded leg is caught), then a second call pricing the same legs with each leg's own
+// limit price given explicitly, so the numbers a plan reports can never be beaten by a limit
+// fill.
 export async function priceExactLegs(
   view: MarketView,
   at: Instant,

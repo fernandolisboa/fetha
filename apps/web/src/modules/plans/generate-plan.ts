@@ -48,7 +48,8 @@ export type GeneratePlanResult =
   | { ok: false; reason: "does_not_fit"; oneLotMaxLossCentavos: number }
   | { ok: false; reason: "unpriceable" }
   | { ok: false; reason: "stale_prices" }
-  | { ok: false; reason: "no_market_price" };
+  | { ok: false; reason: "no_market_price" }
+  | { ok: false; reason: "invalid_adjustment" };
 
 // A candidate lot's two rungs (ticket #379, round 1 review item 3/"size and report from limit
 // prices"): `probe` prices the structure at the market's own last price, read only to refuse a

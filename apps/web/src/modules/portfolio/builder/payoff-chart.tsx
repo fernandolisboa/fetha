@@ -251,6 +251,16 @@ function Chart({
     event.currentTarget.releasePointerCapture(event.pointerId);
   }
 
+  // A cancelled gesture (the browser interrupts it, e.g. a system gesture or a disconnected
+  // pen) or a capture lost outside a normal pointerup must drop the drag without committing
+  // whatever was last snapped — unlike `onHandlePointerUp`, never `handle.onCommit`.
+  function onHandleDragAbort(handle: PayoffStrikeHandle) {
+    dragRef.current.delete(handle.key);
+    setDragPixel((prev) =>
+      Object.fromEntries(Object.entries(prev).filter(([key]) => key !== handle.key)),
+    );
+  }
+
   function onHandleKeyDown(handle: PayoffStrikeHandle, event: ReactKeyboardEvent) {
     if (event.key === "ArrowRight") {
       event.preventDefault();
@@ -477,6 +487,12 @@ function Chart({
                   }}
                   onPointerUp={(event) => {
                     onHandlePointerUp(handle, event);
+                  }}
+                  onPointerCancel={() => {
+                    onHandleDragAbort(handle);
+                  }}
+                  onLostPointerCapture={() => {
+                    onHandleDragAbort(handle);
                   }}
                   onKeyDown={(event) => {
                     onHandleKeyDown(handle, event);
