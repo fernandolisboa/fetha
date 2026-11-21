@@ -1,8 +1,14 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { centavosSchema, decimalStringSchema, type DecimalString } from "@fetha/contracts";
-import type { Greeks, Note } from "@fetha/engine";
+import {
+  centavosSchema,
+  decimalStringSchema,
+  tickerSchema,
+  quantitySchema,
+  type DecimalString,
+} from "@fetha/contracts";
+import type { Greeks, LegValuation } from "@fetha/engine";
 
 import { GreekNotes } from "./greek-notes";
 
@@ -21,9 +27,30 @@ function greeks(overrides: Partial<Greeks> = {}): Greeks {
   };
 }
 
-function render(props: { greeks: Greeks; notes?: Note[] }): string {
+function pricedLeg(overrides: Partial<LegValuation> = {}): LegValuation {
+  return {
+    leg: {
+      role: "call",
+      side: "buy",
+      ticker: tickerSchema.parse("PETRK385"),
+      quantity: quantitySchema.parse(100),
+    },
+    price: dec("1.20"),
+    priceSource: "mid",
+    stale: null,
+    fairValue: dec("1.20"),
+    impliedVolatility: dec("0.3"),
+    volatilitySource: "own_implied",
+    greeks: greeks(),
+    timeToExpiryYears: dec("0.1"),
+    notes: [],
+    ...overrides,
+  };
+}
+
+function render(props: { greeks: Greeks; legs?: LegValuation[] }): string {
   return renderToStaticMarkup(
-    createElement(GreekNotes, { greeks: props.greeks, notes: props.notes ?? [] }),
+    createElement(GreekNotes, { greeks: props.greeks, legs: props.legs ?? [pricedLeg()] }),
   );
 }
 
@@ -96,28 +123,35 @@ describe("GreekNotes", () => {
 
   it("reads a gamma that rounds to zero shares as neutral", () => {
     const html = render({ greeks: greeks({ gamma: dec("0.02") }) });
-    expect(html).toContain("Não muda com o tamanho do movimento.");
+    expect(html).toContain("O delta quase não muda quando o preço se move.");
   });
 
-  it("replaces every greek sentence with one notice when a leg's volatility never converged", () => {
+  it("replaces every greek sentence with one notice when a priced leg has no greeks", () => {
     const html = render({
       greeks: greeks(),
-      notes: [{ code: "iv_not_converged", message: "x" }],
+      legs: [pricedLeg(), pricedLeg({ price: dec("0.80"), greeks: null })],
     });
     expect(html).toContain("Gregas incompletas: uma perna ficou sem volatilidade calculada.");
     expect(html).not.toContain("Joga a seu favor");
     expect(html).not.toContain("ações compradas");
   });
 
-  it("still shows the recipe's own calibration beside an incomplete-greeks notice", () => {
+  it("does not call greeks incomplete when an unpriced leg simply has no greeks", () => {
     const html = render({
       greeks: greeks(),
-      notes: [{ code: "iv_not_converged", message: "x" }],
+      legs: [pricedLeg(), pricedLeg({ price: null, greeks: null })],
     });
+    expect(html).not.toContain("Gregas incompletas");
+    expect(html).toContain("Joga a seu favor");
+  });
+
+  it("still shows the recipe's own calibration beside an incomplete-greeks notice", () => {
+    const legs = [pricedLeg(), pricedLeg({ price: dec("0.80"), greeks: null })];
+    const html = render({ greeks: greeks(), legs });
     const htmlWithCalibration = renderToStaticMarkup(
       createElement(GreekNotes, {
         greeks: greeks(),
-        notes: [{ code: "iv_not_converged", message: "x" }],
+        legs,
         calibration: {
           recipeId: "x",
           recipeName: "X",

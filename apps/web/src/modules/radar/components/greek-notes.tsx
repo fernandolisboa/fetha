@@ -1,6 +1,6 @@
 import { Decimal } from "decimal.js";
 import { decimalStringSchema, type DecimalString } from "@fetha/contracts";
-import type { Greeks, Note } from "@fetha/engine";
+import type { Greeks, LegValuation } from "@fetha/engine";
 
 import { formatDecimal } from "@/lib/format/decimal";
 import { formatPriceBRL } from "@/lib/format/brl";
@@ -64,19 +64,20 @@ function Greek({
 // The card's "Detalhes" disclosure (docs/adr/0067, amended 2026-11-21): each greek told as a
 // plain, sign-aware sentence instead of a bare number, plus the recipe's own calibration when it
 // has scored suggestions to show one — never invented, both straight from the engine and the
-// journal. Finding #7: with an `iv_not_converged` note the engine's own greeks did not solve for
-// every leg, so stating them as fact would misreport a number the engine itself could not
-// compute; one plain notice replaces them instead.
+// journal. Finding #7, refined by round 2 finding #3: a leg the engine actually priced but could
+// not solve greeks for (`iv_not_converged` is one cause, but not the only one — a note code also
+// shared with a harmless rescale) means the aggregate greeks are not whole; read straight from
+// the pricing's own legs instead of trusting one note code to say so.
 export function GreekNotes({
   greeks,
-  notes,
+  legs,
   calibration,
 }: {
   greeks: Greeks;
-  notes: readonly Note[];
+  legs: readonly LegValuation[];
   calibration?: CalibrationLine | null;
 }) {
-  const incomplete = notes.some((note) => note.code === "iv_not_converged");
+  const incomplete = legs.some((leg) => leg.price !== null && leg.greeks === null);
   const delta = sharesText(new Decimal(greeks.delta));
   const gamma = sharesText(new Decimal(greeks.gamma));
   const thetaSign = roundedCentavosSign(greeks.theta);
