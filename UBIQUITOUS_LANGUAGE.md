@@ -420,8 +420,10 @@ A contemplated operation plus the rules Fetha chose for it: a one-sentence reaso
 exit rules (profit target, stop, days before expiry) each resolved to a session, and, for a
 structure that rolls (covered call, credit spreads), a roll rule and its date. Generated
 deterministically (ADR-0079) from a suggestion or from the user's stated view of an underlying
-("sobe / cai / fica de lado / não sei") and the current IV regime; the user only reviews and
-saves it, never authors a number in it. Saving one records both the contemplated operation and an
+("sobe / cai / fica de lado / não sei") and the current IV regime; the user may move a strike,
+the lot count or the expiry before saving (drag-to-adjust, #380), but every number shown, before
+or after an edit, still comes from the engine — the user picks which listed series and lot count
+to price, never a number itself. Saving one records both the contemplated operation and an
 `enter` decision in the Diário, so Fetha's original plan is later scored against the user's edits.
 A plan never executes a roll (#382, #383).
 _Avoid_: strategy, recommendation, trade idea

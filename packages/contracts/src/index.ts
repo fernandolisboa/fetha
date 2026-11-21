@@ -115,9 +115,11 @@ export {
   type Recipe,
 } from "./recipe";
 export {
+  planOriginalSchema,
   planRulesSchema,
   resolvedExitRuleSchema,
   rollRuleSchema,
+  type PlanOriginal,
   type PlanRules,
   type ResolvedExitRule,
   type RollRule,

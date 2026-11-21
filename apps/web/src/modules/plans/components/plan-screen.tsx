@@ -1,208 +1,23 @@
-import { Decimal } from "decimal.js";
-import { centavosSchema, type Centavos, type DecimalString } from "@fetha/contracts";
+import type { BuildPlanActionInput, BuildPlanOutcome } from "../actions";
+import { PlanAdjuster } from "./plan-adjuster";
 
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { formatBRL, formatPriceBRL } from "@/lib/format/brl";
-import { formatSessionDate } from "@/lib/format/date-time";
-import { formatQuantity } from "@/lib/format/quantity";
-import { exitText } from "@/modules/recipes";
-import { PayoffChart, RiskNotice } from "@/modules/portfolio/client";
-
-import type { BuildPlanActionInput, BuildPlanOutcome, PlanLegSeries } from "../actions";
-import { instrumentLabel } from "../instrument-label";
-import { t } from "../strings";
-import { SavePlanButton } from "./save-plan-button";
-
-function StatBlock({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="border-line-soft flex flex-col gap-1 border-t pt-3 first:border-t-0 first:pt-0">
-      <p className="text-muted-foreground text-[11px] tracking-[0.06em] uppercase">{label}</p>
-      <p className="font-mono text-[18px] tabular-nums">{value}</p>
-    </div>
-  );
-}
-
-// `instrumentLabel` (round 4 review) names the underlying, not the option's own series ticker;
-// this still shows that series ticker as a second, muted line, for placing the order at the
-// broker, for an option leg only — a stock leg's own ticker is already the label.
-function InstrumentCell({
-  leg,
-  series,
-}: {
-  leg: { role: "stock" | "call" | "put"; side: "buy" | "sell"; ticker: string };
-  series: PlanLegSeries | undefined;
-}) {
-  const label = instrumentLabel(leg, series);
-  if (leg.role === "stock" || !series) return <>{label}</>;
-  return (
-    <span className="flex flex-col gap-0.5">
-      <span>{label}</span>
-      <span className="text-muted-foreground text-xs">
-        {t.screen.orders.seriesCode(leg.ticker)}
-      </span>
-    </span>
-  );
-}
-
-function riskUsedText(maxLoss: number | "unbounded", riskLimitCentavos: number): string {
-  if (maxLoss === "unbounded" || riskLimitCentavos <= 0) return "—";
-  return `${((maxLoss / riskLimitCentavos) * 100).toFixed(0)}%`;
-}
-
-// One real-money total per leg: a `decimal.js` multiplication of the limit price (a
-// `DecimalString`) by the lot's quantity, never a raw `Number()` on a price string
-// (CLAUDE.md principle 5 — round 1 review item 5).
-function legTotalCentavos(limitPrice: DecimalString, quantity: number): Centavos {
-  return centavosSchema.parse(new Decimal(limitPrice).mul(100).mul(quantity).round().toNumber());
-}
-
+// The plan screen (ticket #379): summary paragraph, then everything drag-to-adjust (ticket
+// #380) made editable — numbers, orders, the payoff chart, rules and the save button — in
+// `PlanAdjuster`, which starts from exactly this plan and lets the user move a handle before
+// saving.
 export function PlanScreen({
   outcome,
   riskLimitCentavos,
-  cashTodayCentavos,
   input,
 }: {
   outcome: Extract<BuildPlanOutcome, { status: "ok" }>;
   riskLimitCentavos: number;
-  cashTodayCentavos: Centavos;
   input: BuildPlanActionInput;
 }) {
-  const { plan, seriesByTicker, fingerprint } = outcome;
-
   return (
     <div className="flex flex-col gap-6">
-      <p className="text-[15px] text-pretty">{plan.summary}</p>
-
-      {plan.limitBreaches.length > 0 && <RiskNotice breaches={plan.limitBreaches} />}
-
-      <div className="grid grid-cols-2 gap-4 @min-[40rem]:grid-cols-5">
-        <StatBlock
-          label={t.screen.numbers.maxLoss}
-          value={
-            plan.maxLossCentavos === "unbounded"
-              ? t.screen.numbers.unbounded
-              : formatBRL(plan.maxLossCentavos)
-          }
-        />
-        <StatBlock
-          label={t.screen.numbers.maxGain}
-          value={
-            plan.maxGainCentavos === "unbounded"
-              ? t.screen.numbers.unbounded
-              : formatBRL(plan.maxGainCentavos)
-          }
-        />
-        <StatBlock
-          label={t.screen.numbers.breakEvens}
-          value={
-            plan.breakEvens.length > 0
-              ? plan.breakEvens.map((value) => formatPriceBRL(value)).join(" / ")
-              : "—"
-          }
-        />
-        <StatBlock
-          label={t.screen.numbers.cashToday}
-          value={formatBRL(centavosSchema.parse(cashTodayCentavos))}
-        />
-        <StatBlock
-          label={t.screen.numbers.riskUsed}
-          value={riskUsedText(plan.maxLossCentavos, riskLimitCentavos)}
-        />
-      </div>
-
-      <section className="flex flex-col gap-3">
-        <h2 className="text-[13px] font-medium">{t.screen.orders.title}</h2>
-        <Table stacked>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t.screen.orders.instrument}</TableHead>
-              <TableHead className="text-right">{t.screen.orders.quantity}</TableHead>
-              <TableHead className="text-right">{t.screen.orders.limitPrice}</TableHead>
-              <TableHead className="text-right">{t.screen.orders.total}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {plan.legs.map(({ leg, limitPrice }) => (
-              <TableRow key={`${leg.side}-${leg.ticker}`}>
-                <TableCell
-                  data-stack="title"
-                  className="font-medium"
-                  style={{ color: leg.side === "buy" ? "var(--up)" : "var(--down)" }}
-                >
-                  {leg.side === "buy" ? t.screen.orders.buy : t.screen.orders.sell}
-                </TableCell>
-                <TableCell data-label={t.screen.orders.instrument} data-stack="full">
-                  <InstrumentCell leg={leg} series={seriesByTicker[leg.ticker]} />
-                </TableCell>
-                <TableCell
-                  data-label={t.screen.orders.quantity}
-                  className="text-right font-mono tabular-nums"
-                >
-                  {formatQuantity(leg.quantity)}
-                </TableCell>
-                <TableCell
-                  data-label={t.screen.orders.limitPrice}
-                  className="text-right font-mono tabular-nums"
-                >
-                  {formatPriceBRL(limitPrice)}
-                </TableCell>
-                <TableCell
-                  data-label={t.screen.orders.total}
-                  className="text-right font-mono tabular-nums"
-                >
-                  {formatBRL(legTotalCentavos(limitPrice, leg.quantity))}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </section>
-
-      <PayoffChart
-        points={plan.payoff}
-        pointsNow={plan.payoffNow}
-        spot={plan.spot}
-        breakEvens={plan.breakEvens}
-        maxGain={plan.maxGainCentavos}
-        maxLoss={plan.maxLossCentavos}
-        spotLabel={formatPriceBRL(plan.spot)}
-        framed
-      />
-
-      <section className="flex flex-col gap-3">
-        <h2 className="text-[13px] font-medium">{t.screen.rules.title}</h2>
-        <ul className="flex flex-col gap-1.5 text-[13px]">
-          {plan.exitRules.map((resolved, index) => (
-            <li key={index} className="flex flex-wrap items-baseline gap-2">
-              <span>{exitText(resolved.rule)}</span>
-              {resolved.session && (
-                <span className="text-muted-foreground font-mono text-xs tabular-nums">
-                  {formatSessionDate(resolved.session)}
-                </span>
-              )}
-            </li>
-          ))}
-          <li className="flex flex-wrap items-baseline gap-2">
-            <span className="text-muted-foreground">{t.screen.rules.rollLabel}:</span>
-            <span>
-              {plan.roll.applies
-                ? plan.roll.session
-                  ? t.screen.rules.rollApplies(formatSessionDate(plan.roll.session))
-                  : t.screen.rules.rollApplies("—")
-                : t.screen.rules.rollDoesNotApply}
-            </span>
-          </li>
-        </ul>
-      </section>
-
-      <SavePlanButton input={input} fingerprint={fingerprint} />
+      <p className="text-[15px] text-pretty">{outcome.plan.summary}</p>
+      <PlanAdjuster outcome={outcome} riskLimitCentavos={riskLimitCentavos} input={input} />
     </div>
   );
 }
