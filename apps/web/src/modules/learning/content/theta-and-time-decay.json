@@ -1,0 +1,187 @@
+{
+  "id": "theta-and-time-decay",
+  "version": 1,
+  "minutes": 5,
+  "title": {
+    "en": "Theta: time eating the premium",
+    "pt": "Theta: o tempo comendo o prêmio"
+  },
+  "summary": {
+    "en": "Every day that passes without the stock moving costs a long option some of its time value.",
+    "pt": "Todo dia que passa sem a ação se mover custa, para uma opção comprada, um pouco do seu valor do tempo."
+  },
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Theta is the greek that measures how much an option's fair value changes per session, everything else held equal — the stock price, the volatility, the rates. For a bought option it is negative: every session that passes with nothing else moving quietly erodes some of its time value, which is exactly what the previous lesson's intrinsic-vs-time split is counting down.",
+        "pt": "Theta é a grega que mede quanto o valor justo de uma opção muda por pregão, tudo o mais mantido igual — o preço da ação, a volatilidade, as taxas. Para uma opção comprada, theta é negativo: cada pregão que passa sem mais nada se mover corrói, em silêncio, um pouco do valor do tempo — exatamente o que a divisão intrínseco vs. tempo da lição anterior está contando para trás."
+      }
+    },
+    {
+      "type": "payoff-example",
+      "exampleId": "long-call",
+      "caption": {
+        "en": "This lesson's long call, roughly seven weeks from expiry: the thinner T+0 line already sits above the thick expiry line even with the stock unmoved at {{spot}} — that gap is time value theta is eating away at, session by session.",
+        "pt": "A call comprada desta lição, a cerca de sete semanas do vencimento: a linha mais fina de T+0 já fica acima da linha grossa de vencimento mesmo com a ação parada em {{spot}} — essa diferença é valor do tempo, e o theta vai corroendo essa diferença, pregão a pregão."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "At today's pricing instant, this call's own theta says a full lot (100 options) loses about {{long-call.thetaAbs}} of fair value for the next session alone, with the stock held at {{spot}} and nothing else changing. That is a model read at one moment, not a promise — the next session's actual theta depends on where the stock and its volatility are by then.",
+        "pt": "No instante de hoje, o theta desta call diz que um lote inteiro (100 opções) perde cerca de {{long-call.thetaAbs}} de valor justo só para o próximo pregão, com a ação parada em {{spot}} e nada mais mudando. Isso é uma leitura do modelo num instante, não uma promessa — o theta real do próximo pregão depende de onde a ação e a volatilidade dela estiverem até lá."
+      }
+    },
+    {
+      "type": "callout",
+      "tone": "warning",
+      "text": {
+        "en": "Decay is not a straight line: it is slow with months to go and accelerates into the last weeks before expiry, fastest for an option sitting at the money. The closer to expiry, the harder theta works against a long position that has not moved yet.",
+        "pt": "A corrosão não é uma linha reta: é lenta com meses ainda pela frente e acelera nas últimas semanas antes do vencimento, mais rápida numa opção que está no dinheiro. Quanto mais perto do vencimento, mais o theta trabalha contra uma posição comprada que ainda não se moveu."
+      }
+    }
+  ],
+  "quiz": [
+    {
+      "id": "q1",
+      "prompt": {
+        "en": "Theta measures:",
+        "pt": "Theta mede:"
+      },
+      "options": [
+        {
+          "id": "b",
+          "text": {
+            "en": "How much an option's fair value changes per session, everything else held equal",
+            "pt": "Quanto o valor justo de uma opção muda por pregão, tudo o mais mantido igual"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "How much the stock moves per session",
+            "pt": "Quanto a ação se move por pregão"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "The option's strike price",
+            "pt": "O preço do strike da opção"
+          }
+        }
+      ],
+      "correctOptionId": "b",
+      "explanation": {
+        "en": "Theta isolates the passage of time, holding the stock price, volatility and rates fixed.",
+        "pt": "Theta isola a passagem do tempo, mantendo fixos o preço da ação, a volatilidade e as taxas."
+      }
+    },
+    {
+      "id": "q2",
+      "prompt": {
+        "en": "For a bought (long) option, theta is usually:",
+        "pt": "Para uma opção comprada, o theta geralmente é:"
+      },
+      "options": [
+        {
+          "id": "b",
+          "text": {
+            "en": "Zero",
+            "pt": "Zero"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "Positive",
+            "pt": "Positivo"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Negative",
+            "pt": "Negativo"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "A long option loses time value as sessions pass with nothing else moving, so its theta is negative.",
+        "pt": "Uma opção comprada perde valor do tempo conforme os pregões passam sem nada mais se mover, então o theta dela é negativo."
+      }
+    },
+    {
+      "id": "q3",
+      "prompt": {
+        "en": "Decay from theta, as expiry approaches, tends to:",
+        "pt": "A corrosão pelo theta, conforme o vencimento se aproxima, tende a:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "Accelerate, fastest at the money",
+            "pt": "Acelerar, mais rápido no dinheiro"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "Stay perfectly constant",
+            "pt": "Ficar perfeitamente constante"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "Slow down and stop",
+            "pt": "Desacelerar e parar"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "Time decay is not linear: it speeds up in the last weeks before expiry, most of all for an at-the-money option.",
+        "pt": "A corrosão do tempo não é linear: acelera nas últimas semanas antes do vencimento, principalmente numa opção no dinheiro."
+      }
+    },
+    {
+      "id": "q4",
+      "prompt": {
+        "en": "A model theta read today, like this lesson's {{long-call.thetaAbs}}, is best understood as:",
+        "pt": "Uma leitura de theta do modelo hoje, como o {{long-call.thetaAbs}} desta lição, é melhor entendida como:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "A guaranteed loss for every future session",
+            "pt": "Uma perda garantida para todo pregão futuro"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "A model read for the next session alone, with today's stock price and volatility held fixed",
+            "pt": "Uma leitura do modelo só para o próximo pregão, com o preço da ação e a volatilidade de hoje mantidos fixos"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "The option's entire premium",
+            "pt": "O prêmio inteiro da opção"
+          }
+        }
+      ],
+      "correctOptionId": "b",
+      "explanation": {
+        "en": "Theta is a snapshot at one pricing instant; the next session's real decay depends on where the stock and its volatility actually end up.",
+        "pt": "O theta é uma fotografia num instante de precificação; a corrosão real do próximo pregão depende de onde a ação e a volatilidade de fato ficarem."
+      }
+    }
+  ]
+}

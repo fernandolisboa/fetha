@@ -52,21 +52,21 @@
       },
       "options": [
         {
-          "id": "a",
+          "id": "b",
           "text": {
             "en": "Buy the underlying stock at a fixed price",
             "pt": "Comprar a ação-objeto por um preço fixo"
           }
         },
         {
-          "id": "b",
+          "id": "a",
           "text": {
             "en": "Sell the underlying stock at a fixed price",
             "pt": "Vender a ação-objeto por um preço fixo"
           }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "b",
       "explanation": {
         "en": "Call comes from “call away”: the buyer can call the stock away from the seller at the strike.",
         "pt": "O nome call vem do inglês “to call away”: quem compra pode “chamar” a ação de quem vendeu, pelo strike."
@@ -80,21 +80,21 @@
       },
       "options": [
         {
-          "id": "a",
+          "id": "b",
           "text": {
             "en": "Buy the underlying stock at a fixed price",
             "pt": "Comprar a ação-objeto por um preço fixo"
           }
         },
         {
-          "id": "b",
+          "id": "a",
           "text": {
             "en": "Sell the underlying stock at a fixed price",
             "pt": "Vender a ação-objeto por um preço fixo"
           }
         }
       ],
-      "correctOptionId": "b",
+      "correctOptionId": "a",
       "explanation": {
         "en": "Put comes from “to put to someone”: the buyer can put the stock onto the seller at the strike.",
         "pt": "O nome put vem do inglês “to put to someone”: quem compra pode “colocar” a ação em quem vendeu, pelo strike."
@@ -108,28 +108,28 @@
       },
       "options": [
         {
-          "id": "b",
+          "id": "a",
           "text": {
             "en": "Strike",
             "pt": "Strike"
           }
         },
         {
-          "id": "c",
+          "id": "b",
           "text": {
             "en": "Premium",
             "pt": "Prêmio"
           }
         },
         {
-          "id": "a",
+          "id": "c",
           "text": {
             "en": "Break-even",
             "pt": "Ponto de equilíbrio"
           }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "c",
       "explanation": {
         "en": "The break-even is where the position's P&L crosses zero; for a long call it sits above the strike, by the premium paid.",
         "pt": "O ponto de equilíbrio é onde o resultado da posição cruza o zero; na call comprada, ele fica acima do strike, pela distância do prêmio pago."

@@ -15,6 +15,7 @@ describe("recipeCards", () => {
       expect(card.summary).not.toBe("");
       expect(card.maxLoss).not.toBe("");
       expect(card.sketch.length).toBeGreaterThan(2);
+      expect(card.lessonHref).toMatch(/^\/aprender\//);
     }
     expect(Object.keys(recipesStrings.en.recipes).sort()).toEqual(
       recipes.map((recipe) => recipe.id).sort(),

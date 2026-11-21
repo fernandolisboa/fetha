@@ -1,3 +1,7 @@
+import { lessonHrefForStructure } from "@/modules/learning";
+import { StructureLessonLink } from "@/modules/learning/client";
+import { catalog } from "@/modules/strategies";
+
 import type { BuildPlanActionInput, BuildPlanOutcome } from "../actions";
 import { PlanAdjuster } from "./plan-adjuster";
 
@@ -14,9 +18,14 @@ export function PlanScreen({
   riskLimitCentavos: number;
   input: BuildPlanActionInput;
 }) {
+  const lessonHref = lessonHrefForStructure(outcome.plan.structureId);
+  const structureName =
+    catalog.find((entry) => entry.structure.id === outcome.plan.structureId)?.structure.name ??
+    outcome.plan.structureId;
   return (
     <div className="flex flex-col gap-6">
       <p className="text-[15px] text-pretty">{outcome.plan.summary}</p>
+      <StructureLessonLink href={lessonHref} name={structureName} />
       <PlanAdjuster outcome={outcome} riskLimitCentavos={riskLimitCentavos} input={input} />
     </div>
   );

@@ -12,6 +12,7 @@ import { engine, type AssetReading, type MarketView, type OperationPricing } fro
 
 import type { Database } from "@/db/client";
 import { safeDbErrorMessage } from "@/db/pg-error";
+import { lessonHrefForStructure } from "@/modules/learning";
 import {
   buildRadarView,
   latestCandle,
@@ -58,9 +59,15 @@ export interface Idea {
   pricing: OperationPricing;
 }
 
-// What a card draws and what reaches the browser: of the pricing, only what the payoff chart needs.
+// What a card draws and what reaches the browser: of the pricing, only what the payoff chart
+// needs. `lessonHref` is resolved here, server-side, rather than by the card component itself —
+// `ResearchIdeaCard` is re-exported from `radar/client.ts` for a "use client" ancestor
+// (`decisions/components/research-panel.tsx`), and a component reachable from a client boundary
+// may never import `@/modules/learning`'s main entry point: that would bundle the DB, auth and
+// every lesson's own quiz answer key into the browser (ADR-0081 addendum).
 export type IdeaCard = Omit<Idea, "pricing"> & {
   chart: Pick<OperationPricing, "payoff" | "spot">;
+  lessonHref: string | null;
 };
 
 export function ideaCardOf(idea: Idea): IdeaCard {
@@ -80,6 +87,7 @@ export function ideaCardOf(idea: Idea): IdeaCard {
     alerts: idea.alerts,
     suggestionId: idea.suggestionId,
     chart: { payoff: idea.pricing.payoff, spot: idea.pricing.spot },
+    lessonHref: lessonHrefForStructure(idea.structure.id),
   };
 }
 

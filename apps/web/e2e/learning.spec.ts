@@ -59,3 +59,22 @@ test("opens the first lesson, passes its quiz and sees the next lesson recommend
   const continueCardAfter = page.locator("section", { hasText: "Continuar" }).first();
   await expect(continueCardAfter).toContainText("Calls e puts");
 });
+
+test("opens the Estruturas tab and one structure's own lesson", async ({
+  page,
+  baseURL,
+  request,
+}) => {
+  await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
+
+  await page.goto("/aprender");
+  await page.getByRole("tab", { name: "Estruturas" }).click();
+  await expect(page).toHaveURL(/\?ver=estruturas$/);
+
+  const lessonLink = page.getByRole("link", { name: /Compra de call/ }).first();
+  await expect(lessonLink).toBeVisible();
+  await lessonLink.click();
+
+  await expect(page).toHaveURL(/\/aprender\/long-call$/);
+  await expect(page.getByRole("heading", { level: 1, name: "Compra de call" })).toBeVisible();
+});

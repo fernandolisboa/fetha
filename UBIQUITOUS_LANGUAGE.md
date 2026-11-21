@@ -820,7 +820,9 @@ _Avoid_: forgot password, password recovery
 **Lesson**:
 One unit of the learning catalog: a level, a topic, a few short text blocks, optional payoff
 examples and a 3-to-5-question quiz (ADR-0081). Carries a `version`, bumped when its quiz
-changes, so a stored score can be told apart from an attempt at an older quiz. pt-BR: "lição".
+changes, so a stored score can be told apart from an attempt at an older quiz. A lesson that
+teaches one option structure also carries that structure's id (ADR-0081 addendum); every other
+lesson carries none. pt-BR: "lição".
 _Avoid_: module, course, chapter
 
 **Level**:
@@ -844,3 +846,10 @@ The learning track's by-level view and its default: lessons grouped by level, in
 order, each level showing "X de Y" lessons done or "Em breve" with none yet. The source of the
 recommended next lesson (the first not-done lesson in this order).
 _Avoid_: journey (in code; this is the canonical pt-BR name even in English prose about it)
+
+**Estruturas**:
+The learning track's third view (ADR-0081 addendum): one row per option structure the strategy
+catalog's recipes use, grouped by the market view its own recipe expects (alta, baixa, lateral,
+movimento forte), each row linking to that structure's one lesson. Lessons outside the
+structures topic never appear here. Shares Jornada's progress and recommended-next-lesson logic.
+_Avoid_: structures view (in code; this is the canonical pt-BR name even in English prose)

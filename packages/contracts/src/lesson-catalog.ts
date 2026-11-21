@@ -37,9 +37,42 @@ export const illustrativeExampleIds = [
   "long-put",
   "short-call",
   "bull-call-spread",
+  "bull-put-spread",
+  "bear-call-spread",
+  "bear-put-spread",
+  "covered-call",
+  "call-butterfly",
+  "put-butterfly",
+  "iron-condor",
+  "long-straddle",
+  "long-strangle",
 ] as const;
 export const illustrativeExampleIdSchema = z.enum(illustrativeExampleIds);
 export type IllustrativeExampleId = z.infer<typeof illustrativeExampleIdSchema>;
+
+// The 12 structures the strategy catalog's own recipes use
+// (`modules/strategies/recipes.json`), each with exactly one PR 2 lesson
+// (a content test enforces it): the closed set a lesson's optional
+// `structure` field, and every module's contextual "Aprender" link, names.
+// Named "recipe" rather than plain "structure": the strategy catalog itself
+// has far more structures than these 12 (`modules/strategies/catalog.json`),
+// and nothing here claims to close that larger set.
+export const recipeStructureIds = [
+  "long-call",
+  "long-put",
+  "bull-call-spread",
+  "bull-put-spread",
+  "bear-put-spread",
+  "bear-call-spread",
+  "covered-call",
+  "call-butterfly",
+  "put-butterfly",
+  "iron-condor",
+  "long-straddle",
+  "long-strangle",
+] as const;
+export const recipeStructureIdSchema = z.enum(recipeStructureIds);
+export type RecipeStructureId = z.infer<typeof recipeStructureIdSchema>;
 
 // English is the source locale, pt-BR the shipped one (CLAUDE.md i18n rule);
 // every lesson carries both so a content check can diff them.
@@ -113,6 +146,10 @@ export const lessonSchema = z
     minutes: z.number().int().positive().max(30),
     title: localizedTextSchema,
     summary: localizedTextSchema,
+    // The structure this lesson teaches, when it is one of PR 2's one-lesson-per-structure
+    // lessons; absent for every other lesson. Closed to `structureIds` so a contextual link
+    // elsewhere in the app can never point at an id no lesson claims.
+    structure: recipeStructureIdSchema.optional(),
     blocks: z.array(lessonBlockSchema).min(1),
     quiz: z.array(quizQuestionSchema).min(MIN_QUIZ_QUESTIONS).max(MAX_QUIZ_QUESTIONS),
   })

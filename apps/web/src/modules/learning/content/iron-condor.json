@@ -1,0 +1,219 @@
+{
+  "id": "iron-condor",
+  "version": 1,
+  "minutes": 7,
+  "title": {
+    "en": "Iron condor",
+    "pt": "Condor de ferro"
+  },
+  "summary": {
+    "en": "A credit received for betting the stock stays inside a range, built from a put spread and a call spread.",
+    "pt": "Um crédito recebido por apostar que a ação fica dentro de uma faixa, montado com uma trava de puts e uma de calls."
+  },
+  "structure": "iron-condor",
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Use an iron condor for a sideways view with a wider comfortable range than a butterfly's single point: it keeps the full credit as long as the stock stays between the two short strikes, and caps the loss on either side if it breaks out. It fits high IV rank — richer options make both sold legs worth more, for a bigger net credit.",
+        "pt": "Use um condor de ferro para uma visão de lateralização com uma faixa confortável mais larga do que o ponto único de uma borboleta: ele mantém o crédito inteiro enquanto a ação fica entre os dois strikes vendidos, e trava a perda de qualquer lado se ela romper a faixa. Encaixa com IV rank alto — opções mais caras deixam as duas pernas vendidas mais valiosas, para um crédito líquido maior."
+      }
+    },
+    {
+      "type": "list",
+      "items": {
+        "en": [
+          "Buy one put at the lowest strike.",
+          "Sell one put at a higher strike, below the stock.",
+          "Sell one call at a strike above the stock, same expiry.",
+          "Buy one call at the highest strike, same expiry."
+        ],
+        "pt": [
+          "Compra de uma put no strike mais baixo de todos.",
+          "Venda de uma put num strike mais alto, abaixo da ação.",
+          "Venda de uma call num strike acima da ação, mesmo vencimento.",
+          "Compra de uma call no strike mais alto de todos, mesmo vencimento."
+        ]
+      }
+    },
+    {
+      "type": "payoff-example",
+      "exampleId": "iron-condor",
+      "caption": {
+        "en": "Buying the {{lowestStrike}} put and {{higherStrike}} call, selling the {{lowerMidStrike}} put and {{upperMidStrike}} call, stock at {{spot}}.",
+        "pt": "Compra da put de {{lowestStrike}} e da call de {{higherStrike}}, venda da put de {{lowerMidStrike}} e da call de {{upperMidStrike}}, ação a {{spot}}."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Max gain is the net credit received, {{iron-condor.maxGainAbs}} per share (×100 per lot), kept in full between the two short strikes. Moving past either one, it shrinks to zero exactly at the nearer break-even ({{iron-condor.breakEven0}} or {{iron-condor.breakEven1}}), then turns into a growing loss. Max loss, {{iron-condor.maxLossAbs}} per share, is capped on either side — the width of whichever wing is breached, minus the credit received.",
+        "pt": "O ganho máximo é o crédito líquido recebido, {{iron-condor.maxGainAbs}} por ação (×100 por lote), mantido por completo entre os dois strikes vendidos. Passando qualquer um deles, ele encolhe até zero exatamente no break-even mais próximo ({{iron-condor.breakEven0}} ou {{iron-condor.breakEven1}}), e então se torna uma perda crescente. A perda máxima, {{iron-condor.maxLossAbs}} por ação, é travada de qualquer lado — a largura de qual ponta for rompida, menos o crédito recebido."
+      }
+    },
+    {
+      "type": "callout",
+      "tone": "warning",
+      "text": {
+        "en": "The sold call is usually American-style and carries its own early-assignment risk if it goes deep in the money; on B3, though, a cash distribution adjusts the strike itself (ADR-0070), so a dividend date alone is rarely the reason. Four distinct strikes means four series, and four bid-ask spreads to cross at entry and exit; a strong, sudden move past either short strike turns the position against itself fast, with little time to react near expiry.",
+        "pt": "A call vendida costuma ser do estilo americano e carrega seu próprio risco de atribuição antecipada se ficar bem dentro do dinheiro; na B3, porém, um provento em dinheiro ajusta o próprio strike (ADR-0070), então uma data de dividendo por si só raramente é o motivo. Quatro strikes distintos significam quatro séries, e quatro spreads de compra e venda para cruzar na entrada e na saída; um movimento forte e repentino além de qualquer strike vendido vira a posição contra si mesma rápido, com pouco tempo para reagir perto do vencimento."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Fetha's Montar plano sets this recipe's own profit target, stop and days-before-expiry exit for all four legs together; Rolar lets the whole condor move to a later expiry without closing it first.",
+        "pt": "O Montar plano da Fetha define, para as quatro pernas juntas, o alvo de lucro, o stop e a saída por dias até o vencimento da própria receita; o Rolar permite levar o condor inteiro para um vencimento mais distante sem encerrá-lo antes."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "No Fetha: this is the “Condor de ferro” recipe.",
+        "pt": "No Fetha: essa é a receita “Condor de ferro”."
+      }
+    }
+  ],
+  "quiz": [
+    {
+      "id": "q1",
+      "prompt": {
+        "en": "An iron condor is built from:",
+        "pt": "Um condor de ferro é montado com:"
+      },
+      "options": [
+        {
+          "id": "c",
+          "text": {
+            "en": "Four calls, no puts",
+            "pt": "Quatro calls, sem puts"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "A put spread plus a call spread",
+            "pt": "Uma trava de puts mais uma de calls"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "One long call and one long put",
+            "pt": "Uma call comprada e uma put comprada"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "A bull put spread below the stock and a bear call spread above it, combined, make an iron condor.",
+        "pt": "Uma trava de alta com puts abaixo da ação e uma trava de baixa com calls acima dela, combinadas, formam um condor de ferro."
+      }
+    },
+    {
+      "id": "q2",
+      "prompt": {
+        "en": "An iron condor keeps its full max gain as long as the stock:",
+        "pt": "Um condor de ferro mantém o ganho máximo inteiro enquanto a ação:"
+      },
+      "options": [
+        {
+          "id": "b",
+          "text": {
+            "en": "Rises past the higher strike",
+            "pt": "Sobe além do strike mais alto"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "Stays between the two short strikes",
+            "pt": "Fica entre os dois strikes vendidos"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Falls to zero",
+            "pt": "Cai a zero"
+          }
+        }
+      ],
+      "correctOptionId": "c",
+      "explanation": {
+        "en": "Between the two sold strikes, both spreads expire worthless and the full credit stands as profit.",
+        "pt": "Entre os dois strikes vendidos, as duas travas vencem sem valor e o crédito inteiro fica como lucro."
+      }
+    },
+    {
+      "id": "q3",
+      "prompt": {
+        "en": "An iron condor fits best with implied volatility:",
+        "pt": "Um condor de ferro encaixa melhor com a volatilidade implícita:"
+      },
+      "options": [
+        {
+          "id": "c",
+          "text": {
+            "en": "It never matters here",
+            "pt": "Nunca importa aqui"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Low relative to this underlying's own recent normal",
+            "pt": "Baixa em relação ao normal recente deste ativo"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "High relative to this underlying's own recent normal",
+            "pt": "Alta em relação ao normal recente deste ativo"
+          }
+        }
+      ],
+      "correctOptionId": "b",
+      "explanation": {
+        "en": "Richer options, from high IV rank, make both sold legs worth more, for a bigger net credit.",
+        "pt": "Opções mais caras, de IV rank alto, deixam as duas pernas vendidas mais valiosas, para um crédito líquido maior."
+      }
+    },
+    {
+      "id": "q4",
+      "prompt": {
+        "en": "If the stock breaks out strongly past a short strike close to expiry, an iron condor:",
+        "pt": "Se a ação romper com força um strike vendido perto do vencimento, um condor de ferro:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "Turns against the position quickly, with little time to react",
+            "pt": "Vira contra a posição rápido, com pouco tempo para reagir"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "Is unaffected, since the max loss never changes",
+            "pt": "Não é afetado, já que a perda máxima nunca muda"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "Automatically rolls itself",
+            "pt": "Rola a si mesmo automaticamente"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "A fast move past either short strike near expiry leaves little room to adjust before the max loss on that side is realized.",
+        "pt": "Um movimento rápido além de qualquer strike vendido perto do vencimento deixa pouco espaço para ajustar antes de a perda máxima daquele lado se realizar."
+      }
+    }
+  ]
+}

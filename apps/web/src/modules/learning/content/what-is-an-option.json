@@ -64,28 +64,28 @@
       },
       "options": [
         {
-          "id": "a",
+          "id": "b",
           "text": {
             "en": "A right, which may or may not be exercised",
             "pt": "Um direito, que pode ser exercido ou não"
           }
         },
         {
-          "id": "b",
+          "id": "c",
           "text": {
             "en": "An obligation to buy or sell the stock",
             "pt": "Uma obrigação de comprar ou vender a ação"
           }
         },
         {
-          "id": "c",
+          "id": "a",
           "text": {
             "en": "Ownership of the underlying stock",
             "pt": "A posse da ação-objeto"
           }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "b",
       "explanation": {
         "en": "The buyer pays a premium for a right, never an obligation; the obligation sits with whoever sold the option.",
         "pt": "Quem compra paga um prêmio por um direito, nunca por uma obrigação; a obrigação é de quem vendeu a opção."
@@ -134,7 +134,7 @@
       },
       "options": [
         {
-          "id": "a",
+          "id": "b",
           "text": {
             "en": "It is refunded",
             "pt": "Ele é devolvido"
@@ -148,14 +148,14 @@
           }
         },
         {
-          "id": "b",
+          "id": "a",
           "text": {
             "en": "It is kept by whoever received it",
             "pt": "Ele fica com quem o recebeu"
           }
         }
       ],
-      "correctOptionId": "b",
+      "correctOptionId": "a",
       "explanation": {
         "en": "Just like an insurance premium, it is not refunded: it stays with the seller once the position opens, whether or not the buyer ever exercises.",
         "pt": "Assim como o prêmio de um seguro, ele não é devolvido: fica com quem vendeu desde a abertura da posição, exercendo ou não quem comprou."

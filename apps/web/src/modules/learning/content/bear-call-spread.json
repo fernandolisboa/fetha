@@ -1,0 +1,215 @@
+{
+  "id": "bear-call-spread",
+  "version": 1,
+  "minutes": 6,
+  "title": {
+    "en": "Bear call spread",
+    "pt": "Trava de baixa com calls"
+  },
+  "summary": {
+    "en": "A credit received up front, kept in full if the stock stays below the strike sold.",
+    "pt": "Um crédito recebido na entrada, mantido por completo se a ação ficar abaixo do strike vendido."
+  },
+  "structure": "bear-call-spread",
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Use a bear call spread for a bearish-to-neutral view, when selling premium fits better than buying it — it needs the stock to simply stay below a level, not to drop hard. It fits high IV rank: richer options than this underlying's own recent normal mean a bigger credit for the same strikes.",
+        "pt": "Use uma trava de baixa com calls para uma visão de baixa a neutra, quando vender prêmio encaixa melhor do que comprar — ela precisa só que a ação se mantenha abaixo de um nível, não que caia com força. Encaixa com IV rank alto: opções mais caras do que o normal recente deste ativo significam um crédito maior para os mesmos strikes."
+      }
+    },
+    {
+      "type": "list",
+      "items": {
+        "en": [
+          "Sell one call at the lower strike.",
+          "Buy one call at the higher strike, same expiry."
+        ],
+        "pt": [
+          "Venda de uma call no strike mais baixo.",
+          "Compra de uma call no strike mais alto, mesmo vencimento."
+        ]
+      }
+    },
+    {
+      "type": "payoff-example",
+      "exampleId": "bear-call-spread",
+      "caption": {
+        "en": "Selling the {{lowerStrike}} call and buying the {{higherStrike}} call, stock at {{spot}}.",
+        "pt": "Venda da call de {{lowerStrike}} e compra da call de {{higherStrike}}, ação a {{spot}}."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Max gain is the net credit received, {{bear-call-spread.maxGainAbs}} per share (×100 per lot), kept in full at or below the lower strike sold; climbing from there, it shrinks to zero exactly at the break-even of {{bear-call-spread.breakEven0}}, then turns into a growing loss. Max loss is capped at {{bear-call-spread.maxLossAbs}} per share once the stock reaches the higher strike — the width between the two strikes minus the credit received.",
+        "pt": "O ganho máximo é o crédito líquido recebido, {{bear-call-spread.maxGainAbs}} por ação (×100 por lote), mantido por completo no strike vendido ou abaixo dele; subindo a partir daí, ele encolhe até zero exatamente no break-even de {{bear-call-spread.breakEven0}}, e então se torna uma perda crescente. A perda máxima é travada em {{bear-call-spread.maxLossAbs}} por ação assim que a ação chega ao strike mais alto — a distância entre os dois strikes menos o crédito recebido."
+      }
+    },
+    {
+      "type": "callout",
+      "tone": "warning",
+      "text": {
+        "en": "The sold call is usually American-style, so it carries early-assignment risk if it goes deep in the money; on B3, though, a cash distribution adjusts the strike itself (ADR-0070), so a dividend date alone rarely makes early exercise worth it. Size by the max loss, not the credit — here {{bear-call-spread.maxLossAbs}} per share against a {{bear-call-spread.maxGainAbs}} per-share credit; a sharp, fast rally can breach the break-even before there is time to react.",
+        "pt": "A call vendida costuma ser do estilo americano, então carrega risco de atribuição antecipada se ficar bem dentro do dinheiro; na B3, porém, um provento em dinheiro ajusta o próprio strike (ADR-0070), então uma data de dividendo por si só raramente torna vantajoso exercer antecipadamente. Dimensione pela perda máxima, não pelo crédito — aqui {{bear-call-spread.maxLossAbs}} por ação contra um crédito de {{bear-call-spread.maxGainAbs}} por ação; uma alta forte e rápida pode romper o break-even antes de dar tempo de reagir."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Fetha's Montar plano sets this recipe's own profit target, stop and days-before-expiry exit for both legs together; Rolar lets the whole spread move to a later expiry without closing it first.",
+        "pt": "O Montar plano da Fetha define, para as duas pernas juntas, o alvo de lucro, o stop e a saída por dias até o vencimento da própria receita; o Rolar permite levar a trava inteira para um vencimento mais distante sem encerrá-la antes."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "No Fetha: this is the “Trava de baixa com calls” recipe.",
+        "pt": "No Fetha: essa é a receita “Trava de baixa com calls”."
+      }
+    }
+  ],
+  "quiz": [
+    {
+      "id": "q1",
+      "prompt": {
+        "en": "A bear call spread's max gain is received:",
+        "pt": "O ganho máximo de uma trava de baixa com calls é recebido:"
+      },
+      "options": [
+        {
+          "id": "c",
+          "text": {
+            "en": "Up front, as the net credit",
+            "pt": "Na entrada, como o crédito líquido"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Only if the stock falls to zero",
+            "pt": "Só se a ação cair a zero"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "From the broker as interest",
+            "pt": "Do corretor como juros"
+          }
+        }
+      ],
+      "correctOptionId": "c",
+      "explanation": {
+        "en": "Selling the lower-strike call for more than the higher-strike call bought costs gives a net credit at entry, the max this spread can gain.",
+        "pt": "Vender a call de strike mais baixo por mais do que custa a call de strike mais alto comprada dá um crédito líquido na entrada, o máximo que essa trava pode ganhar."
+      }
+    },
+    {
+      "id": "q2",
+      "prompt": {
+        "en": "This structure keeps its full max gain as long as the stock finishes:",
+        "pt": "Essa estrutura mantém o ganho máximo inteiro enquanto a ação terminar:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "Above the higher strike",
+            "pt": "Acima do strike mais alto"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "At or below the lower strike",
+            "pt": "No strike mais baixo ou abaixo"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "At or below the break-even",
+            "pt": "No break-even ou abaixo"
+          }
+        }
+      ],
+      "correctOptionId": "b",
+      "explanation": {
+        "en": "At or below the strike sold, neither call has any intrinsic value and the full credit stands as the profit; above it, the credit starts getting eaten by the sold call's growing intrinsic value, reaching zero right at the break-even.",
+        "pt": "No strike vendido ou abaixo dele, nenhuma das calls tem valor intrínseco e o crédito inteiro fica como lucro; acima dele, o crédito começa a ser consumido pelo valor intrínseco crescente da call vendida, chegando a zero exatamente no break-even."
+      }
+    },
+    {
+      "id": "q3",
+      "prompt": {
+        "en": "A bear call spread fits best with implied volatility:",
+        "pt": "Uma trava de baixa com calls encaixa melhor com a volatilidade implícita:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "Low relative to this underlying's own recent normal",
+            "pt": "Baixa em relação ao normal recente deste ativo"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "High relative to this underlying's own recent normal",
+            "pt": "Alta em relação ao normal recente deste ativo"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "It never matters here",
+            "pt": "Nunca importa aqui"
+          }
+        }
+      ],
+      "correctOptionId": "b",
+      "explanation": {
+        "en": "Richer options, from high IV rank, mean a bigger credit for selling the same strikes.",
+        "pt": "Opções mais caras, de IV rank alto, significam um crédito maior ao vender os mesmos strikes."
+      }
+    },
+    {
+      "id": "q4",
+      "prompt": {
+        "en": "The sold call in a bear call spread carries early-assignment risk because, on B3:",
+        "pt": "A call vendida numa trava de baixa com calls carrega risco de atribuição antecipada porque, na B3:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "Every option is European-style",
+            "pt": "Toda opção é do estilo europeu"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "Calls can never be assigned",
+            "pt": "Calls nunca podem ser atribuídas"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "Most equity calls are American-style",
+            "pt": "A maioria das calls sobre ações é do estilo americano"
+          }
+        }
+      ],
+      "correctOptionId": "c",
+      "explanation": {
+        "en": "Most B3 equity calls can be exercised any time up to expiry, so a short call deep in the money can be assigned early.",
+        "pt": "A maioria das calls sobre ações da B3 pode ser exercida em qualquer momento até o vencimento, então uma call vendida bem dentro do dinheiro pode ser atribuída antes do vencimento."
+      }
+    }
+  ]
+}

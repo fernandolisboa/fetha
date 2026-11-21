@@ -1,0 +1,215 @@
+{
+  "id": "covered-call",
+  "version": 1,
+  "minutes": 6,
+  "title": {
+    "en": "Covered call",
+    "pt": "Lançamento coberto"
+  },
+  "summary": {
+    "en": "Own the stock, sell a call against it, collect a premium in exchange for giving up gains above the strike.",
+    "pt": "Tenha a ação, venda uma call contra ela, receba um prêmio em troca de abrir mão dos ganhos acima do strike."
+  },
+  "structure": "covered-call",
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Use a covered call on a stock already held, with a flat-to-mildly-bullish view: selling the call brings in income while giving up gains past the strike, in exchange for lowering the position's break-even. It fits high IV rank, when the call sold is rich relative to this underlying's own recent normal.",
+        "pt": "Use um lançamento coberto numa ação que você já tem, com uma visão neutra a levemente otimista: vender a call traz renda, abrindo mão dos ganhos além do strike, em troca de baixar o break-even da posição. Encaixa com IV rank alto, quando a call vendida está cara em relação ao normal recente deste ativo."
+      }
+    },
+    {
+      "type": "list",
+      "items": {
+        "en": [
+          "Own the stock (the “covering” leg).",
+          "Sell one call above the stock's current price, same proportion as the shares held."
+        ],
+        "pt": [
+          "Ter a ação (a perna que “cobre” a operação).",
+          "Vender uma call acima do preço atual da ação, na mesma proporção das ações que você tem."
+        ]
+      }
+    },
+    {
+      "type": "payoff-example",
+      "exampleId": "covered-call",
+      "caption": {
+        "en": "Holding the stock at {{spot}} and selling a call struck at {{higherStrike}}. The 1-to-1 proportion here is the real B3 ratio: one option covers one share, so a 100-share lot held takes 100 calls sold against it, one lot of each.",
+        "pt": "Ação a {{spot}}, com venda de uma call de strike {{higherStrike}}. A proporção de 1 para 1 aqui é a mesma da B3 na prática: uma opção cobre uma ação, então um lote de 100 ações pede 100 calls vendidas contra ele, um lote de cada."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Max gain is capped at {{covered-call.maxGainAbs}} per share (×100 per lot) once the stock reaches the strike — the call sold caps it there, premium included. Max loss, {{covered-call.maxLossAbs}} per share, is the stock's own downside to zero, cushioned a little by the premium received; break-even sits at {{covered-call.breakEven0}}, below the stock's own entry price by exactly that premium.",
+        "pt": "O ganho máximo é travado em {{covered-call.maxGainAbs}} por ação (×100 por lote) assim que a ação chega ao strike — a call vendida trava-o ali, prêmio incluído. A perda máxima, {{covered-call.maxLossAbs}} por ação, é a própria queda da ação até zero, amortecida um pouco pelo prêmio recebido; o break-even fica em {{covered-call.breakEven0}}, abaixo do preço de entrada da própria ação exatamente por esse prêmio."
+      }
+    },
+    {
+      "type": "callout",
+      "tone": "warning",
+      "text": {
+        "en": "The sold call is usually American-style, so it can be assigned early if it goes deep in the money; on B3, though, a cash distribution adjusts the strike itself (ADR-0070), so a dividend date alone is rarely a reason for the buyer to exercise early — assignment, if it happens, simply delivers the stock at the strike, giving up any further upside. The stock's own downside is not covered by the premium, only cushioned by it.",
+        "pt": "A call vendida costuma ser do estilo americano, então pode ser atribuída antes do vencimento se ficar bem dentro do dinheiro; na B3, porém, um provento em dinheiro ajusta o próprio strike (ADR-0070), então uma data de dividendo por si só raramente é motivo para quem comprou exercer antecipadamente — a atribuição, se acontecer, simplesmente entrega a ação pelo strike, abrindo mão de qualquer alta adicional. A queda da própria ação não é coberta pelo prêmio, só amortecida por ele."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Fetha's Montar plano sets this recipe's own stop and days-before-expiry exit for the call leg; Rolar lets the call be rolled to another strike or expiry, keeping the stock position itself untouched.",
+        "pt": "O Montar plano da Fetha define, para a perna de call, o stop e a saída por dias até o vencimento da própria receita; o Rolar permite rolar a call para outro strike ou vencimento, mantendo a posição na ação intocada."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "No Fetha: this is the “Lançamento coberto” recipe.",
+        "pt": "No Fetha: essa é a receita “Lançamento coberto”."
+      }
+    }
+  ],
+  "quiz": [
+    {
+      "id": "q1",
+      "prompt": {
+        "en": "A covered call's downside, compared to simply holding the stock alone, is:",
+        "pt": "A queda de um lançamento coberto, comparada a só ter a ação sozinha, é:"
+      },
+      "options": [
+        {
+          "id": "c",
+          "text": {
+            "en": "Removed entirely",
+            "pt": "Removida por completo"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "The same stock risk, cushioned a little by the premium received",
+            "pt": "O mesmo risco da ação, amortecido um pouco pelo prêmio recebido"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "Doubled",
+            "pt": "Dobrada"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "The call premium only lowers the break-even a little; the stock's own fall to zero is still the max loss.",
+        "pt": "O prêmio da call só baixa um pouco o break-even; a queda da própria ação até zero ainda é a perda máxima."
+      }
+    },
+    {
+      "id": "q2",
+      "prompt": {
+        "en": "Once the stock reaches the strike sold, a covered call's gain:",
+        "pt": "Quando a ação chega ao strike vendido, o ganho de um lançamento coberto:"
+      },
+      "options": [
+        {
+          "id": "b",
+          "text": {
+            "en": "Keeps growing without limit",
+            "pt": "Continua crescendo sem limite"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "Is capped there, premium included",
+            "pt": "Fica travado ali, prêmio incluído"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Drops to zero",
+            "pt": "Cai a zero"
+          }
+        }
+      ],
+      "correctOptionId": "c",
+      "explanation": {
+        "en": "The sold call offsets any further rise past the strike, so the gain caps there.",
+        "pt": "A call vendida compensa qualquer alta adicional além do strike, então o ganho trava ali."
+      }
+    },
+    {
+      "id": "q3",
+      "prompt": {
+        "en": "On B3, a cash distribution makes early exercise of a deep-in-the-money call, just to capture it:",
+        "pt": "Na B3, um provento em dinheiro torna o exercício antecipado de uma call bem dentro do dinheiro, só para capturá-lo:"
+      },
+      "options": [
+        {
+          "id": "b",
+          "text": {
+            "en": "Rarely worth it, since B3 adjusts the strike for the distribution",
+            "pt": "Raramente vantajoso, já que a B3 ajusta o strike pelo provento"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "Always worth it, the same as on a US exchange",
+            "pt": "Sempre vantajoso, como numa bolsa americana"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Impossible, since every B3 option is European-style",
+            "pt": "Impossível, já que toda opção da B3 é do estilo europeu"
+          }
+        }
+      ],
+      "correctOptionId": "b",
+      "explanation": {
+        "en": "ADR-0070: B3 adjusts the strike itself for a cash distribution, so exercising early just to capture it rarely gains the buyer anything — unlike exchanges that leave the strike untouched.",
+        "pt": "ADR-0070: a própria B3 ajusta o strike por um provento em dinheiro, então exercer antes do vencimento só para capturá-lo raramente dá alguma vantagem a quem comprou — diferente de bolsas que deixam o strike intocado."
+      }
+    },
+    {
+      "id": "q4",
+      "prompt": {
+        "en": "Fetha's Rolar, on a covered call, rolls:",
+        "pt": "O Rolar da Fetha, num lançamento coberto, rola:"
+      },
+      "options": [
+        {
+          "id": "b",
+          "text": {
+            "en": "The call leg, to another strike or expiry",
+            "pt": "A perna de call, para outro strike ou vencimento"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "The stock position itself",
+            "pt": "A própria posição na ação"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Nothing — covered calls cannot be rolled",
+            "pt": "Nada — lançamentos cobertos não podem ser rolados"
+          }
+        }
+      ],
+      "correctOptionId": "b",
+      "explanation": {
+        "en": "Rolling replaces the sold call with another one, further out or at a different strike, while the stock position stays as it is.",
+        "pt": "Rolar troca a call vendida por outra, mais adiante ou num strike diferente, enquanto a posição na ação permanece como está."
+      }
+    }
+  ]
+}

@@ -90,6 +90,31 @@ describe("SuggestionCardHeader", () => {
     expect(credit).toContain("Crédito");
   });
 
+  it("links to the matching lesson", () => {
+    const html = renderToStaticMarkup(
+      createElement(SuggestionCardHeader, {
+        suggestion: suggestion(),
+        headline: true,
+        chipKind: null,
+      }),
+    );
+    expect(html).toContain('href="/aprender/bull-call-spread"');
+    expect(html).toContain("Aprender: Trava de alta com calls");
+  });
+
+  it("leaves out the lesson link for a structure with no lesson", () => {
+    const noLesson = suggestion();
+    noLesson.structure = { id: "unknown-structure", name: "Estrutura sem aula" };
+    const html = renderToStaticMarkup(
+      createElement(SuggestionCardHeader, {
+        suggestion: noLesson,
+        headline: true,
+        chipKind: null,
+      }),
+    );
+    expect(html).not.toContain("/aprender/");
+  });
+
   it("omits the title when headline is false, on the suggestion's own page", () => {
     const html = renderToStaticMarkup(
       createElement(SuggestionCardHeader, {

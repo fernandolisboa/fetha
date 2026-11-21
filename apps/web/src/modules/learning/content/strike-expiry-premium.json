@@ -34,8 +34,8 @@
     {
       "type": "paragraph",
       "text": {
-        "en": "The premium is what the option costs: {{long-call.premiumAbs}} for the call in this lesson's example, paid by the buyer to the seller when the position opens. That quote is per share; on B3 an option trades in lots of 100 shares, so the actual cash amount is the quoted premium times 100 (and again times however many lots the position holds).",
-        "pt": "O prêmio é o preço da opção: {{long-call.premiumAbs}} pela call do exemplo desta lição, pago por quem compra a quem vende, na abertura da posição. Essa cotação é por ação; na B3 uma opção negocia em lotes de 100 ações, então o valor em dinheiro de fato é o prêmio cotado vezes 100 (e de novo vezes quantos lotes a posição tiver)."
+        "en": "The premium is what the option costs: {{long-call.premiumAbs}} per share, for the call in this lesson's example, paid by the buyer to the seller when the position opens. On B3 an option trades in lots of 100 options (one per share), so the actual cash amount is the quoted premium times 100 (and again times however many lots the position holds).",
+        "pt": "O prêmio é o preço da opção: {{long-call.premiumAbs}} por ação, pela call do exemplo desta lição, pago por quem compra a quem vende, na abertura da posição. Na B3 uma opção negocia em lotes de 100 opções (uma por ação), então o valor em dinheiro de fato é o prêmio cotado vezes 100 (e de novo vezes quantos lotes a posição tiver)."
       }
     },
     {
@@ -91,14 +91,14 @@
       },
       "options": [
         {
-          "id": "b",
+          "id": "a",
           "text": {
             "en": "Every day",
             "pt": "Todo dia"
           }
         },
         {
-          "id": "a",
+          "id": "b",
           "text": {
             "en": "Once a month, around the third Friday",
             "pt": "Uma vez por mês, em torno da terceira sexta-feira"
@@ -112,7 +112,7 @@
           }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "b",
       "explanation": {
         "en": "The monthly cycle expires near the third Friday (moved a day earlier on a holiday); some liquid underlyings also have weekly series.",
         "pt": "O ciclo mensal vence perto da terceira sexta-feira (um pregão antes, se cair em feriado); alguns ativos líquidos também têm séries semanais."
@@ -126,28 +126,28 @@
       },
       "options": [
         {
-          "id": "b",
+          "id": "a",
           "text": {
             "en": "By the seller to the buyer, at expiry",
             "pt": "Por quem vende a quem compra, no vencimento"
           }
         },
         {
-          "id": "c",
+          "id": "b",
           "text": {
             "en": "To B3, as a fee",
             "pt": "À B3, como uma taxa"
           }
         },
         {
-          "id": "a",
+          "id": "c",
           "text": {
             "en": "By the buyer to the seller, when the position opens",
             "pt": "Por quem compra a quem vende, na abertura da posição"
           }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "c",
       "explanation": {
         "en": "The premium changes hands once, from buyer to seller, at the trade — {{long-call.premiumAbs}} in this lesson's call.",
         "pt": "O prêmio muda de mãos uma única vez, de quem compra para quem vende, no momento da negociação — {{long-call.premiumAbs}} na call desta lição."
@@ -161,28 +161,28 @@
       },
       "options": [
         {
-          "id": "a",
+          "id": "b",
           "text": {
             "en": "At the money (spot at the strike)",
             "pt": "No dinheiro (ativo no strike)"
           }
         },
         {
-          "id": "b",
+          "id": "c",
           "text": {
             "en": "Deep in the money",
             "pt": "Bem dentro do dinheiro"
           }
         },
         {
-          "id": "c",
+          "id": "a",
           "text": {
             "en": "Deep out of the money",
             "pt": "Bem fora do dinheiro"
           }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "b",
       "explanation": {
         "en": "The strike equals the spot in this example, so the call sits right at the money.",
         "pt": "O strike é igual ao preço do ativo neste exemplo, então a call está exatamente no dinheiro."

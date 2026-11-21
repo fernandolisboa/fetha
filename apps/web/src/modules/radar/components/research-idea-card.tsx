@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatPriceBRL } from "@/lib/format/brl";
 import { cn } from "@/lib/utils";
 import { formatSessionDate } from "@/lib/format/date-time";
+import { StructureLessonLink } from "@/modules/learning/client";
 import { AssetReadingChips } from "@/modules/market-data/client";
 import { PayoffChart, RiskNotice } from "@/modules/portfolio/client";
 
@@ -96,6 +97,7 @@ export function ResearchIdeaCard({
       <Badge variant="secondary" className="w-fit font-mono tabular-nums">
         {t.research.expires(formatSessionDate(idea.expiry), idea.sessionsToExpiry)}
       </Badge>
+      <StructureLessonLink href={idea.lessonHref} name={idea.structure.name} />
       {opinion}
       <div className="flex flex-col gap-1.5">
         <p className="text-muted-foreground text-xs">
