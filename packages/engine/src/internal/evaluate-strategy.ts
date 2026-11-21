@@ -1,5 +1,12 @@
 import Decimal from "decimal.js";
-import type { DecimalString, ExitRule, Instant, SessionDate, Ticker } from "@fetha/contracts";
+import type {
+  AdjustmentRule,
+  DecimalString,
+  ExitRule,
+  Instant,
+  SessionDate,
+  Ticker,
+} from "@fetha/contracts";
 import {
   ENGINE_VERSION,
   type Candle,
@@ -12,6 +19,7 @@ import {
   type ImpliedVolatilityIndexPoint,
   type IndicatorReading,
   type IndicatorSeries,
+  type Leg,
   type LegInput,
   type MarketView,
   type Note,
@@ -43,12 +51,16 @@ import { assertDefined, assertPresent, invariant } from "./invariant";
 import {
   OPTION_STRIKE_DERIVED_NOTE,
   OPTION_STRIKE_UNCONFIRMED_NOTE,
+  ROLL_NO_SERIES_MATCH_NOTE,
   strikeAdjustmentNotesOf,
 } from "./notes";
 import { validateOperationCoherence } from "./operation-coherence";
 import { codeUnitCompare, sortUnique } from "./order";
 import { priceLegsAt, priceOperation } from "./price-operation";
+import { resolveDividendYield, resolveRiskFreeRate } from "./rates";
 import { readingAt } from "./reading-at";
+import { resolveLegSelection } from "./resolve-leg-selection";
+import { resolveUnderlyingSpotOnSessionScale } from "./resolve-market-price";
 import { toQuantity } from "./scalars";
 import { groupBy, upperBound } from "./search";
 import { latestVisible } from "./visible";
@@ -421,6 +433,113 @@ function businessDaysBeforeExpiry(
 
 function zeroBaseReasonFor(kind: "profit_target" | "stop_loss"): EvaluationReason {
   return kind === "profit_target" ? "profit_target_zero_base" : "stop_loss_zero_base";
+}
+
+// A roll rule's own `when` (#383) is itself an ExitRule, fired the same way an operation's own
+// exit rules are (evaluateNumericExitRule/evaluateCondition/businessDaysBeforeExpiry above) —
+// kept as its own small switch, rather than folded into the exit-rule loop above, so the exit
+// path above is untouched by this addendum: a roll never emits an "exit" signal, and an exit
+// rule never emits an "adjust" one, so the two stay independently testable.
+function evaluateWhenRule(
+  rule: ExitRule,
+  op: Operation,
+  view: MarketView,
+  at: Instant,
+  bases: ExitRuleBases,
+  splitFactor: Decimal,
+  visibleFactors: readonly CorporateActionFactor[],
+  session: SessionDate,
+  ctx: ConditionContext,
+): { fired: boolean; unknown: boolean } {
+  switch (rule.kind) {
+    case "profit_target":
+    case "stop_loss": {
+      const outcome = evaluateNumericExitRule(
+        rule,
+        op,
+        view,
+        at,
+        bases,
+        splitFactor,
+        visibleFactors,
+        session,
+      );
+      return { fired: outcome.fired, unknown: outcome.unknown };
+    }
+    case "condition": {
+      const verdict = evaluateCondition(rule.condition, ctx);
+      return { fired: verdict === "true", unknown: verdict === "unknown" };
+    }
+    case "days_before_expiry": {
+      // Coherence rejects a roll rule on a stock-only structure (validateCoherence above), so
+      // an operation whose adjustments are ever evaluated always carries an expiry.
+      const expiry = assertPresent(
+        op.expiry,
+        "evaluateStrategy: an operation with a roll rule always carries an expiry",
+      );
+      const remaining = businessDaysBeforeExpiry(view.calendar, at, expiry);
+      if (remaining === null) return { fired: false, unknown: true };
+      return { fired: remaining <= rule.businessDays, unknown: false };
+    }
+  }
+}
+
+type RollTargetResolution =
+  { outcome: "resolved"; legs: Leg[] } | { outcome: "unknown" } | { outcome: "no_series_match" };
+
+// Resolves a fired roll's new legs (#383): the next eligible expiry and, per strike rank, the
+// series `resolveLegSelection` picks for the adjustment's own `expiry`/`strikes` fields —
+// the same seam an entry proposal's own strike/expiry selection already goes through — evaluated
+// at the roll session against the series visible then (no look-ahead). Every leg keeps the
+// held operation's own side and quantity (same right, side and ratio, ADR-0080): a roll never
+// resizes, it only moves strikes/expiry. A stock leg's `role` alone identifies it in
+// `resolveLegSelection`'s own result, so it is carried through by the held operation's own leg
+// at the same index, untouched, here; `runBacktest` is the one that actually keeps it out of the
+// roll's closing fills and rebases its cost basis onto the roll session (ADR-0080).
+function resolveRollTarget(
+  view: MarketView,
+  op: Operation,
+  structure: EvaluateStrategyInput["strategy"]["structure"],
+  rule: Extract<AdjustmentRule, { kind: "roll" }>,
+  at: Instant,
+): RollTargetResolution {
+  const spotResult = resolveUnderlyingSpotOnSessionScale(view, op.underlying, at);
+  if (!spotResult.ok || !spotResult.value) return { outcome: "unknown" };
+  const spot = spotResult.value.spot;
+  const rfResult = resolveRiskFreeRate(view.macro, at);
+  if (!rfResult.ok) return { outcome: "unknown" };
+  const divResult = resolveDividendYield(view.dividendYields, op.underlying, at);
+  if (!divResult.ok) return { outcome: "unknown" };
+
+  const selection = resolveLegSelection({
+    structure,
+    underlying: op.underlying,
+    strikes: rule.strikes,
+    expiry: rule.expiry,
+    view,
+    at,
+    spot,
+    riskFreeRate: rfResult.value,
+    dividendYield: divResult.value,
+  });
+  if (!selection.ok) return { outcome: "no_series_match" };
+
+  const legs: Leg[] = selection.legs.map((resolved, index) => {
+    const opLeg = assertDefined(
+      op.legs[index],
+      "evaluateStrategy: resolveLegSelection returns one leg per structure leg, same order op.legs was built in",
+    );
+    if (resolved.role === "stock") {
+      return { role: "stock", side: opLeg.side, ticker: opLeg.ticker, quantity: opLeg.quantity };
+    }
+    return {
+      role: resolved.role,
+      side: opLeg.side,
+      ticker: resolved.series.ticker,
+      quantity: opLeg.quantity,
+    };
+  });
+  return { outcome: "resolved", legs };
 }
 
 type EvaluationBase = Pick<EvaluateStrategyInput, "view" | "strategy" | "instruments">;
@@ -1138,6 +1257,103 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
               }
             }
           }
+
+          // A roll is evaluated only once no exit rule already fired for this op at this same
+          // instant (#383): the two are mutually exclusive signals for one op/instant, exit
+          // taking priority, the same one-signal-per-op-per-instant discipline the exit loop
+          // above already follows for its own four rule kinds.
+          if (!fired) {
+            for (const rule of strategy.definition.adjustments) {
+              if (fired) break;
+              const whenOutcome = evaluateWhenRule(
+                rule.when,
+                op,
+                view,
+                c,
+                bases,
+                splitFactor,
+                visibleFactors,
+                nominalCandle.session,
+                ctx,
+              );
+              if (whenOutcome.unknown) {
+                instantUnknown = true;
+                continue;
+              }
+              if (!whenOutcome.fired) continue;
+
+              const target = resolveRollTarget(view, op, strategy.structure, rule, c);
+              // Shares its spot/rate resolution with `bases` above it (same view, `c` and
+              // underlying), which already gated this op into the loop: this op's spot and
+              // rates were already resolvable at this same instant, so this branch cannot
+              // fail here (mirrors the `/* v8 ignore */` on `rollPricing` below).
+              /* v8 ignore start */
+              if (target.outcome === "unknown") {
+                instantUnknown = true;
+                continue;
+              }
+              /* v8 ignore stop */
+              if (target.outcome === "no_series_match") {
+                strikeAdjustmentCodes.add(ROLL_NO_SERIES_MATCH_NOTE.code);
+                continue;
+              }
+
+              const openOperationCountNow = openOperations.filter(
+                (o) => o.openedAt <= nominalCandle.session,
+              ).length;
+              const rollPricing = priceLegsAt(
+                view,
+                c,
+                op.underlying,
+                target.legs,
+                call.riskProfile,
+                openOperationCountNow,
+                {
+                  engineVersion: ENGINE_VERSION,
+                  pricingModel: "bsm_continuous_yield",
+                  dataVersion: view.dataVersion ?? null,
+                  datasetNotes: view.datasetNotes ?? [],
+                },
+                "spot",
+                { withPayoffNow: false },
+              );
+              // This call shares its view, c and underlying with resolveRollTarget's own spot
+              // resolution above it, which already gated `target.outcome === "resolved"` before
+              // this is ever reached: every hard failure priceLegsAt can produce (missing
+              // spot, a non-positive one) depends only on those shared inputs, so this branch
+              // cannot fail once resolveRollTarget has already succeeded for the same op at the
+              // same instant (mirrors evaluateNumericExitRule's own `/* v8 ignore */` above, a
+              // missing market price degrades to a `no_market_price` note, never a hard error).
+              /* v8 ignore start */
+              if (!rollPricing.ok) {
+                if (
+                  rollPricing.error.code === "missing_instrument" ||
+                  rollPricing.error.code === "insufficient_data"
+                ) {
+                  instantUnknown = true;
+                  continue;
+                }
+                return { ok: false, error: rollPricing.error };
+              }
+              /* v8 ignore stop */
+              for (const note of strikeAdjustmentNotesOf(rollPricing.value.legs)) {
+                strikeAdjustmentCodes.add(note.code);
+              }
+              signals.push({
+                kind: "adjust",
+                strategyVersionId: strategy.id,
+                ticker,
+                timeframe,
+                at: c,
+                session: nominalCandle.session,
+                indicators: [],
+                operationId: op.id,
+                rule,
+                proposal: { legs: target.legs, pricing: rollPricing.value },
+              });
+              fired = true;
+            }
+          }
           if (fired) instantFired = true;
         }
         evaluations.push(
@@ -1161,6 +1377,9 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
       notes.push(OPTION_STRIKE_DERIVED_NOTE);
     if (strikeAdjustmentCodes.has(OPTION_STRIKE_UNCONFIRMED_NOTE.code)) {
       notes.push(OPTION_STRIKE_UNCONFIRMED_NOTE);
+    }
+    if (strikeAdjustmentCodes.has(ROLL_NO_SERIES_MATCH_NOTE.code)) {
+      notes.push(ROLL_NO_SERIES_MATCH_NOTE);
     }
     return { ok: true, value: { signals, evaluations, notes } };
   };

@@ -76,15 +76,14 @@ export function strikeAdjustmentNotesOf(legs: readonly Pick<LegValuation, "notes
   return notes;
 }
 
-// #377: `runBacktest` never reads `StrategyDefinition.adjustments` — a roll rule needs its own
-// settlement-and-reopen semantics still tracked separately (`unsupportedAdjustmentRuleKinds`) —
-// so a strategy that declares one silently backtests as if it were never rolled. One run-wide
-// note per run, regardless of how many adjustment rules the strategy declares, says so plainly
-// rather than let the report read as if the roll had been exercised.
-export const ADJUSTMENT_NOT_APPLIED_NOTE: Note = {
-  code: "adjustment_not_applied",
+// #383: a roll's `when` can fire with no eligible series to roll into (its own expiry window
+// lists nothing yet, or every candidate collapses onto a degenerate strike) — the operation is
+// held without rolling, same as every other non-fatal gap this file already degrades to a note
+// for, rather than silently skipped or hard-refused.
+export const ROLL_NO_SERIES_MATCH_NOTE: Note = {
+  code: "roll_no_series_match",
   message:
-    "this strategy declares a roll adjustment rule, but runBacktest does not apply it yet; the result reflects the operation held without rolling",
+    "a roll rule's when condition fired, but no series matched its expiry/strikes selection at that session; the operation was held without rolling",
 };
 
 export function pushNoteOnce(notes: Note[], note: Note): void {

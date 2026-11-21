@@ -3388,3 +3388,75 @@ goldens carries an `adjustments` rule, so none of their `notes` arrays gains the
 still change by `ENGINE_VERSION` alone, `"0.18.0"` to `"0.19.0"`, same as every prior version-only
 addendum above). A run whose strategy does declare one now carries one more note than it used to:
 the only persisted-artifact shape change this addendum makes.
+
+## Addendum: `runBacktest` executes `roll`; `ENGINE_VERSION` bumped to `0.20.0` (2026-11-21, #383, part 7 of #376)
+
+The #377 addendum above made the gap visible; this one closes it. `runBacktest` now reads a roll
+rule's own `when`/`expiry`/`strikes` fields (`AdjustmentRule`, already shipped by the contracts
+schema — nothing here needed a new field on it) the same way it already reads an exit rule's:
+evaluated per open operation, per session, against that session's own visible data. Firing closes
+the operation (fills, costs, slippage, B3 fees, exactly the path an exit already takes) and opens a
+new one at the series `resolveLegSelection` picks for the rule's `expiry`/`strikes` at that same
+session, using the strategy's structure for role/side/ratio — the same function and the same
+leg-selection rule the strategy's own entry already uses, just pointed at the roll rule's own
+selection instead of the definition's. The closed operation's `closeReason` is
+`{ kind: "rolled", toOperationId }`; the new operation's `rolledFrom` is the closed operation's id.
+Both fields were already part of `Operation`/`CloseReason` (added, unused, by #377 part 1) —
+reserved exactly for this.
+
+- **Target resolution mirrors ADR-0080, not the real-portfolio roll it describes.** ADR-0080 rolls
+  a real position leg by leg to the next monthly expiry, nearest strike, by hand. A backtested
+  roll has no hand on it: it resolves the new legs by calling `resolveLegSelection` with the roll
+  rule's own `expiry`/`strikes`, the same call `evaluateStrategy`'s entry path and its exit-rule
+  bases already make for the strategy's own `strikes`/`expiry` fields. Same right, same side, same
+  ratio per leg, because the structure is unchanged by a roll — only the series each option leg
+  resolves to changes. A stock leg is never closed or reopened by a roll; it carries forward with
+  its cost basis and quantity rebased by whatever corporate-action factor applies between the two
+  sessions (the same rebasing convention every other stale-leg carry-forward in this engine already
+  uses, ADR-0014 Q51), exactly as ADR-0080 already states for the manual case. If no series matches
+  the rule's own selection at that session (an empty expiry window, or every candidate collapsing
+  onto a degenerate strike), the operation is held without rolling and the run carries a new note,
+  `roll_no_series_match` (`ROLL_NO_SERIES_MATCH_NOTE`) — never a silent skip, never a hard refusal;
+  `runBacktest` still produces a valid run of the declared structure, same as the #377 addendum's
+  own "held as is" reading of a roll gap.
+- **A rolled-into operation's exit-rule bases are its own entry, not inherited from the operation
+  it replaced (ADR-0014 Q50 extended).** The new operation is primed through the same entry-fill
+  path as any other open; its `profit_target`/`stop_loss` bases are computed against its own entry
+  price the first time an exit rule reads them, never against the closed operation's. A roll is a
+  fresh position economically (a new series, usually a new strike), so a base carried over from the
+  old one would compare today's premium against a price that was never paid for what is now held.
+- **Roll beats settlement when both are live on the same session; otherwise settlement wins.** A
+  roll's own `when` (typically `days_before_expiry`) fires before expiry by construction, so in the
+  ordinary case there is nothing left to settle once it fires — the operation is already closed and
+  reopened days before its series would ever reach expiry. The two can still coincide at the edges
+  (a `when` that only fires at `businessDays: 0`, or a rule that never fires before the series
+  actually expires): `runBacktest`'s main session loop resolves pending rolls
+  (`resolvePendingRollFills`) immediately after pending exits and strictly before expiring
+  operations are settled (`resolveExpiringOperations`), the same ordering the loop already gives
+  exits over settlement. A roll that never got the chance to fire before its series' own expiry
+  settles instead, same as an operation with no adjustment rule at all — there is no operation left
+  open for `resolvePendingRollFills` to act on by the time settlement runs.
+- **`capabilities().adjustmentRules` now reports `roll`; `unsupportedAdjustmentRuleKinds` is empty.**
+  `implementedAdjustmentRuleKinds`/`unsupportedAdjustmentRuleKinds` in `vocabularies.ts` follow the
+  same split `implementedExitRuleKinds`/`unsupportedExitRuleKinds` already established, and the
+  same conformance test (`capabilities.conformance.test.ts`) now asserts the adjustment pair
+  together covers every `AdjustmentRule["kind"]` the contracts schema declares, exactly as it
+  already does for exit rules.
+- **`NoteCode` drops `adjustment_not_applied`, gains `roll_no_series_match`.** The #377 note had no
+  reason to survive once `runBacktest` actually executes a roll when one is possible — keeping it
+  would have meant two codes answering the same "was my roll rule honored" question, one of them
+  now almost always misleading. `roll_no_series_match` is strictly narrower: it fires only for the
+  one gap rolling itself cannot paper over, an empty selection at the session the rule's `when`
+  fired, the same shape every other partial, non-fatal gap in this file already degrades to a note
+  for.
+
+A run whose strategy declares no adjustment, or whose roll rule's `when` never fires inside the
+backtested period, is bit-for-bit unchanged by this addendum (the four pinned backtest goldens
+carry no `adjustments` rule, so they change by `ENGINE_VERSION` alone, `"0.19.0"` to `"0.20.0"`,
+same as every prior version-only addendum above). A run whose roll does fire now carries two closed
+operations and one open one where it used to carry a single operation straight through to
+settlement or period end — the shape change this addendum makes, exercised by a new golden fixture
+(`runBacktest — roll adjustments executed (#383)`, `run-backtest.test.ts`) with hand-verified fills,
+costs, slippage and taxes, and by two property tests
+(`roll-adjustment.property.test.ts`) checking the roll obeys the engine's no-look-ahead invariant
+and that its cash flows scale linearly with the strategy's sizing capital.

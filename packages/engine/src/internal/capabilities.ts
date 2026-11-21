@@ -1,6 +1,7 @@
 import { ENGINE_VERSION, pricingModels } from "../api";
 import type { Capabilities } from "../api";
 import {
+  implementedAdjustmentRuleKinds,
   implementedExitRuleKinds,
   implementedExpirySelectionKinds,
   implementedIndicatorKinds,
@@ -19,7 +20,7 @@ export function capabilities(): Capabilities {
     expirySelections: [...implementedExpirySelectionKinds],
     sizingRules: [...implementedSizingRuleKinds],
     exitRules: [...implementedExitRuleKinds],
-    adjustmentRules: [],
+    adjustmentRules: [...implementedAdjustmentRuleKinds],
     thesisClaims: [...implementedThesisClaimKinds],
     pricingModels: [...pricingModels],
   };

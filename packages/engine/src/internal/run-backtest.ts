@@ -68,11 +68,11 @@ import {
   slippedOptionPrice,
 } from "./fill-pricing";
 import { isAtOrBefore } from "./instant";
-import { assertDefined, invariant } from "./invariant";
+import { assertDefined, assertPresent, invariant } from "./invariant";
 import {
-  ADJUSTMENT_NOT_APPLIED_NOTE,
   OPTION_STRIKE_DERIVED_NOTE,
   OPTION_STRIKE_UNCONFIRMED_NOTE,
+  ROLL_NO_SERIES_MATCH_NOTE,
   STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE,
   strikeAdjustmentNotesOf,
 } from "./notes";
@@ -91,6 +91,13 @@ type PendingEntry = {
   signalSession: SessionDate;
 };
 type PendingExit = { operationId: string; rule: ExitRule };
+// `newLegs` is the roll's own proposal (evaluate-strategy.ts's `resolveRollTarget`, priced at
+// signal time): each leg already carries the held operation's own side and quantity (ADR-0080's
+// "same right, side and ratio"), nominal at the signal session, same as a pending entry's own
+// `legs` (rescaled at fill time by `signalSession`'s own corporate-action factor, mirroring
+// `resolvePendingEntryFills`). `maxLoss` is the new operation's own, from that same signal-time
+// pricing, carried through to its `SimulatedOperation.maxLoss` once it closes.
+type PendingRoll = { newLegs: Leg[]; maxLoss: Centavos | "unbounded"; signalSession: SessionDate };
 type SlippageEntry = { session: SessionDate; amount: Centavos };
 
 // Produced at an operation's expiry (ADR-0013 "Settlement in a run"): optionsPnl is the
@@ -172,6 +179,11 @@ type BacktestState = {
   // Set once lastKnownLegPrice rescales a leg's stale mark across a corporate-action ex-date
   // visible on its underlying (issue #273), the same run-wide rollup the two notes above use.
   stalePriceRescaledAcrossCorporateActionNoted: boolean;
+  // Set once a roll rule's `when` fired with no series matching its own expiry/strikes
+  // selection at that session (#383): the operation was held without rolling, same run-wide
+  // rollup the three notes above use.
+  rollNoSeriesMatchNoted: boolean;
+  pendingRolls: Record<string, PendingRoll>;
 };
 
 function initialState(initialCapital: Centavos): BacktestState {
@@ -206,6 +218,8 @@ function initialState(initialCapital: Centavos): BacktestState {
     optionStrikeDerivedAcrossCorporateActionNoted: false,
     optionStrikeUnconfirmedAcrossCorporateActionNoted: false,
     stalePriceRescaledAcrossCorporateActionNoted: false,
+    rollNoSeriesMatchNoted: false,
+    pendingRolls: {},
   };
 }
 
@@ -228,6 +242,12 @@ function isValidPendingEntry(value: unknown): boolean {
 
 function isValidPendingExit(value: unknown): boolean {
   return isPlainObject(value) && typeof value.operationId === "string" && isPlainObject(value.rule);
+}
+
+function isValidPendingRoll(value: unknown): boolean {
+  return (
+    isPlainObject(value) && Array.isArray(value.newLegs) && typeof value.signalSession === "string"
+  );
 }
 
 // Every `DecimalString` field on a resumed checkpoint is only `typeof === "string"` away from
@@ -322,6 +342,7 @@ function isValidCheckpointState(raw: unknown): raw is BacktestState {
     "pendingSettlements",
     "entryCosts",
     "entryMaxLoss",
+    "pendingRolls",
   ] as const;
   if (recordFields.some((field) => !isPlainObject(raw[field]))) return false;
 
@@ -340,6 +361,7 @@ function isValidCheckpointState(raw: unknown): raw is BacktestState {
   if (typeof raw.optionStrikeDerivedAcrossCorporateActionNoted !== "boolean") return false;
   if (typeof raw.optionStrikeUnconfirmedAcrossCorporateActionNoted !== "boolean") return false;
   if (typeof raw.stalePriceRescaledAcrossCorporateActionNoted !== "boolean") return false;
+  if (typeof raw.rollNoSeriesMatchNoted !== "boolean") return false;
   if (raw.pendingTaxDeduction !== null) {
     if (!isPlainObject(raw.pendingTaxDeduction)) return false;
     if (!Number.isFinite(raw.pendingTaxDeduction.tax)) return false;
@@ -362,6 +384,9 @@ function isValidCheckpointState(raw: unknown): raw is BacktestState {
   }
   if (!(raw.taxesFinalized as unknown[]).every(isValidMonthlyTax)) return false;
   if (!(raw.slippageEntries as unknown[]).every(isValidSlippageEntry)) return false;
+  if (!Object.values(raw.pendingRolls as Record<string, unknown>).every(isValidPendingRoll)) {
+    return false;
+  }
 
   return true;
 }
@@ -1036,6 +1061,272 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     return { ok: true, value: failedEntryTickers };
   }
 
+  // Step 1b2: resolve a pending roll's atomic close-old/open-new fill at this session's open
+  // (#383, ADR-0013's roll addendum). The close and the reopen happen together, at the same
+  // session's prices and the same costs/slippage/B3 fees as any other close and open, or not at
+  // all this session — retried indefinitely, like a pending exit, until every non-stock leg on
+  // both sides is ready. Run before resolveExpiringOperations (step 1d) in the main loop below,
+  // so a roll whose `when` fired before the operation's own expiry wins over that same
+  // session's settlement; one that never fires until expiry itself never reaches here at all —
+  // the operation is gone from state.openOperations (and this same pendingRoll with it, by the
+  // cleanup every operation-closing site above already does) before evaluateStrategy ever sees
+  // it again (ADR-0013 addendum, "settlement interplay").
+  function resolvePendingRollFills(session: TradingSession): Result<void> {
+    for (const [oldOpId, pending] of Object.entries(state.pendingRolls)) {
+      const opIndex = state.openOperations.findIndex((op) => op.id === oldOpId);
+      // Every path that closes an operation also drops its own pendingRolls entry (an exit
+      // fill, a settlement, the period-end sweep): this can only be reached for a still-open
+      // operation. Kept as a skip, not a thrown invariant, since a future close site this
+      // comment cannot see would otherwise turn a dangling roll into a hard crash instead of a
+      // silently-dropped one.
+      /* v8 ignore start */
+      if (opIndex === -1) {
+        Reflect.deleteProperty(state.pendingRolls, oldOpId);
+        continue;
+      }
+      /* v8 ignore stop */
+      const op = assertDefined(state.openOperations[opIndex], "run-backtest: opIndex is valid");
+
+      const closeLegFills = op.legs.map((leg) =>
+        leg.role === "stock"
+          ? null
+          : legFillPrice(leg, session, leg.side === "buy" ? "sell" : "buy"),
+      );
+      const openLegFills = pending.newLegs.map((leg) =>
+        leg.role === "stock" ? null : legFillPrice(leg, session, leg.side),
+      );
+      const allReady =
+        closeLegFills.every((f) => f === null || f.ready) &&
+        openLegFills.every((f) => f === null || f.ready);
+      if (!allReady) continue;
+
+      const splitFactor = corporateActionFactorThrough(
+        op.underlying,
+        op.openedAt,
+        session.date,
+        session.close,
+      );
+      const entryCosts = state.entryCosts[op.id] ?? op.legs.map(() => toCentavos(0));
+
+      // Close the old operation's option legs only: a carried-forward stock leg (a covered
+      // call's shares) never trades on a roll (ADR-0080's own "carries forward untouched"), so
+      // it contributes no realized pnl here — its unrealized position transfers whole into the
+      // new operation below, same ticker and side, rebased onto this same session's own scale.
+      let optionPnl = new Decimal(0);
+      for (const [legIndex, leg] of op.legs.entries()) {
+        if (leg.role === "stock") continue;
+        const legFill = assertPresent(
+          closeLegFills[legIndex],
+          "run-backtest: a non-stock leg always has a close fill",
+        );
+        invariant(legFill.ready, "run-backtest: allReady already checked every leg");
+        const exitSide: "buy" | "sell" = leg.side === "buy" ? "sell" : "buy";
+        const entryCost = entryCosts[legIndex] ?? toCentavos(0);
+
+        // Rebased the same way resolvePendingExitFills rebases every leg of an ordinary exit
+        // (ADR-0014 Q51, #69 part 2): B3 scales an option holding by the same factor as the
+        // underlying, so a split between this operation's own entry and this roll session can
+        // leave a sub-one-unit residue, cash-settled right here at this same fill's price.
+        const rawEffectiveQuantity = new Decimal(leg.quantity).div(splitFactor);
+        const effectiveUnits = Math.floor(rawEffectiveQuantity.toNumber());
+        if (
+          (effectiveUnits > 0 && !Number.isSafeInteger(effectiveUnits)) ||
+          !isSafeGrossCentavos(legFill.price, rawEffectiveQuantity)
+        ) {
+          return unsafeRebasedAmount(leg.ticker);
+        }
+        const residue = rawEffectiveQuantity.sub(effectiveUnits);
+        let costs = toCentavos(0);
+        if (effectiveUnits > 0) {
+          const q = toQuantity(effectiveUnits);
+          costs = fillCosts(config.costModel, legFill.price, q, "option");
+          const gross = grossCentavos(legFill.price, q).round().toNumber();
+          state.cash += (exitSide === "sell" ? 1 : -1) * gross - costs;
+          state.slippageEntries.push({
+            session: session.date,
+            amount: slippageCentavos(legFill.reference, legFill.price, q),
+          });
+          state.fills.push({
+            ticker: leg.ticker,
+            side: exitSide,
+            quantity: q,
+            price: legFill.price,
+            session: session.date,
+            at: session.open,
+            costs,
+            operationId: op.id,
+            source: legFill.source,
+          });
+        }
+        if (residue.isPositive()) {
+          const residueGross = grossCentavos(legFill.price, residue).round().toNumber();
+          state.cash += (exitSide === "sell" ? 1 : -1) * residueGross;
+        }
+        const legPnl = legPnlCentavos(leg, legFill.price, splitFactor).sub(costs).sub(entryCost);
+        optionPnl = optionPnl.add(legPnl);
+      }
+      const pnlCentavos = centavosOf(optionPnl);
+      state.currentMonthOptionGain += optionPnl.round().toNumber();
+
+      const newOpId = operationId(
+        state.operationSeq,
+        config.strategy.id,
+        op.underlying,
+        session.date,
+      );
+      state.operationSeq += 1;
+
+      // A carried-forward stock leg keeps its own side, ticker and quantity, rebased onto this
+      // roll session's own scale the same way every other held leg this file rebases is (Q51):
+      // it never trades, so its entry cost basis is the only thing that moves.
+      const oldStockLeg = op.legs.find((leg) => leg.role === "stock") ?? null;
+      let newStockLeg: OperationLeg | null = null;
+      if (oldStockLeg) {
+        const effectiveEntryPrice = parseDecimal(oldStockLeg.entryPrice).mul(splitFactor);
+        const rescaledQuantity = splitFactor.eq(1)
+          ? oldStockLeg.quantity
+          : Math.round(new Decimal(oldStockLeg.quantity).div(splitFactor).toNumber());
+        if (
+          !Number.isSafeInteger(rescaledQuantity) ||
+          rescaledQuantity <= 0 ||
+          !isSafeGrossCentavos(
+            toDecimalStringAtLeastScale(effectiveEntryPrice, PRICE_SCALE),
+            rescaledQuantity,
+          )
+        ) {
+          return unsafeRebasedAmount(op.underlying);
+        }
+        newStockLeg = {
+          role: "stock",
+          side: oldStockLeg.side,
+          ticker: oldStockLeg.ticker,
+          quantity: toQuantity(rescaledQuantity),
+          entryPrice: toDecimalStringAtLeastScale(effectiveEntryPrice, PRICE_SCALE),
+        };
+      }
+
+      // The new option legs' own quantity was decided at signal time (ADR-0080's "same ratio"):
+      // a split between that session and this fill session rescales it the same way a pending
+      // entry's own signal-time quantity already is (resolvePendingEntryFills).
+      const entryFactor = corporateActionFactorThrough(
+        op.underlying,
+        pending.signalSession,
+        session.date,
+        session.close,
+      );
+      const newOptionLegs: OperationLeg[] = [];
+      const newOptionCosts: Centavos[] = [];
+      for (const [legIndex, leg] of pending.newLegs.entries()) {
+        if (leg.role === "stock") continue;
+        const legFill = assertPresent(
+          openLegFills[legIndex],
+          "run-backtest: a non-stock new leg always has an open fill",
+        );
+        invariant(legFill.ready, "run-backtest: allReady already checked every leg");
+        const rescaled = entryFactor.eq(1)
+          ? leg.quantity
+          : Math.round(new Decimal(leg.quantity).div(entryFactor).toNumber());
+        if (
+          !Number.isSafeInteger(rescaled) ||
+          rescaled <= 0 ||
+          !isSafeGrossCentavos(legFill.price, rescaled)
+        ) {
+          return invalidInput(
+            "view.corporateActions",
+            `split factor produces a non-integer-safe rolled entry quantity or amount for ${leg.ticker}`,
+          );
+        }
+        const q = toQuantity(rescaled);
+        const costs = fillCosts(config.costModel, legFill.price, q, "option");
+        const gross = grossCentavos(legFill.price, q).round().toNumber();
+        state.cash -= (leg.side === "buy" ? 1 : -1) * gross + costs;
+        state.slippageEntries.push({
+          session: session.date,
+          amount: slippageCentavos(legFill.reference, legFill.price, q),
+        });
+        state.fills.push({
+          ticker: leg.ticker,
+          side: leg.side,
+          quantity: q,
+          price: legFill.price,
+          session: session.date,
+          at: session.open,
+          costs,
+          operationId: newOpId,
+          source: legFill.source,
+        });
+        newOptionLegs.push({
+          role: leg.role,
+          side: leg.side,
+          ticker: leg.ticker,
+          quantity: q,
+          entryPrice: legFill.price,
+        });
+        newOptionCosts.push(costs);
+      }
+
+      const expiryResult = resolveOperationExpiry(pending.newLegs, session.close);
+      if (!expiryResult.ok) return expiryResult;
+
+      let optionCursor = 0;
+      const newLegsOrdered: OperationLeg[] = pending.newLegs.map((leg) => {
+        if (leg.role === "stock") {
+          return assertPresent(
+            newStockLeg,
+            "run-backtest: pending.newLegs carries a stock role only when the held operation did",
+          );
+        }
+        const built = assertDefined(
+          newOptionLegs[optionCursor],
+          "run-backtest: newOptionLegs has one entry per non-stock leg in pending.newLegs, same order",
+        );
+        optionCursor += 1;
+        return built;
+      });
+      const newEntryCosts: Centavos[] = newLegsOrdered.map((leg) =>
+        leg.role === "stock"
+          ? toCentavos(0)
+          : assertDefined(
+              newOptionCosts.shift(),
+              "run-backtest: one cost per non-stock leg, same order newOptionLegs was built in",
+            ),
+      );
+
+      state.openOperations.splice(opIndex, 1);
+      state.operations.push({
+        id: op.id,
+        underlying: op.underlying,
+        legs: op.legs,
+        expiry: op.expiry,
+        openedAt: op.openedAt,
+        strategyVersionId: op.strategyVersionId,
+        rolledFrom: op.rolledFrom,
+        pnl: pnlCentavos,
+        maxLoss: state.entryMaxLoss[op.id] ?? toCentavos(0),
+        status: "closed",
+        closedAt: session.date,
+        closeReason: { kind: "rolled", toOperationId: newOpId },
+      });
+      Reflect.deleteProperty(state.entryCosts, op.id);
+      Reflect.deleteProperty(state.entryMaxLoss, op.id);
+      Reflect.deleteProperty(state.pendingExits, op.id);
+      Reflect.deleteProperty(state.pendingRolls, oldOpId);
+
+      state.openOperations.push({
+        id: newOpId,
+        underlying: op.underlying,
+        legs: newLegsOrdered,
+        expiry: expiryResult.value,
+        openedAt: session.date,
+        strategyVersionId: op.strategyVersionId,
+        rolledFrom: op.id,
+      });
+      state.entryCosts[newOpId] = newEntryCosts;
+      state.entryMaxLoss[newOpId] = pending.maxLoss;
+    }
+    return { ok: true, value: undefined };
+  }
+
   // Step 1b: resolve pending exit fills targeting this session's open (retried indefinitely).
   function resolvePendingExitFills(session: TradingSession): Result<void> {
     for (const [opId] of Object.entries(state.pendingExits)) {
@@ -1159,6 +1450,11 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       Reflect.deleteProperty(state.pendingExits, opId);
       Reflect.deleteProperty(state.entryCosts, op.id);
       Reflect.deleteProperty(state.entryMaxLoss, op.id);
+      // An exit fill wins over a still-outstanding roll for the same operation (#383): the
+      // operation this pending roll targeted no longer exists, so the roll it was waiting on
+      // is dropped here, else the next session's resolvePendingRollFills would find no open
+      // operation left to close against.
+      Reflect.deleteProperty(state.pendingRolls, opId);
     }
     return { ok: true, value: undefined };
   }
@@ -1196,6 +1492,10 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     // else the next session's resolvePendingExitFills would find no open operation left to
     // fill it against.
     Reflect.deleteProperty(state.pendingExits, pending.op.id);
+    // Settlement wins over a still-outstanding roll too (#383, same ADR-0014 Q52 reading):
+    // an operation reaching its own expiry is gone, so any roll still waiting on it is
+    // dropped here rather than left to find no open operation left next session.
+    Reflect.deleteProperty(state.pendingRolls, pending.op.id);
   }
 
   // Step 1c: close any residual stock a prior session's settlement left open, at this
@@ -1540,6 +1840,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       // finalizeSettlement, so the next session's resolvePendingExitFills found a pending
       // exit whose invariant("...a currently open operation") this op no longer satisfied.
       Reflect.deleteProperty(state.pendingExits, op.id);
+      Reflect.deleteProperty(state.pendingRolls, op.id);
       if (residualQuantity === 0) {
         const pnlSoFarCentavos = pnlSoFar.round().toNumber();
         state.currentMonthStockGain += pnlSoFarCentavos - optionGainSoFarCentavos;
@@ -1746,6 +2047,9 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       if (note.code === OPTION_STRIKE_UNCONFIRMED_NOTE.code) {
         state.optionStrikeUnconfirmedAcrossCorporateActionNoted = true;
       }
+      if (note.code === ROLL_NO_SERIES_MATCH_NOTE.code) {
+        state.rollNoSeriesMatchNoted = true;
+      }
     }
   }
 
@@ -1870,6 +2174,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       finalizeMissedEntry(ticker, session.close, "no_trades");
     }
     state.pendingExits = {};
+    state.pendingRolls = {};
     return { ok: true, value: undefined };
   }
 
@@ -1942,6 +2247,14 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
             rule: signal.rule,
           };
         }
+      } else {
+        if (!(signal.operationId in state.pendingRolls)) {
+          state.pendingRolls[signal.operationId] = {
+            newLegs: signal.proposal.legs,
+            maxLoss: signal.proposal.pricing.maxLoss,
+            signalSession: session.date,
+          };
+        }
       }
     }
 
@@ -1990,6 +2303,8 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     const failedEntryTickers = entryFillsResult.value;
     const exitFillsResult = resolvePendingExitFills(session);
     if (!exitFillsResult.ok) return { ok: false, error: exitFillsResult.error };
+    const rollFillsResult = resolvePendingRollFills(session);
+    if (!rollFillsResult.ok) return { ok: false, error: rollFillsResult.error };
     const residualFillsResult = resolvePendingSettlementResidualFills(session);
     if (!residualFillsResult.ok) return { ok: false, error: residualFillsResult.error };
     deductPendingTax(monthKey, i);
@@ -2131,9 +2446,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
   if (state.stalePriceRescaledAcrossCorporateActionNoted) {
     notes.push(STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE);
   }
-  if (config.strategy.definition.adjustments.length > 0) {
-    notes.push(ADJUSTMENT_NOT_APPLIED_NOTE);
-  }
+  if (state.rollNoSeriesMatchNoted) notes.push(ROLL_NO_SERIES_MATCH_NOTE);
 
   const truncated = batchTruncationReport({
     candles: view.candles,
