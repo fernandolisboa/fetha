@@ -33,7 +33,12 @@ function PayoffExampleBlock({
     <div className="flex flex-col gap-3">
       <p className="text-muted-foreground max-w-[72ch] text-[13px]">{caption}</p>
       <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_200px]">
-        <PayoffChart points={pricing.payoff} spot={examples.spot} breakEvens={pricing.breakEvens} />
+        <PayoffChart
+          points={pricing.payoff}
+          pointsNow={pricing.payoffNow}
+          spot={examples.spot}
+          breakEvens={pricing.breakEvens}
+        />
         <StatBlocks
           netPremium={pricing.netPremium}
           maxLoss={pricing.maxLoss}

@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { requireUser } from "@/modules/auth";
 import {
   ContinueCard,
+  EstruturasSection,
   getMyLessonsOverview,
   LevelSection,
   t,
@@ -26,9 +27,11 @@ export default async function LearnPage({
 }) {
   await requireUser();
   const params = await searchParams;
-  const view: LessonsView = params.ver === "temas" ? "temas" : "jornada";
+  const view: LessonsView =
+    params.ver === "temas" ? "temas" : params.ver === "estruturas" ? "estruturas" : "jornada";
 
-  const { progress, jornadaGroups, temasGroups, recommended } = await getMyLessonsOverview();
+  const { progress, jornadaGroups, temasGroups, estruturasGroups, recommended } =
+    await getMyLessonsOverview();
 
   return (
     <div className="flex flex-col gap-8 px-5 py-8">
@@ -49,12 +52,22 @@ export default async function LearnPage({
             </div>
           ))}
         </div>
-      ) : (
+      ) : view === "temas" ? (
         <div className="grid items-start gap-[14px] lg:grid-cols-2">
           {columns(temasGroups).map((column, index) => (
             <div key={index} className="flex min-w-0 flex-col gap-[14px]">
               {column.map((group) => (
                 <TopicSection key={group.topic} group={group} />
+              ))}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="grid items-start gap-[14px] lg:grid-cols-2">
+          {columns(estruturasGroups).map((column, index) => (
+            <div key={index} className="flex min-w-0 flex-col gap-[14px]">
+              {column.map((group) => (
+                <EstruturasSection key={group.view} group={group} />
               ))}
             </div>
           ))}

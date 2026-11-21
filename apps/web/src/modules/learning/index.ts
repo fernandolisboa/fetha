@@ -1,5 +1,6 @@
 export { getLesson } from "./catalog";
 export { ContinueCard } from "./components/continue-card";
+export { EstruturasSection } from "./components/estruturas-section";
 export { LessonBlocks } from "./components/lesson-blocks";
 export { LevelSection } from "./components/level-section";
 export { QuizForm } from "./components/quiz-form";
@@ -14,4 +15,5 @@ export {
   type LessonPage,
   type LessonsOverview,
 } from "./queries";
+export { lessonHrefForStructure } from "./structure-link";
 export { t } from "./strings";

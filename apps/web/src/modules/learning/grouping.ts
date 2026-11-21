@@ -1,4 +1,7 @@
-import type { Lesson, LevelId, TopicId } from "@fetha/contracts";
+import type { ExpectedMove, Lesson, LevelId, TopicId } from "@fetha/contracts";
+import { expectedMoves } from "@fetha/contracts";
+
+import { recipes } from "@/modules/strategies";
 
 import { jornadaOrder, lessonCatalog, type PlacedLesson } from "./catalog";
 
@@ -25,6 +28,27 @@ export interface TopicGroup {
   topic: TopicId;
   title: string;
   lessons: LessonRow[];
+}
+
+export interface MarketViewGroup {
+  view: ExpectedMove;
+  title: string;
+  lessons: LessonRow[];
+}
+
+const MARKET_VIEW_TITLES: Record<ExpectedMove, { en: string; pt: string }> = {
+  up: { en: "Up", pt: "Alta" },
+  down: { en: "Down", pt: "Baixa" },
+  sideways: { en: "Sideways", pt: "Lateral" },
+  big_move: { en: "A strong move", pt: "Movimento forte" },
+};
+
+// Each structure id has exactly one recipe in the catalog (a content test
+// enforces it), so its own expected move is unambiguous.
+function expectedMoveForStructure(structureId: string): ExpectedMove | null {
+  return (
+    recipes.find((recipe) => recipe.definition.structureId === structureId)?.expectedMove ?? null
+  );
 }
 
 const NO_PROGRESS: LessonProgressStatus = { done: false, bestScore: null };
@@ -58,6 +82,27 @@ export function temasGroups(progress: ProgressByLessonId, locale: "en" | "pt"): 
     title: topic.title[locale],
     lessons: ordered
       .filter((lesson) => lesson.topic === topic.id)
+      .map((lesson) => ({ lesson, status: statusFor(lesson, progress) })),
+  }));
+}
+
+// Estruturas: one row per structure lesson, grouped by the market view its own recipe expects
+// (`modules/strategies`' `recipes`), in `expectedMoves`' own order; within a view, lessons keep
+// Jornada order. Lessons with no `structure` (every lesson outside PR 2's structures topic) never
+// appear here.
+export function estruturasGroups(
+  progress: ProgressByLessonId,
+  locale: "en" | "pt",
+): MarketViewGroup[] {
+  const ordered = jornadaOrder().filter((lesson) => lesson.structure !== undefined);
+  return expectedMoves.map((view) => ({
+    view,
+    title: MARKET_VIEW_TITLES[view][locale],
+    lessons: ordered
+      .filter(
+        (lesson) =>
+          lesson.structure !== undefined && expectedMoveForStructure(lesson.structure) === view,
+      )
       .map((lesson) => ({ lesson, status: statusFor(lesson, progress) })),
   }));
 }

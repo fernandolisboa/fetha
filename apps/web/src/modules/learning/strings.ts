@@ -5,6 +5,7 @@ const en = {
     label: "View by",
     jornada: "Journey",
     temas: "Topics",
+    estruturas: "Structures",
   },
   continueCard: {
     title: "Continue",
@@ -44,6 +45,7 @@ const ptBR = {
     label: "Ver por",
     jornada: "Jornada",
     temas: "Temas",
+    estruturas: "Estruturas",
   },
   continueCard: {
     title: "Continuar",

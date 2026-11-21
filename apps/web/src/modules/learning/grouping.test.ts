@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { expectedMoves } from "@fetha/contracts";
+
+import { recipes } from "@/modules/strategies";
 
 import { jornadaOrder, lessonCatalog } from "./catalog";
 import {
+  estruturasGroups,
   jornadaGroups,
   levelProgress,
   nextLesson,
@@ -52,6 +56,40 @@ describe("temasGroups", () => {
       .map((row) => row.lesson.id)
       .sort();
     expect(temasLessonIds).toEqual(jornadaLessonIds);
+  });
+});
+
+describe("estruturasGroups", () => {
+  it("lists every market view in expectedMoves' own order", () => {
+    const groups = estruturasGroups(emptyProgress(), "pt");
+    expect(groups.map((group) => group.view)).toEqual(expectedMoves);
+  });
+
+  it("includes only lessons that name a structure", () => {
+    const groups = estruturasGroups(emptyProgress(), "pt");
+    const allLessons = groups.flatMap((group) => group.lessons);
+    for (const row of allLessons) {
+      expect(row.lesson.structure).toBeDefined();
+    }
+  });
+
+  it("places each structure lesson under its own recipe's expected move", () => {
+    const groups = estruturasGroups(emptyProgress(), "pt");
+    for (const group of groups) {
+      for (const row of group.lessons) {
+        const recipe = recipes.find(
+          (candidate) => candidate.definition.structureId === row.lesson.structure,
+        );
+        expect(recipe?.expectedMove).toBe(group.view);
+      }
+    }
+  });
+
+  it("covers every structure lesson exactly once", () => {
+    const groups = estruturasGroups(emptyProgress(), "pt");
+    const total = groups.reduce((sum, group) => sum + group.lessons.length, 0);
+    const structureLessons = jornadaOrder().filter((lesson) => lesson.structure !== undefined);
+    expect(total).toBe(structureLessons.length);
   });
 });
 
