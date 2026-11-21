@@ -31,7 +31,7 @@ export function suggestionHeadline(suggestion: SuggestionView): string {
   return t.suggestions.cardTitle(suggestion.structure.name, suggestion.underlying);
 }
 
-function scenarioLabel(expectedMove: ExpectedMove): string {
+export function scenarioLabel(expectedMove: ExpectedMove): string {
   switch (expectedMove) {
     case "up":
       return t.suggestions.scenario.up;

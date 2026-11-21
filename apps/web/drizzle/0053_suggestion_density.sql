@@ -1,0 +1,1 @@
+ALTER TABLE "preferences" ADD COLUMN "suggestion_density" text DEFAULT 'full' NOT NULL;

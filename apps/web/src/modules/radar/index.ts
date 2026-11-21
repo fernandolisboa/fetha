@@ -1,6 +1,7 @@
 export { RadarPanel } from "./components/radar-panel";
 export { SuggestionCalibrationPanel } from "./components/suggestion-calibration-panel";
 export { SuggestionCard, suggestionHeadline } from "./components/suggestion-card";
+export { SuggestionRow } from "./components/suggestion-row";
 export { scanRadar, type RadarScanOutcome } from "./scan";
 export { radarStrings, t } from "./strings";
 export {

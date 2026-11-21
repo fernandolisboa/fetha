@@ -258,7 +258,12 @@ analysis of it, test its recipe or open it in the builder. Scored at its horizon
 as the lot entered at the engine's prices, with its confidence asserted. The AI never ranks or
 orders suggestions; it gives a verdict only on a research's ideas (below, ADR-0076). Open until the radar reads a newer close, then archived (pt-BR: _arquivada_):
 off today's suggestions, no new decision, still scored (ADR-0073). Archived here follows from the
-radar's next reading alone, never a user action or the date, unlike an archived strategy.
+radar's next reading alone, never a user action or the date, unlike an archived strategy. Shown
+as a full card by default, or as a one-line **compact row** (pt-BR: _linha compacta_) per a
+per-user Aparência preference ("Sugestões: completas | compactas", ADR-0067, amended
+2026-11-21): the row's title, a short "Arrisca/ganha até" line, the profit zone, a small payoff
+spark and a toggle that opens the same full card inline. The single suggestion's own page always
+shows the full card.
 _Avoid_: recommendation, tip, idea (in code, except the suggestion research's own idea below), pick, match (the radar row before pricing)
 
 **Suggestion research** (pt-BR: _Pesquisa de sugestões_, the button "Obter sugestões"):
