@@ -43,8 +43,8 @@
     {
       "type": "paragraph",
       "text": {
-        "en": "Max loss is the net debit paid, {{bull-call-spread.maxLossAbs}}, kept in full at or below the lower strike bought; rising from there, it shrinks to zero exactly at the break-even of {{bull-call-spread.breakEven0}}, then turns into a growing gain. Max gain is capped at {{bull-call-spread.maxGainAbs}} once the stock reaches the higher strike — the width between the two strikes minus what was paid for the spread.",
-        "pt": "A perda máxima é o débito líquido pago, {{bull-call-spread.maxLossAbs}}, mantida por completo no strike comprado ou abaixo dele; subindo a partir daí, ela encolhe até zero exatamente no break-even de {{bull-call-spread.breakEven0}}, e então se torna um ganho crescente. O ganho máximo é travado em {{bull-call-spread.maxGainAbs}} assim que a ação chega ao strike mais alto — a distância entre os dois strikes menos o que foi pago pela trava."
+        "en": "Max loss is the net debit paid, {{bull-call-spread.maxLossAbs}} per share (×100 per lot), kept in full at or below the lower strike bought; rising from there, it shrinks to zero exactly at the break-even of {{bull-call-spread.breakEven0}}, then turns into a growing gain. Max gain is capped at {{bull-call-spread.maxGainAbs}} per share once the stock reaches the higher strike — the width between the two strikes minus what was paid for the spread.",
+        "pt": "A perda máxima é o débito líquido pago, {{bull-call-spread.maxLossAbs}} por ação (×100 por lote), mantida por completo no strike comprado ou abaixo dele; subindo a partir daí, ela encolhe até zero exatamente no break-even de {{bull-call-spread.breakEven0}}, e então se torna um ganho crescente. O ganho máximo é travado em {{bull-call-spread.maxGainAbs}} por ação assim que a ação chega ao strike mais alto — a distância entre os dois strikes menos o que foi pago pela trava."
       }
     },
     {

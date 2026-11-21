@@ -40,8 +40,8 @@
     {
       "type": "paragraph",
       "text": {
-        "en": "Max loss is the combined premium paid, {{long-strangle.maxLossAbs}}, between the two strikes. Max gain is unbounded either direction, past break-evens of {{long-strangle.breakEven0}} on the downside and {{long-strangle.breakEven1}} on the upside — wider apart than a straddle's, since the stock has to clear an out-of-the-money strike first, not just the current price.",
-        "pt": "A perda máxima é o prêmio combinado pago, {{long-strangle.maxLossAbs}}, entre os dois strikes. O ganho máximo é sem limite para qualquer lado, passando os break-evens de {{long-strangle.breakEven0}} na queda e {{long-strangle.breakEven1}} na alta — mais distantes do que os de um straddle, já que a ação precisa primeiro passar de um strike fora do dinheiro, não só do preço atual."
+        "en": "Max loss is the combined premium paid, {{long-strangle.maxLossAbs}} per share (×100 per lot), between the two strikes. Max gain is unbounded either direction, past break-evens of {{long-strangle.breakEven0}} on the downside and {{long-strangle.breakEven1}} on the upside — wider apart than a straddle's, since the stock has to clear an out-of-the-money strike first, not just the current price.",
+        "pt": "A perda máxima é o prêmio combinado pago, {{long-strangle.maxLossAbs}} por ação (×100 por lote), entre os dois strikes. O ganho máximo é sem limite para qualquer lado, passando os break-evens de {{long-strangle.breakEven0}} na queda e {{long-strangle.breakEven1}} na alta — mais distantes do que os de um straddle, já que a ação precisa primeiro passar de um strike fora do dinheiro, não só do preço atual."
       }
     },
     {

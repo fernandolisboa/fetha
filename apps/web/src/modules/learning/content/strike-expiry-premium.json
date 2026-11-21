@@ -34,8 +34,8 @@
     {
       "type": "paragraph",
       "text": {
-        "en": "The premium is what the option costs: {{long-call.premiumAbs}} for the call in this lesson's example, paid by the buyer to the seller when the position opens. That quote is per share; on B3 an option trades in lots of 100 shares, so the actual cash amount is the quoted premium times 100 (and again times however many lots the position holds).",
-        "pt": "O prêmio é o preço da opção: {{long-call.premiumAbs}} pela call do exemplo desta lição, pago por quem compra a quem vende, na abertura da posição. Essa cotação é por ação; na B3 uma opção negocia em lotes de 100 ações, então o valor em dinheiro de fato é o prêmio cotado vezes 100 (e de novo vezes quantos lotes a posição tiver)."
+        "en": "The premium is what the option costs: {{long-call.premiumAbs}} per share, for the call in this lesson's example, paid by the buyer to the seller when the position opens. On B3 an option trades in lots of 100 options (one per share), so the actual cash amount is the quoted premium times 100 (and again times however many lots the position holds).",
+        "pt": "O prêmio é o preço da opção: {{long-call.premiumAbs}} por ação, pela call do exemplo desta lição, pago por quem compra a quem vende, na abertura da posição. Na B3 uma opção negocia em lotes de 100 opções (uma por ação), então o valor em dinheiro de fato é o prêmio cotado vezes 100 (e de novo vezes quantos lotes a posição tiver)."
       }
     },
     {

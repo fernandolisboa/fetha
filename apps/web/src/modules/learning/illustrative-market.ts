@@ -69,10 +69,10 @@ const PUT_LOWER_MID_TICKER: Ticker = tickerSchema.parse("EXMPN135");
 const PUT_LOWER_TICKER: Ticker = tickerSchema.parse("EXMPN105");
 const PUT_HIGHER_TICKER: Ticker = tickerSchema.parse("EXMPN112");
 
-// A trading calendar never includes Saturday or Sunday (B3 never opens on either): the fixed
-// illustrative market follows that rule too, so the sessions-to-expiry figure a lesson shows is
-// the real count of trading days between two dates, not the calendar day count a naive walk
-// would give (review round 2, finding #3).
+// A real B3 calendar skips both weekends and its own holidays (Carnival among them); this fixed
+// illustrative market only skips weekends, since it never has to match any real calendar year
+// (review round 2, finding #3) — closer to a real trading-day count than a naive calendar-day
+// walk, which is the point, but still not a holiday-aware calendar.
 function dailySessions(startDate: string, count: number): TradingSession[] {
   const sessions: TradingSession[] = [];
   let cursor = new Date(`${startDate}T00:00:00.000Z`);

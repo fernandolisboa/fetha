@@ -7,8 +7,8 @@
     "pt": "Lendo um gráfico de payoff"
   },
   "summary": {
-    "en": "The expiry line, the thinner T+0 line under it, and what break-even, max gain and max loss mean on the chart.",
-    "pt": "A linha de vencimento, a linha mais fina de hoje (T+0) por baixo, e o que break-even, ganho máximo e perda máxima significam no gráfico."
+    "en": "The expiry line, the thinner grey T+0 line, and what break-even, max gain and max loss mean on the chart.",
+    "pt": "A linha de vencimento, a linha cinza mais fina de hoje (T+0), e o que break-even, ganho máximo e perda máxima significam no gráfico."
   },
   "blocks": [
     {
@@ -22,15 +22,15 @@
       "type": "payoff-example",
       "exampleId": "long-call",
       "caption": {
-        "en": "This lesson's long call. The thick line is the payoff at expiry; the thinner line under it is the T+0 (“today”) value — what the position is already worth right now, mark-to-model, before expiry arrives.",
-        "pt": "A call comprada desta lição. A linha mais grossa é o payoff no vencimento; a mais fina por baixo é o T+0 (“hoje”) — o que a posição já vale agora, pelo modelo, antes de chegar o vencimento."
+        "en": "This lesson's long call. The thick line is the payoff at expiry; the thinner grey line is the T+0 (“today”) value — what the position is already worth right now, mark-to-model, before expiry arrives.",
+        "pt": "A call comprada desta lição. A linha mais grossa é o payoff no vencimento; a linha cinza mais fina é o T+0 (“hoje”) — o que a posição já vale agora, pelo modelo, antes de chegar o vencimento."
       }
     },
     {
       "type": "paragraph",
       "text": {
-        "en": "For a single bought option, the T+0 line always sits above the expiry line: it still carries time value that has not decayed away yet, so it is worth more today than its bare intrinsic value at expiry (the fundamentals lesson on intrinsic vs. time value, and theta, explain why). As expiry gets closer, the two lines converge; at expiry itself, T+0 and the expiry line are the same thing. A multi-leg structure can order the two lines differently at different stock prices, since each leg's own time value decays at its own pace.",
-        "pt": "Numa opção comprada isolada, a linha de T+0 sempre fica acima da linha de vencimento: ela ainda carrega valor do tempo que não derreteu ainda, então vale mais hoje do que seu valor intrínseco puro no vencimento (as lições de valor intrínseco vs. valor do tempo, e de theta, explicam o porquê). Conforme o vencimento se aproxima, as duas linhas se aproximam; no próprio vencimento, T+0 e a linha de vencimento são a mesma coisa. Numa estrutura com várias pontas, a ordem entre as duas linhas pode variar conforme o preço da ação, já que o valor do tempo de cada ponta derrete no seu próprio ritmo."
+        "en": "For a single bought option with positive time value, like this lesson's call, the T+0 line sits above the expiry line: it still carries time value that has not decayed away yet, so it is worth more today than its bare intrinsic value at expiry (the fundamentals lesson on intrinsic vs. time value, and theta, explain why). As expiry gets closer, the two lines converge; at expiry itself, T+0 and the expiry line are the same thing. A multi-leg structure can order the two lines differently at different stock prices, since each leg's own time value decays at its own pace — and a deep-in-the-money European option, where early exercise would otherwise be worth something, can even see its T+0 line dip below.",
+        "pt": "Numa opção comprada isolada com valor do tempo positivo, como a call desta lição, a linha de T+0 fica acima da linha de vencimento: ela ainda carrega valor do tempo que não derreteu ainda, então vale mais hoje do que seu valor intrínseco puro no vencimento (as lições de valor intrínseco vs. valor do tempo, e de theta, explicam o porquê). Conforme o vencimento se aproxima, as duas linhas se aproximam; no próprio vencimento, T+0 e a linha de vencimento são a mesma coisa. Numa estrutura com várias pontas, a ordem entre as duas linhas pode variar conforme o preço da ação, já que o valor do tempo de cada ponta derrete no seu próprio ritmo — e uma opção europeia bem dentro do dinheiro, onde exercer antecipadamente valeria algo se fosse possível, pode até ver sua linha de T+0 cair abaixo."
       }
     },
     {
@@ -38,12 +38,12 @@
       "items": {
         "en": [
           "Break-even: where the expiry line crosses zero. This call's is {{long-call.breakEven0}}.",
-          "Max loss: the worst point of the expiry line. Here it is capped at the premium paid, {{long-call.maxLossAbs}}.",
+          "Max loss: the worst point of the expiry line. Here it is capped at the premium paid, {{long-call.maxLossAbs}} per share (×100 per lot).",
           "Max gain: the best point of the expiry line — unbounded above for this long call, since the stock has no ceiling."
         ],
         "pt": [
           "Break-even: onde a linha de vencimento cruza o zero. Nesta call é {{long-call.breakEven0}}.",
-          "Perda máxima: o pior ponto da linha de vencimento. Aqui ela está travada no prêmio pago, {{long-call.maxLossAbs}}.",
+          "Perda máxima: o pior ponto da linha de vencimento. Aqui ela está travada no prêmio pago, {{long-call.maxLossAbs}} por ação (×100 por lote).",
           "Ganho máximo: o melhor ponto da linha de vencimento — sem limite para cima nesta call comprada, já que a ação não tem teto."
         ]
       }
@@ -88,36 +88,36 @@
     {
       "id": "q2",
       "prompt": {
-        "en": "The T+0 line, compared to the expiry line, sits:",
-        "pt": "A linha de T+0, comparada à linha de vencimento, fica:"
+        "en": "For this lesson's bought call, the T+0 line, compared to the expiry line, sits:",
+        "pt": "Para a call comprada desta lição, a linha de T+0, comparada à linha de vencimento, fica:"
       },
       "options": [
         {
           "id": "c",
           "text": {
-            "en": "Always below it",
-            "pt": "Sempre abaixo"
+            "en": "Below it",
+            "pt": "Abaixo dela"
           }
         },
         {
           "id": "a",
           "text": {
-            "en": "Always exactly on top of it",
-            "pt": "Sempre exatamente em cima"
+            "en": "Exactly on top of it",
+            "pt": "Exatamente em cima"
           }
         },
         {
           "id": "b",
           "text": {
-            "en": "Above it while time value has not decayed away yet",
-            "pt": "Acima dela enquanto o valor do tempo ainda não derreteu"
+            "en": "Above it, while time value has not decayed away yet",
+            "pt": "Acima dela, enquanto o valor do tempo ainda não derreteu"
           }
         }
       ],
       "correctOptionId": "b",
       "explanation": {
-        "en": "A position that still carries time value is worth more today than its bare value at expiry, so T+0 sits above the expiry line until that time value is gone.",
-        "pt": "Uma posição que ainda carrega valor do tempo vale mais hoje do que seu valor puro no vencimento, então T+0 fica acima da linha de vencimento até esse valor do tempo acabar."
+        "en": "This bought call still carries time value, worth more today than its bare value at expiry, so its T+0 line sits above the expiry line until that time value is gone — not every position behaves this way (a deep-in-the-money European option can see the two lines cross).",
+        "pt": "Essa call comprada ainda carrega valor do tempo, valendo mais hoje do que seu valor puro no vencimento, então a linha de T+0 dela fica acima da linha de vencimento até esse valor do tempo acabar — nem toda posição se comporta assim (uma opção europeia bem dentro do dinheiro pode ter as duas linhas se cruzando)."
       }
     },
     {

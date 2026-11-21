@@ -43,16 +43,16 @@
     {
       "type": "paragraph",
       "text": {
-        "en": "Max gain is the net credit received, {{bear-call-spread.maxGainAbs}}, kept in full at or below the lower strike sold; climbing from there, it shrinks to zero exactly at the break-even of {{bear-call-spread.breakEven0}}, then turns into a growing loss. Max loss is capped at {{bear-call-spread.maxLossAbs}} once the stock reaches the higher strike — the width between the two strikes minus the credit received.",
-        "pt": "O ganho máximo é o crédito líquido recebido, {{bear-call-spread.maxGainAbs}}, mantido por completo no strike vendido ou abaixo dele; subindo a partir daí, ele encolhe até zero exatamente no break-even de {{bear-call-spread.breakEven0}}, e então se torna uma perda crescente. A perda máxima é travada em {{bear-call-spread.maxLossAbs}} assim que a ação chega ao strike mais alto — a distância entre os dois strikes menos o crédito recebido."
+        "en": "Max gain is the net credit received, {{bear-call-spread.maxGainAbs}} per share (×100 per lot), kept in full at or below the lower strike sold; climbing from there, it shrinks to zero exactly at the break-even of {{bear-call-spread.breakEven0}}, then turns into a growing loss. Max loss is capped at {{bear-call-spread.maxLossAbs}} per share once the stock reaches the higher strike — the width between the two strikes minus the credit received.",
+        "pt": "O ganho máximo é o crédito líquido recebido, {{bear-call-spread.maxGainAbs}} por ação (×100 por lote), mantido por completo no strike vendido ou abaixo dele; subindo a partir daí, ele encolhe até zero exatamente no break-even de {{bear-call-spread.breakEven0}}, e então se torna uma perda crescente. A perda máxima é travada em {{bear-call-spread.maxLossAbs}} por ação assim que a ação chega ao strike mais alto — a distância entre os dois strikes menos o crédito recebido."
       }
     },
     {
       "type": "callout",
       "tone": "warning",
       "text": {
-        "en": "The sold call is usually American-style, so it carries early-assignment risk if it goes deep in the money; on B3, though, a cash distribution adjusts the strike itself (ADR-0070), so a dividend date alone rarely makes early exercise worth it. Size by the max loss, not the credit — here {{bear-call-spread.maxLossAbs}} against a {{bear-call-spread.maxGainAbs}} credit; a sharp, fast rally can breach the break-even before there is time to react.",
-        "pt": "A call vendida costuma ser do estilo americano, então carrega risco de atribuição antecipada se ficar bem dentro do dinheiro; na B3, porém, um provento em dinheiro ajusta o próprio strike (ADR-0070), então uma data de dividendo por si só raramente torna vantajoso exercer antecipadamente. Dimensione pela perda máxima, não pelo crédito — aqui {{bear-call-spread.maxLossAbs}} contra um crédito de {{bear-call-spread.maxGainAbs}}; uma alta forte e rápida pode romper o break-even antes de dar tempo de reagir."
+        "en": "The sold call is usually American-style, so it carries early-assignment risk if it goes deep in the money; on B3, though, a cash distribution adjusts the strike itself (ADR-0070), so a dividend date alone rarely makes early exercise worth it. Size by the max loss, not the credit — here {{bear-call-spread.maxLossAbs}} per share against a {{bear-call-spread.maxGainAbs}} per-share credit; a sharp, fast rally can breach the break-even before there is time to react.",
+        "pt": "A call vendida costuma ser do estilo americano, então carrega risco de atribuição antecipada se ficar bem dentro do dinheiro; na B3, porém, um provento em dinheiro ajusta o próprio strike (ADR-0070), então uma data de dividendo por si só raramente torna vantajoso exercer antecipadamente. Dimensione pela perda máxima, não pelo crédito — aqui {{bear-call-spread.maxLossAbs}} por ação contra um crédito de {{bear-call-spread.maxGainAbs}} por ação; uma alta forte e rápida pode romper o break-even antes de dar tempo de reagir."
       }
     },
     {

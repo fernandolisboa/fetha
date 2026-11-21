@@ -36,15 +36,15 @@
       "type": "payoff-example",
       "exampleId": "covered-call",
       "caption": {
-        "en": "Holding the stock at {{spot}} and selling a call struck at {{higherStrike}}. The 1-to-1 proportion here is the real B3 ratio: one call option per lot held — each option contract already covers 100 shares, same as one lot.",
-        "pt": "Ação a {{spot}}, com venda de uma call de strike {{higherStrike}}. A proporção de 1 para 1 aqui é a mesma da B3 na prática: uma opção de call por lote da ação — cada contrato de opção já cobre 100 ações, o mesmo tamanho de um lote."
+        "en": "Holding the stock at {{spot}} and selling a call struck at {{higherStrike}}. The 1-to-1 proportion here is the real B3 ratio: one option covers one share, so a 100-share lot held takes 100 calls sold against it, one lot of each.",
+        "pt": "Ação a {{spot}}, com venda de uma call de strike {{higherStrike}}. A proporção de 1 para 1 aqui é a mesma da B3 na prática: uma opção cobre uma ação, então um lote de 100 ações pede 100 calls vendidas contra ele, um lote de cada."
       }
     },
     {
       "type": "paragraph",
       "text": {
-        "en": "Max gain is capped at {{covered-call.maxGainAbs}} once the stock reaches the strike — the call sold caps it there, premium included. Max loss, {{covered-call.maxLossAbs}}, is the stock's own downside to zero, cushioned a little by the premium received; break-even sits at {{covered-call.breakEven0}}, below the stock's own entry price by exactly that premium.",
-        "pt": "O ganho máximo é travado em {{covered-call.maxGainAbs}} assim que a ação chega ao strike — a call vendida trava-o ali, prêmio incluído. A perda máxima, {{covered-call.maxLossAbs}}, é a própria queda da ação até zero, amortecida um pouco pelo prêmio recebido; o break-even fica em {{covered-call.breakEven0}}, abaixo do preço de entrada da própria ação exatamente por esse prêmio."
+        "en": "Max gain is capped at {{covered-call.maxGainAbs}} per share (×100 per lot) once the stock reaches the strike — the call sold caps it there, premium included. Max loss, {{covered-call.maxLossAbs}} per share, is the stock's own downside to zero, cushioned a little by the premium received; break-even sits at {{covered-call.breakEven0}}, below the stock's own entry price by exactly that premium.",
+        "pt": "O ganho máximo é travado em {{covered-call.maxGainAbs}} por ação (×100 por lote) assim que a ação chega ao strike — a call vendida trava-o ali, prêmio incluído. A perda máxima, {{covered-call.maxLossAbs}} por ação, é a própria queda da ação até zero, amortecida um pouco pelo prêmio recebido; o break-even fica em {{covered-call.breakEven0}}, abaixo do preço de entrada da própria ação exatamente por esse prêmio."
       }
     },
     {

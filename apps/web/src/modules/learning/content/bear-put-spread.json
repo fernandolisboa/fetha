@@ -43,8 +43,8 @@
     {
       "type": "paragraph",
       "text": {
-        "en": "Max loss is the net debit paid, {{bear-put-spread.maxLossAbs}}, kept in full at or above the higher strike bought; falling from there, it shrinks to zero exactly at the break-even of {{bear-put-spread.breakEven0}}, then turns into a growing gain. Max gain is capped at {{bear-put-spread.maxGainAbs}} once the stock reaches the lower strike — the width between the two strikes minus what was paid for the spread.",
-        "pt": "A perda máxima é o débito líquido pago, {{bear-put-spread.maxLossAbs}}, mantida por completo no strike comprado ou acima dele; caindo a partir daí, ela encolhe até zero exatamente no break-even de {{bear-put-spread.breakEven0}}, e então se torna um ganho crescente. O ganho máximo é travado em {{bear-put-spread.maxGainAbs}} assim que a ação chega ao strike mais baixo — a distância entre os dois strikes menos o que foi pago pela trava."
+        "en": "Max loss is the net debit paid, {{bear-put-spread.maxLossAbs}} per share (×100 per lot), kept in full at or above the higher strike bought; falling from there, it shrinks to zero exactly at the break-even of {{bear-put-spread.breakEven0}}, then turns into a growing gain. Max gain is capped at {{bear-put-spread.maxGainAbs}} per share once the stock reaches the lower strike — the width between the two strikes minus what was paid for the spread.",
+        "pt": "A perda máxima é o débito líquido pago, {{bear-put-spread.maxLossAbs}} por ação (×100 por lote), mantida por completo no strike comprado ou acima dele; caindo a partir daí, ela encolhe até zero exatamente no break-even de {{bear-put-spread.breakEven0}}, e então se torna um ganho crescente. O ganho máximo é travado em {{bear-put-spread.maxGainAbs}} por ação assim que a ação chega ao strike mais baixo — a distância entre os dois strikes menos o que foi pago pela trava."
       }
     },
     {

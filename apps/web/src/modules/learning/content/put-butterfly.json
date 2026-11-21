@@ -45,8 +45,8 @@
     {
       "type": "paragraph",
       "text": {
-        "en": "Max loss is the net debit paid, {{put-butterfly.maxLossAbs}}, kept in full at or beyond either outer strike; moving back toward the middle, it shrinks to zero exactly at the nearer break-even ({{put-butterfly.breakEven0}} or {{put-butterfly.breakEven1}}), then turns into a growing gain. Max gain, {{put-butterfly.maxGainAbs}}, is reached only if the stock finishes exactly at the middle strike — same payoff shape as the call butterfly, with puts instead.",
-        "pt": "A perda máxima é o débito líquido pago, {{put-butterfly.maxLossAbs}}, mantida por completo no strike externo ou além dele, de qualquer lado; voltando em direção ao meio, ela encolhe até zero exatamente no break-even mais próximo ({{put-butterfly.breakEven0}} ou {{put-butterfly.breakEven1}}), e então se torna um ganho crescente. O ganho máximo, {{put-butterfly.maxGainAbs}}, só é alcançado se a ação terminar exatamente no strike do meio — o mesmo formato de payoff da borboleta com calls, só que com puts."
+        "en": "Max loss is the net debit paid, {{put-butterfly.maxLossAbs}} per share (×100 per lot), kept in full at or beyond either outer strike; moving back toward the middle, it shrinks to zero exactly at the nearer break-even ({{put-butterfly.breakEven0}} or {{put-butterfly.breakEven1}}), then turns into a growing gain. Max gain, {{put-butterfly.maxGainAbs}} per share, is reached only if the stock finishes exactly at the middle strike — same payoff shape as the call butterfly, with puts instead.",
+        "pt": "A perda máxima é o débito líquido pago, {{put-butterfly.maxLossAbs}} por ação (×100 por lote), mantida por completo no strike externo ou além dele, de qualquer lado; voltando em direção ao meio, ela encolhe até zero exatamente no break-even mais próximo ({{put-butterfly.breakEven0}} ou {{put-butterfly.breakEven1}}), e então se torna um ganho crescente. O ganho máximo, {{put-butterfly.maxGainAbs}} por ação, só é alcançado se a ação terminar exatamente no strike do meio — o mesmo formato de payoff da borboleta com calls, só que com puts."
       }
     },
     {

@@ -150,15 +150,16 @@ catalog.json` lists every level, every topic and every lesson's id with its leve
 5. **Covered call's stock leg.** `learning/illustrative-market.ts` extends `priceOperation`'s
    known leg roles with `role: "stock"`, which the engine already supports (ADR-0081's own
    `priceOperation` surface, unchanged): the covered-call lesson's payoff example holds the stock
-   at a 1-to-1 proportion with the call sold, called out in the lesson's own text as illustrative
-   rather than a real 100-share lot, so the chart stays easy to read without implying a specific
-   position size.
+   and the call sold at a 1-to-1 proportion, which is the real B3 ratio (one option covers one
+   share), not a simplification — a real 100-share lot of stock takes 100 calls sold against it,
+   one lot of each.
 6. **Two new placeholder families.** `breakEven<N>` (not just `breakEven0`) resolves any
    break-even index a multi-break-even structure (a butterfly, a condor, a straddle, a strangle)
-   has, so a lesson can name both without inventing a number; `<exampleId>.thetaAbs` resolves an
-   example's own aggregate theta magnitude from `OperationPricing.greeks`, used once, in the theta
-   lesson. Both follow the existing rule: resolved only from engine output over the fixed
-   illustrative market, never hand-written.
+   has, so a lesson can name both without inventing a number; `<exampleId>.thetaAbs` resolves
+   `|OperationPricing.greeks.theta| × 100` — the per-lot magnitude of an example's own theta, not
+   the raw per-share value, so it reads as a real lot's decay and never rounds away to R$0,00 for
+   a cheap, far-dated option — used once, in the theta lesson. Both follow the existing rule:
+   resolved only from engine output over the fixed illustrative market, never hand-written.
 7. **The T+0 curve on every lesson chart.** `LessonBlocks`' `payoff-example` block now passes
    `payoffNow` to `PayoffChart` as well as `payoff` (ADR-0077), whenever the engine returns one,
    so the "reading a payoff diagram" and theta lessons can point at a real, engine-drawn T+0 line

@@ -47,8 +47,8 @@
     {
       "type": "paragraph",
       "text": {
-        "en": "Max gain is the net credit received, {{iron-condor.maxGainAbs}}, kept in full between the two short strikes. Moving past either one, it shrinks to zero exactly at the nearer break-even ({{iron-condor.breakEven0}} or {{iron-condor.breakEven1}}), then turns into a growing loss. Max loss, {{iron-condor.maxLossAbs}}, is capped on either side — the width of whichever wing is breached, minus the credit received.",
-        "pt": "O ganho máximo é o crédito líquido recebido, {{iron-condor.maxGainAbs}}, mantido por completo entre os dois strikes vendidos. Passando qualquer um deles, ele encolhe até zero exatamente no break-even mais próximo ({{iron-condor.breakEven0}} ou {{iron-condor.breakEven1}}), e então se torna uma perda crescente. A perda máxima, {{iron-condor.maxLossAbs}}, é travada de qualquer lado — a largura de qual ponta for rompida, menos o crédito recebido."
+        "en": "Max gain is the net credit received, {{iron-condor.maxGainAbs}} per share (×100 per lot), kept in full between the two short strikes. Moving past either one, it shrinks to zero exactly at the nearer break-even ({{iron-condor.breakEven0}} or {{iron-condor.breakEven1}}), then turns into a growing loss. Max loss, {{iron-condor.maxLossAbs}} per share, is capped on either side — the width of whichever wing is breached, minus the credit received.",
+        "pt": "O ganho máximo é o crédito líquido recebido, {{iron-condor.maxGainAbs}} por ação (×100 por lote), mantido por completo entre os dois strikes vendidos. Passando qualquer um deles, ele encolhe até zero exatamente no break-even mais próximo ({{iron-condor.breakEven0}} ou {{iron-condor.breakEven1}}), e então se torna uma perda crescente. A perda máxima, {{iron-condor.maxLossAbs}} por ação, é travada de qualquer lado — a largura de qual ponta for rompida, menos o crédito recebido."
       }
     },
     {

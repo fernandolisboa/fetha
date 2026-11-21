@@ -43,16 +43,16 @@
     {
       "type": "paragraph",
       "text": {
-        "en": "Max gain is the net credit received, {{bull-put-spread.maxGainAbs}}, kept in full at or above the higher strike sold; falling from there, it shrinks to zero exactly at the break-even of {{bull-put-spread.breakEven0}}, then turns into a growing loss. Max loss is capped at {{bull-put-spread.maxLossAbs}} if the stock falls to or below the lower strike — the width between the two strikes minus the credit received.",
-        "pt": "O ganho máximo é o crédito líquido recebido, {{bull-put-spread.maxGainAbs}}, mantido por completo no strike vendido ou acima dele; caindo a partir daí, ele encolhe até zero exatamente no break-even de {{bull-put-spread.breakEven0}}, e então se torna uma perda crescente. A perda máxima é travada em {{bull-put-spread.maxLossAbs}} se a ação cair até o strike mais baixo ou abaixo — a distância entre os dois strikes menos o crédito recebido."
+        "en": "Max gain is the net credit received, {{bull-put-spread.maxGainAbs}} per share (×100 per lot), kept in full at or above the higher strike sold; falling from there, it shrinks to zero exactly at the break-even of {{bull-put-spread.breakEven0}}, then turns into a growing loss. Max loss is capped at {{bull-put-spread.maxLossAbs}} per share if the stock falls to or below the lower strike — the width between the two strikes minus the credit received.",
+        "pt": "O ganho máximo é o crédito líquido recebido, {{bull-put-spread.maxGainAbs}} por ação (×100 por lote), mantido por completo no strike vendido ou acima dele; caindo a partir daí, ele encolhe até zero exatamente no break-even de {{bull-put-spread.breakEven0}}, e então se torna uma perda crescente. A perda máxima é travada em {{bull-put-spread.maxLossAbs}} por ação se a ação cair até o strike mais baixo ou abaixo — a distância entre os dois strikes menos o crédito recebido."
       }
     },
     {
       "type": "callout",
       "tone": "warning",
       "text": {
-        "en": "The sold put is usually European-style on B3 equities, so no early-assignment risk before expiry, but a fast drop in the stock still erases the credit quickly; size the position by the max loss, not the credit — here {{bull-put-spread.maxLossAbs}} against a {{bull-put-spread.maxGainAbs}} credit; low liquidity on either leg widens the cost of closing before expiry.",
-        "pt": "A put vendida costuma ser do estilo europeu nas ações da B3, então sem risco de atribuição antecipada antes do vencimento, mas uma queda rápida da ação ainda apaga o crédito rapidamente; dimensione a posição pela perda máxima, não pelo crédito — aqui {{bull-put-spread.maxLossAbs}} contra um crédito de {{bull-put-spread.maxGainAbs}}; baixa liquidez em qualquer perna encarece encerrar antes do vencimento."
+        "en": "The sold put is usually European-style on B3 equities, so no early-assignment risk before expiry, but a fast drop in the stock still erases the credit quickly; size the position by the max loss, not the credit — here {{bull-put-spread.maxLossAbs}} per share against a {{bull-put-spread.maxGainAbs}} per-share credit; low liquidity on either leg widens the cost of closing before expiry.",
+        "pt": "A put vendida costuma ser do estilo europeu nas ações da B3, então sem risco de atribuição antecipada antes do vencimento, mas uma queda rápida da ação ainda apaga o crédito rapidamente; dimensione a posição pela perda máxima, não pelo crédito — aqui {{bull-put-spread.maxLossAbs}} por ação contra um crédito de {{bull-put-spread.maxGainAbs}} por ação; baixa liquidez em qualquer perna encarece encerrar antes do vencimento."
       }
     },
     {
@@ -172,8 +172,8 @@
       ],
       "correctOptionId": "a",
       "explanation": {
-        "en": "The width between the strikes minus the credit, {{bull-put-spread.maxLossAbs}} here against a {{bull-put-spread.maxGainAbs}} credit, is what is actually at risk; sizing by the credit alone understates it whenever the max loss turns out larger.",
-        "pt": "A distância entre os strikes menos o crédito, {{bull-put-spread.maxLossAbs}} aqui contra um crédito de {{bull-put-spread.maxGainAbs}}, é o que de fato está em risco; dimensionar só pelo crédito subestima isso sempre que a perda máxima acaba sendo maior."
+        "en": "The width between the strikes minus the credit, {{bull-put-spread.maxLossAbs}} per share here against a {{bull-put-spread.maxGainAbs}} per-share credit, is what is actually at risk; sizing by the credit alone understates it whenever the max loss turns out larger.",
+        "pt": "A distância entre os strikes menos o crédito, {{bull-put-spread.maxLossAbs}} por ação aqui contra um crédito de {{bull-put-spread.maxGainAbs}} por ação, é o que de fato está em risco; dimensionar só pelo crédito subestima isso sempre que a perda máxima acaba sendo maior."
       }
     },
     {

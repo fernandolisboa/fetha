@@ -37,8 +37,8 @@
       "type": "payoff-example",
       "exampleId": "short-call",
       "caption": {
-        "en": "Writing the same call naked: the mirror image. Gain capped at the {{short-call.maxGainAbs}} premium received, loss unbounded above the break-even.",
-        "pt": "Lançando a mesma call a descoberto: a imagem espelhada. Ganho travado no prêmio recebido de {{short-call.maxGainAbs}}, perda sem limite acima do ponto de equilíbrio."
+        "en": "Writing the same call naked: the mirror image. Gain capped at the {{short-call.maxGainAbs}} per-share premium received (×100 per lot), loss unbounded above the break-even.",
+        "pt": "Lançando a mesma call a descoberto: a imagem espelhada. Ganho travado no prêmio recebido de {{short-call.maxGainAbs}} por ação (×100 por lote), perda sem limite acima do ponto de equilíbrio."
       }
     },
     {
@@ -145,8 +145,8 @@
         {
           "id": "b",
           "text": {
-            "en": "{{short-call.maxGainAbs}}, the premium received",
-            "pt": "{{short-call.maxGainAbs}}, o prêmio recebido"
+            "en": "{{short-call.maxGainAbs}} per share, the premium received",
+            "pt": "{{short-call.maxGainAbs}} por ação, o prêmio recebido"
           }
         }
       ],

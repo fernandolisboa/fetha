@@ -37,8 +37,8 @@
     {
       "type": "paragraph",
       "text": {
-        "en": "Max loss is the premium paid, {{long-call.maxLossAbs}}, if the stock finishes at or below the strike. Max gain is unbounded above the break-even of {{long-call.breakEven0}}. There is no downside floor beyond the premium itself — that is the whole appeal of buying instead of writing.",
-        "pt": "A perda máxima é o prêmio pago, {{long-call.maxLossAbs}}, se a ação terminar no strike ou abaixo. O ganho máximo é sem limite acima do break-even de {{long-call.breakEven0}}. Não há piso de perda além do próprio prêmio — essa é a vantagem toda de comprar em vez de lançar."
+        "en": "Max loss is the premium paid, {{long-call.maxLossAbs}} per share (×100 per lot), if the stock finishes at or below the strike. Max gain is unbounded above the break-even of {{long-call.breakEven0}}. There is no downside floor beyond the premium itself — that is the whole appeal of buying instead of writing.",
+        "pt": "A perda máxima é o prêmio pago, {{long-call.maxLossAbs}} por ação (×100 por lote), se a ação terminar no strike ou abaixo. O ganho máximo é sem limite acima do break-even de {{long-call.breakEven0}}. Não há piso de perda além do próprio prêmio — essa é a vantagem toda de comprar em vez de lançar."
       }
     },
     {
