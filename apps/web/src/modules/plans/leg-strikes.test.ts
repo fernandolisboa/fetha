@@ -7,12 +7,10 @@ import {
   allStrikesForRank,
   boundedStrikes,
   commonSelectableStrikes,
-  indexOfTicker,
   rankBoundsFor,
   ranksOf,
   remapToExpiry,
   selectableStrikes,
-  stepStrike,
   stepStrikeValue,
   tickerAtStrike,
 } from "./leg-strikes";
@@ -82,46 +80,6 @@ describe("tickerAtStrike", () => {
   it("returns null for a price nothing is listed at", () => {
     const strikes = allStrikesFor(CHAIN, "call", EXPIRY_A);
     expect(tickerAtStrike(strikes, 39)).toBeNull();
-  });
-});
-
-describe("indexOfTicker", () => {
-  it("finds a listed ticker's position", () => {
-    const strikes = selectableStrikes(CHAIN, "call", EXPIRY_A);
-    expect(indexOfTicker(strikes, tickerSchema.parse("PETRC036"))).toBe(1);
-  });
-
-  it("returns -1 for a ticker not in the list", () => {
-    const strikes = selectableStrikes(CHAIN, "call", EXPIRY_A);
-    expect(indexOfTicker(strikes, tickerSchema.parse("PETRC999"))).toBe(-1);
-  });
-});
-
-describe("stepStrike", () => {
-  const strikes = selectableStrikes(CHAIN, "call", EXPIRY_A);
-
-  it("moves to the next higher traded strike", () => {
-    expect(stepStrike(strikes, tickerSchema.parse("PETRC034"), 1)).toBe("PETRC036");
-  });
-
-  it("moves to the next lower traded strike", () => {
-    expect(stepStrike(strikes, tickerSchema.parse("PETRC040"), -1)).toBe("PETRC036");
-  });
-
-  it("clamps at the highest strike", () => {
-    expect(stepStrike(strikes, tickerSchema.parse("PETRC040"), 1)).toBe("PETRC040");
-  });
-
-  it("clamps at the lowest strike", () => {
-    expect(stepStrike(strikes, tickerSchema.parse("PETRC034"), -1)).toBe("PETRC034");
-  });
-
-  it("returns null when there is nothing selectable", () => {
-    expect(stepStrike([], tickerSchema.parse("PETRC034"), 1)).toBeNull();
-  });
-
-  it("returns null for a ticker not in the list, rather than stepping from the first one", () => {
-    expect(stepStrike(strikes, tickerSchema.parse("PETRC999"), 1)).toBeNull();
   });
 });
 

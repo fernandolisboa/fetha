@@ -18,10 +18,6 @@ export function selectableStrikes(
     .sort((a, b) => Number(a.strike) - Number(b.strike));
 }
 
-export function indexOfTicker(strikes: readonly PlanChainEntry[], ticker: Ticker): number {
-  return strikes.findIndex((entry) => entry.ticker === ticker);
-}
-
 // Every listed strike of a leg's right and expiry, traded or not (ticket #380's own chart
 // handle): unlike `selectableStrikes`, this keeps the untraded ones in — they render as dimmed
 // ticks along the price axis, a handle may pass over them while dragging, but `selectableStrikes`
@@ -43,26 +39,11 @@ export function tickerAtStrike(strikes: readonly PlanChainEntry[], value: number
   return strikes.find((entry) => Number(entry.strike) === value)?.ticker ?? null;
 }
 
-// One step of a leg's strike (ticket #380, the native range input and the ← → buttons behind
-// it): moves to the next or previous traded strike in the sorted list, clamped at either end —
-// `direction` mirrors `stepLots`'s own `1 | -1`. Returns null for a ticker not in `strikes` at
-// all: an expiry switch that could not remap every leg must never leave one of them silently
-// stepping from the wrong end of a since-abandoned list.
-export function stepStrike(
-  strikes: readonly PlanChainEntry[],
-  currentTicker: Ticker,
-  direction: 1 | -1,
-): Ticker | null {
-  if (strikes.length === 0) return null;
-  const index = indexOfTicker(strikes, currentTicker);
-  if (index === -1) return null;
-  const nextIndex = Math.max(0, Math.min(strikes.length - 1, index + direction));
-  return strikes[nextIndex]?.ticker ?? null;
-}
-
-// The same step, by raw strike value rather than ticker (ticket #380): a strike rank shared by
-// more than one right (a straddle's call and put, both at one strike) has no single ticker of
-// its own to step from, only the value every leg at that rank must land on together.
+// One step of a strike rank's own value (ticket #380, the native range input and the ← →
+// buttons behind it): a strike rank shared by more than one right (a straddle's call and put,
+// both at one strike) has no single ticker of its own to step from, only the value every leg at
+// that rank must land on together. Clamped at either end; returns null for a value not in
+// `strikes` at all.
 export function stepStrikeValue(
   strikes: readonly PlanChainEntry[],
   currentValue: number,

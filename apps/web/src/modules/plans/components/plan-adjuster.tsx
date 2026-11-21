@@ -26,7 +26,6 @@ import {
   type BuildPlanActionInput,
   type BuildPlanOutcome,
   type PlanActionError,
-  type PlanLegSeries,
 } from "../actions";
 import type { PlanChainEntry } from "../chain-view";
 import {
@@ -35,16 +34,20 @@ import {
   commonSelectableStrikes,
   rankBoundsFor,
   ranksOf,
-  remapToExpiry,
-  selectableStrikes,
   stepStrikeValue,
-  tickerAtStrike,
   type RankGroup,
 } from "../leg-strikes";
 import { LatestRequestWins } from "../latest-wins";
 import { diffPlans, type PlanDiffLeg, type PlanSnapshot } from "../plan-diff";
 import { stepLots } from "../lot-step";
 import { previewPlan } from "../preview-plan";
+import {
+  currentStrikeOfRank,
+  nextLegsForRankExpiry,
+  nextLegsForRankStrike,
+  seriesOfRank,
+  type RankEditContext,
+} from "../rank-edit";
 import { t } from "../strings";
 import { optionLegsOf } from "../template-legs";
 import { InstrumentCell, legTotalCentavos, riskUsedText, StatBlock } from "./plan-parts";
@@ -60,11 +63,6 @@ function snapshotOf(plan: Ok["plan"]): PlanSnapshot {
   return { lots: plan.lots, legs: legsOf(plan) };
 }
 
-function rightOf(outcome: Ok, ticker: Ticker): "call" | "put" | null {
-  const series = outcome.seriesByTicker[ticker];
-  return series?.right ?? null;
-}
-
 function expiryOf(outcome: Ok): SessionDate | null {
   const first = Object.values(outcome.seriesByTicker)[0];
   return first?.expiry ?? null;
@@ -77,19 +75,6 @@ function toAdjustmentLegs(legs: readonly PlanDiffLeg[]): { ticker: Ticker }[] {
   return legs.filter((leg) => leg.role !== "stock").map((leg) => ({ ticker: leg.ticker }));
 }
 
-// Applies every leg's own next ticker at once (ticket #380): a strike rank shared by more than
-// one right (a straddle's call and put) always moves together, never one leg at a time, so an
-// edit is always expressed as a full map of full-array index to its next ticker.
-function legsWithChanges(
-  legs: readonly PlanDiffLeg[],
-  updates: ReadonlyMap<number, Ticker>,
-): PlanDiffLeg[] {
-  return legs.map((leg, index) => {
-    const nextTicker = updates.get(index);
-    return nextTicker ? { ...leg, ticker: nextTicker } : leg;
-  });
-}
-
 const sideLabel = { buy: t.screen.orders.buy, sell: t.screen.orders.sell } as const;
 
 // Drag-to-adjust (ticket #380): wraps the read-only plan screen's own numbers, orders, chart and
@@ -100,8 +85,9 @@ const sideLabel = { buy: t.screen.orders.buy, sell: t.screen.orders.sell } as co
 // strike rank — not a single leg — is the unit of a strike edit: legs sharing a rank (a
 // straddle's call and put, both at one strike) always move together, since the server requires
 // them on the same strike. A client-side preview (`previewPlan`, the engine's own pure
-// `priceOperation`) redraws the chart continuously while dragging (`previewRankChange`, never
-// hitting the server); `adjustPlanAction` then prices the exact same edit on the server once, on
+// `priceOperation` through the same two-rung `priceExactLegs` the server uses) redraws the chart
+// continuously while dragging (`previewRankChange`, never hitting the server); `adjustPlanAction`
+// then prices the exact same edit on the server once, on
 // release, a lot +/- press or an expiry chip — never on every pixel of a drag — and only that
 // reply ever becomes the plan's official numbers (`current`) — guarded by `LatestRequestWins` so
 // a slow reply from an earlier edit can never overwrite a newer one. Every leg is identified by
@@ -131,6 +117,21 @@ export function PlanAdjuster({
   const legs = legsOf(current.plan);
   const changes = diffPlans(snapshotOf(original.plan), snapshotOf(current.plan));
 
+  const optionTemplateLegs = optionLegsOf(current.structure);
+  const optionFullIndices = legs.reduce<number[]>((acc, leg, index) => {
+    if (leg.role !== "stock") acc.push(index);
+    return acc;
+  }, []);
+  const ranks = ranksOf(optionTemplateLegs);
+  const rankEditContext: RankEditContext = {
+    chain,
+    expiry,
+    templateLegs: optionTemplateLegs,
+    optionFullIndices,
+    legs,
+    seriesByTicker: current.seriesByTicker,
+  };
+
   async function commit(nextLegs: PlanDiffLeg[], lots: number) {
     setPending(true);
     setError(null);
@@ -144,7 +145,7 @@ export function PlanAdjuster({
         lots,
       });
       if (!commitSequencer.current.isCurrent(requestId)) return;
-      setPreviewPricing(null);
+      clearPreview();
       if (next.status === "ok") {
         // `adjustPlanAction` never re-ships the market view (it cannot change within one
         // session); the client keeps the copy it already has.
@@ -157,7 +158,7 @@ export function PlanAdjuster({
       }
     } catch {
       if (commitSequencer.current.isCurrent(requestId)) {
-        setPreviewPricing(null);
+        clearPreview();
         setAdjustFailed(true);
       }
     } finally {
@@ -185,39 +186,10 @@ export function PlanAdjuster({
     });
   }
 
-  // Resolves every leg of a rank to its own ticker at a shared next strike value, one per right
-  // present at that rank (a straddle's call and put move together) — null if any of them has no
-  // listed series there, so a rank edit is always all-or-nothing, never partial.
-  function tickersForRank(rank: RankGroup, strikeValue: number): Map<number, Ticker> | null {
-    if (!expiry) return null;
-    const updates = new Map<number, Ticker>();
-    for (const templateIndex of rank.legIndices) {
-      const fullIndex = optionFullIndices[templateIndex];
-      const right = optionTemplateLegs[templateIndex]?.role;
-      if (fullIndex === undefined || !right) return null;
-      const ticker = tickerAtStrike(selectableStrikes(chain, right, expiry), strikeValue);
-      if (!ticker) return null;
-      updates.set(fullIndex, ticker);
-    }
-    return updates;
-  }
-
-  function seriesOfRank(rank: RankGroup): PlanLegSeries | null {
-    const templateIndex = rank.legIndices[0];
-    const fullIndex = templateIndex === undefined ? undefined : optionFullIndices[templateIndex];
-    const leg = fullIndex === undefined ? undefined : legs[fullIndex];
-    return leg ? (current.seriesByTicker[leg.ticker] ?? null) : null;
-  }
-
-  function currentStrikeOfRank(rank: RankGroup): number | null {
-    const series = seriesOfRank(rank);
-    return series ? Number(series.strike) : null;
-  }
-
   function applyRankChange(rank: RankGroup, strikeValue: number) {
-    const updates = tickersForRank(rank, strikeValue);
-    if (!updates) return;
-    const nextLegs = legsWithChanges(legs, updates);
+    if (pending) return;
+    const nextLegs = nextLegsForRankStrike(rankEditContext, rank, strikeValue);
+    if (!nextLegs) return;
     preview(nextLegs, current.plan.lots);
     void commit(nextLegs, current.plan.lots);
   }
@@ -225,14 +197,14 @@ export function PlanAdjuster({
   // The chart handle's own continuous redraw while dragging (ticket #380): client preview only,
   // never a server round trip — `onHandleCommit` (release) is what calls `applyRankChange`.
   function previewRankChange(rank: RankGroup, strikeValue: number) {
-    const updates = tickersForRank(rank, strikeValue);
-    if (!updates) return;
-    preview(legsWithChanges(legs, updates), current.plan.lots);
+    const nextLegs = nextLegsForRankStrike(rankEditContext, rank, strikeValue);
+    if (!nextLegs) return;
+    preview(nextLegs, current.plan.lots);
   }
 
   function onRankStep(rank: RankGroup, candidates: readonly PlanChainEntry[], direction: 1 | -1) {
     if (pending) return;
-    const currentValue = currentStrikeOfRank(rank);
+    const currentValue = currentStrikeOfRank(rankEditContext, rank);
     if (currentValue === null) return;
     const nextValue = stepStrikeValue(candidates, currentValue, direction);
     if (nextValue === null || nextValue === currentValue) return;
@@ -247,30 +219,25 @@ export function PlanAdjuster({
     void commit(legs, nextLots);
   }
 
-  // All-or-nothing: if even one leg cannot remap to the new expiry, the whole switch is refused
-  // and the plan stays on its current expiry, rather than saving a plan split across two
-  // expiries.
+  // All-or-nothing, rank by rank: if even one rank cannot remap to the new expiry (one of its
+  // rights has nothing traded there), the whole switch is refused and the plan stays on its
+  // current expiry, rather than saving a plan split across two expiries. Each rank's own remap
+  // is folded into the next rank's starting legs, so a prior rank's change survives a later
+  // rank's own all-or-nothing resolution.
   function onExpirySelect(nextExpiry: SessionDate) {
     if (pending || nextExpiry === expiry) return;
     setExpiryRemapFailed(false);
-    const remapped: PlanDiffLeg[] = [];
-    for (const leg of legs) {
-      if (leg.role === "stock") {
-        remapped.push(leg);
-        continue;
-      }
-      const right = rightOf(current, leg.ticker);
-      const series = current.seriesByTicker[leg.ticker];
-      const nextTicker =
-        right && series ? remapToExpiry(chain, right, series.strike, nextExpiry) : null;
-      if (!nextTicker) {
+    let remapped: readonly PlanDiffLeg[] = legs;
+    for (const rank of ranks) {
+      const next = nextLegsForRankExpiry({ ...rankEditContext, legs: remapped }, rank, nextExpiry);
+      if (!next) {
         setExpiryRemapFailed(true);
         return;
       }
-      remapped.push({ ...leg, ticker: nextTicker });
+      remapped = next;
     }
-    preview(remapped, current.plan.lots);
-    void commit(remapped, current.plan.lots);
+    preview([...remapped], current.plan.lots);
+    void commit([...remapped], current.plan.lots);
   }
 
   function onReset() {
@@ -281,27 +248,20 @@ export function PlanAdjuster({
 
   const plan = current.plan;
 
-  const optionTemplateLegs = optionLegsOf(current.structure);
-  const optionFullIndices = legs.reduce<number[]>((acc, leg, index) => {
-    if (leg.role !== "stock") acc.push(index);
-    return acc;
-  }, []);
-  const ranks = ranksOf(optionTemplateLegs);
-
   // One strike bound per rank (not per leg): a handle or a ← → button may never cross, or land
   // on, the current strike of the rank immediately below or above this one.
   const rankBounds = rankBoundsFor(ranks, (rankIndex) => {
     const rank = ranks[rankIndex];
-    return rank ? currentStrikeOfRank(rank) : null;
+    return rank ? currentStrikeOfRank(rankEditContext, rank) : null;
   });
 
   // One payoff-chart handle per strike rank (ticket #380), never per leg: a straddle's call and
   // put, sharing a rank, move together under one handle. The chart only ever sees numbers and
-  // ticks, every ticker lookup stays here. `onPreview`/`onCommit` resolve the chart's own
-  // snapped strike (already restricted to traded, in-bound candidates for every right at this
-  // rank) back to every leg's own ticker through `tickersForRank`, then hand off to
-  // `previewRankChange`/`applyRankChange` — the exact functions the ← → buttons already call,
-  // never a second implementation.
+  // ticks, every ticker lookup stays in `rank-edit.ts`. `onPreview`/`onCommit` resolve the
+  // chart's own snapped strike (already restricted to traded, in-bound candidates for every
+  // right at this rank) back to every leg's own ticker through `nextLegsForRankStrike`, then
+  // hand off to `previewRankChange`/`applyRankChange` — the exact functions the ← → buttons
+  // already call, never a second implementation.
   const strikeHandles: PayoffStrikeHandle[] = ranks.flatMap((rank, rankIndex) => {
     if (!expiry) return [];
     const rights = [
@@ -312,7 +272,7 @@ export function PlanAdjuster({
       ),
     ];
     if (rights.length === 0) return [];
-    const series = seriesOfRank(rank);
+    const series = seriesOfRank(rankEditContext, rank);
     if (!series) return [];
     const currentValue = Number(series.strike);
     const bound = rankBounds[rankIndex] ?? { lower: null, upper: null };
@@ -352,6 +312,7 @@ export function PlanAdjuster({
           previewRankChange(rank, nextValue);
         },
         onCommit: (nextValue) => {
+          if (pending) return;
           if (nextValue === currentValue) {
             clearPreview();
             return;
@@ -524,7 +485,7 @@ export function PlanAdjuster({
               ),
             ];
             if (!expiry || rights.length === 0) return null;
-            const series = seriesOfRank(rank);
+            const series = seriesOfRank(rankEditContext, rank);
             if (!series) return null;
             const bound = rankBounds[rankIndex] ?? { lower: null, upper: null };
             const strikes = boundedStrikes(

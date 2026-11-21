@@ -120,10 +120,12 @@ describe("previewPlan", () => {
     expect(pricing?.legs.map((valuation) => valuation.leg.quantity)).toEqual([200, 400, 200]);
   });
 
-  it("bounds the max gain the way the server's own two-rung pricing would", async () => {
+  it("prices at the limit-price rung, pinning the same maxLoss, maxGain and break-evens adjustPlanAction returns", async () => {
     const pricing = await previewPlan(CONTEXT, CALL_BUTTERFLY, UNDERLYING, LEGS, 2);
     expect(pricing).not.toBeNull();
-    expect(pricing?.maxGain).not.toBe("unbounded");
+    expect(pricing?.maxLoss).toBe(7660);
+    expect(pricing?.maxGain).toBe(32340);
+    expect(pricing?.breakEvens).toEqual(["34.38", "37.62"]);
   });
 
   it("returns null when the listed tickers do not line up with the structure's own template", async () => {
