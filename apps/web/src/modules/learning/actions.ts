@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { getDb } from "@/db/client";
@@ -12,7 +13,8 @@ import {
 } from "@/modules/auth";
 
 import { getLesson } from "./catalog";
-import { gradeQuiz, type GradeResult } from "./grading";
+import { answersMatchLessonQuestions, gradeQuiz, type GradeResult } from "./grading";
+import { loadIllustrativeExamples } from "./illustrative-market";
 import { LessonProgressRepository } from "./lesson-progress-repository";
 
 const SUBMIT_RATE_LIMIT = { windowSeconds: 10, max: 20 };
@@ -44,8 +46,11 @@ export async function submitLessonQuizAction(input: {
   }
 
   const lesson = getLesson(parsed.data.lessonId);
-  if (!lesson || parsed.data.answers.length !== lesson.quiz.length) {
+  if (!lesson) {
     return { status: "error", error: "not_found" };
+  }
+  if (!answersMatchLessonQuestions(lesson, parsed.data.answers)) {
+    return { status: "error", error: "invalid" };
   }
 
   const user = await withAuthenticatedAction(() => requireUser());
@@ -58,7 +63,8 @@ export async function submitLessonQuizAction(input: {
     throw error;
   }
 
-  const result = gradeQuiz(lesson, parsed.data.answers, "pt");
+  const examples = await loadIllustrativeExamples();
+  const result = gradeQuiz(lesson, parsed.data.answers, "pt", examples);
 
   const repository = await forCurrentUser(getDb(), LessonProgressRepository);
   await repository.recordAttempt(
@@ -68,6 +74,9 @@ export async function submitLessonQuizAction(input: {
     result.total,
     result.passed,
   );
+
+  revalidatePath("/aprender");
+  revalidatePath(`/aprender/${lesson.id}`);
 
   return { status: "ok", ...result };
 }
