@@ -20,7 +20,7 @@ const en = {
       },
       rail: {
         title: "Navigation",
-        body: "Fetha's six destinations live here. In Configurações › Aparência you choose between the side bar (Workspace layout, which the button at its end collapses), tabs in the header (Studio layout) and a floating menu that shows the names when you hover it (Dock layout).",
+        body: "Fetha's destinations live here. In Configurações › Aparência you choose between the side bar (Workspace layout, which the button at its end collapses), tabs in the header (Studio layout) and a floating menu that shows the names when you hover it (Dock layout).",
       },
       commandSearch: {
         title: "Search",
@@ -68,44 +68,10 @@ const en = {
       },
     },
   },
-  optionsBasics: {
-    title: "Options in 10 minutes",
-    intro:
-      "An option is a contract on an underlying stock. A call gives the right to buy it at a fixed price; a put gives the right to sell it at a fixed price. You pay a premium for that right, and the most you can ever lose by buying an option is the premium itself.",
-    illustrativeNotice: (ticker: string, spot: string) =>
-      `Illustrative example: a fictitious underlying, ${ticker}, trading at ${spot}, and a fictitious option chain with made-up prices. Every number below still comes from the pricing engine, not from the page.`,
-    strike: {
-      title: "Strike (the exercise price)",
-      body: "The price fixed in the contract: the price a call lets you buy at, or a put lets you sell at. A call is worth exercising when the stock trades above its strike; a put, when it trades below.",
-    },
-    expiry: {
-      title: "Expiry",
-      body: "The day the contract stops existing. On B3, equity options expire monthly, usually on the third Friday of the month (moved to the prior business day on a holiday).",
-    },
-    premium: {
-      title: "Premium",
-      body: "What the option costs, paid by the buyer to the seller when the position opens. It is what a long position can lose in full, and what a short, uncovered position earns at most.",
-    },
-    impliedVolatility: {
-      title: "Implied volatility",
-      body: "The swing size the market is pricing into the option today, read backwards out of its premium: a higher implied volatility makes every option on that stock costlier, calls and puts alike, because a wider expected swing raises the odds of a large move either way.",
-      ivRank:
-        "IV rank, shown on the asset page, says where today's implied volatility sits against its own last year: low favors buying options, high favors selling them.",
-    },
-    structures: {
-      longCall: {
-        title: "Long call",
-        body: "Buy one call. The most you can lose is the premium paid, however far the stock falls; the gain grows without limit as the stock rises past the strike.",
-      },
-      longPut: {
-        title: "Long put",
-        body: "Buy one put. The most you can lose is the premium paid; the gain grows as the stock falls, capped only because a stock price cannot go below zero.",
-      },
-      bullCallSpread: {
-        title: "Bull call spread (trava de alta com calls)",
-        body: "Buy a call at the lower strike and sell a call at the higher strike, same expiry. The premium received from the short call lowers the cost of the long one, at the price of a capped gain: both the loss and the gain are bounded.",
-      },
-    },
+  learningPointer: {
+    title: "New to options?",
+    body: "Aprender walks through the basics in short lessons with a quiz at the end, before you touch a real position.",
+    cta: "Go to Aprender",
   },
   guide: {
     title: "How to use Fetha",
@@ -187,6 +153,14 @@ const en = {
           "The track record panel shows how your decisions have aged.",
         ],
       },
+      "/aprender": {
+        summary: "Short lessons on options, from the basics to B3's own rules, each with a quiz.",
+        steps: [
+          "“Ver por” switches between Jornada (by level) and Temas (by subject); both list the same lessons.",
+          "“Continuar” opens the first lesson you have not yet passed, in Jornada order.",
+          "A lesson is done once its quiz scores 75% or more; retry it any time to improve the score.",
+        ],
+      },
       "/configuracoes": {
         summary: "Your account and how the workstation looks, one tab per group.",
         steps: [
@@ -214,7 +188,7 @@ const ptBR = {
       },
       rail: {
         title: "Navegação",
-        body: "Os seis destinos da Fetha ficam aqui. Em Configurações › Aparência você escolhe entre a barra lateral (layout Workspace, que o botão no fim dela recolhe), abas no cabeçalho (layout Studio) e um menu flutuante que mostra os nomes quando você passa o mouse (layout Dock).",
+        body: "Os destinos da Fetha ficam aqui. Em Configurações › Aparência você escolhe entre a barra lateral (layout Workspace, que o botão no fim dela recolhe), abas no cabeçalho (layout Studio) e um menu flutuante que mostra os nomes quando você passa o mouse (layout Dock).",
       },
       commandSearch: {
         title: "Busca",
@@ -262,44 +236,10 @@ const ptBR = {
       },
     },
   },
-  optionsBasics: {
-    title: "Opções em 10 minutos",
-    intro:
-      "Uma opção é um contrato sobre uma ação. A call dá o direito de comprá-la por um preço combinado; a put dá o direito de vendê-la por um preço combinado. Você paga um prêmio por esse direito, e o máximo que se perde comprando uma opção é esse prêmio.",
-    illustrativeNotice: (ticker: string, spot: string) =>
-      `Exemplo ilustrativo: um ativo fictício, ${ticker}, cotado a ${spot}, e uma série de opções fictícia com preços inventados. Mesmo assim, todo número abaixo vem do motor de cálculo, nunca da própria página.`,
-    strike: {
-      title: "Strike (preço de exercício)",
-      body: "O preço travado no contrato: é por ele que a call deixa comprar, ou a put deixa vender. Vale a pena exercer a call quando a ação está acima do strike; a put, quando está abaixo.",
-    },
-    expiry: {
-      title: "Vencimento",
-      body: "O dia em que o contrato deixa de existir. Na B3, as opções sobre ações vencem uma vez por mês, geralmente na terceira sexta-feira (ou no pregão útil anterior, se cair em feriado).",
-    },
-    premium: {
-      title: "Prêmio",
-      body: "O preço da opção, pago por quem compra a quem vende, no momento em que a posição é aberta. É o máximo que uma posição comprada perde, e o máximo que uma posição vendida a descoberto ganha.",
-    },
-    impliedVolatility: {
-      title: "Volatilidade implícita",
-      body: "O tamanho de oscilação que o mercado está precificando hoje, lido de trás para frente a partir do prêmio: quanto maior a volatilidade implícita, mais caras ficam as opções daquela ação, calls e puts, porque uma oscilação esperada maior aumenta a chance de um movimento grande para qualquer lado.",
-      ivRank:
-        "O IV rank, mostrado na página do ativo, diz onde a volatilidade implícita de hoje está em relação ao último ano: baixo favorece comprar opções, alto favorece vendê-las.",
-    },
-    structures: {
-      longCall: {
-        title: "Compra de call",
-        body: "Compre uma call. O máximo que se perde é o prêmio pago, não importa o quanto a ação caia; o ganho cresce sem limite conforme a ação sobe acima do strike.",
-      },
-      longPut: {
-        title: "Compra de put",
-        body: "Compre uma put. O máximo que se perde é o prêmio pago; o ganho cresce conforme a ação cai, limitado só porque o preço de uma ação não vai abaixo de zero.",
-      },
-      bullCallSpread: {
-        title: "Trava de alta com calls",
-        body: "Compre uma call no strike mais baixo e venda uma call no strike mais alto, no mesmo vencimento. O prêmio recebido pela call vendida reduz o custo da comprada, ao preço de um ganho limitado: tanto a perda quanto o ganho ficam travados.",
-      },
-    },
+  learningPointer: {
+    title: "Nunca operou opções?",
+    body: "Em Aprender tem lições curtas, com um quiz no final de cada uma, antes de você montar uma posição de verdade.",
+    cta: "Ir para Aprender",
   },
   guide: {
     title: "Como usar a Fetha",
@@ -382,6 +322,15 @@ const ptBR = {
         steps: [
           "Cada registro mostra a decisão, sua justificativa, o horizonte e, depois dele, a pontuação.",
           "O painel de histórico de acertos mostra como suas decisões envelheceram.",
+        ],
+      },
+      "/aprender": {
+        summary:
+          "Lições curtas sobre opções, do básico às regras da própria B3, cada uma com um quiz.",
+        steps: [
+          "“Ver por” alterna entre Jornada (por nível) e Temas (por assunto); as duas listam as mesmas lições.",
+          "“Continuar” abre a primeira lição que você ainda não passou, na ordem da Jornada.",
+          "Uma lição fica concluída quando o quiz acerta 75% ou mais; refaça quando quiser para melhorar a nota.",
         ],
       },
       "/configuracoes": {
