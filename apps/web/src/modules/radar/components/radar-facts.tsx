@@ -1,4 +1,4 @@
-import type { DecimalString, IndicatorSpec } from "@fetha/contracts";
+import type { DecimalString, IndicatorSpec, Operand } from "@fetha/contracts";
 
 import { formatPriceBRL } from "@/lib/format/brl";
 import { formatDate } from "@/lib/format/date-time";
@@ -30,6 +30,28 @@ function indicatorValue(spec: IndicatorSpec, value: DecimalString | null): strin
     case "iv_rank":
       return formatDecimal(value, 0);
   }
+}
+
+function sameIndicator(a: IndicatorSpec, b: IndicatorSpec): boolean {
+  if (a.kind !== b.kind) return false;
+  return a.kind === "iv_rank" && b.kind === "iv_rank"
+    ? a.lookbackSessions === b.lookbackSessions
+    : "length" in a && "length" in b && a.length === b.length;
+}
+
+// What a condition's left operand actually read today, so "Por que agora" can pair a condition
+// with the figure that made it true instead of repeating the full facts list beside it.
+export function observeOperand(operand: Operand, facts: RadarFacts): string | null {
+  if (operand.kind === "price" && operand.field === "close") {
+    return formatPriceBRL(facts.close);
+  }
+  if (operand.kind === "indicator") {
+    const match = facts.indicators.find((entry) =>
+      sameIndicator(entry.indicator, operand.indicator),
+    );
+    return match ? indicatorValue(match.indicator, match.value) : null;
+  }
+  return null;
 }
 
 export function Facts({ facts }: { facts: RadarFacts }) {

@@ -46,6 +46,10 @@ export function recipeCards(): RecipeCard[] {
   });
 }
 
+export function recipeSummary(recipeId: string): string | null {
+  return recipeCards().find((entry) => entry.id === recipeId)?.summary ?? null;
+}
+
 export function riskOptions(declaredCapital: Centavos): RiskOption[] {
   return recipeRiskFractions.map((fraction) => ({
     fraction,

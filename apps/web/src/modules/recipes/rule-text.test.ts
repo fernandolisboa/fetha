@@ -40,6 +40,15 @@ describe("conditionLines", () => {
       { text: "Fechamento ≥ Média exponencial de 9 sessões", depth: 2 },
     ]);
   });
+  it("pairs each comparison with what its left operand observed, when asked to", () => {
+    const recipe = recipes.find((entry) => entry.id === "bull-call-spread-low-iv");
+    const lines =
+      recipe &&
+      conditionLines(recipe.definition.entry, 0, (operand) =>
+        operand.kind === "price" ? "R$ 45,70" : null,
+      );
+    expect(lines?.map((line) => line.observed)).toEqual(["R$ 45,70", null, null]);
+  });
 });
 
 describe("exitText", () => {

@@ -19,33 +19,43 @@ function operandText(operand: Operand): string {
   }
 }
 
-export type RuleLine = { text: string; depth: number };
+export type RuleLine = { text: string; depth: number; observed?: string | null };
 
 // A recipe's entry condition as nested lines (docs/adr/0067's suggestion page): a top-level
-// "and" reads as the list itself, anything nested names its connective.
-export function conditionLines(condition: Condition, depth = 0): RuleLine[] {
+// "and" reads as the list itself, anything nested names its connective. `observe`, when given,
+// reads the left operand of each comparison against today's facts so the caller can pair the
+// condition with what actually matched it, without a second tree walk of its own.
+export function conditionLines(
+  condition: Condition,
+  depth = 0,
+  observe?: (operand: Operand) => string | null,
+): RuleLine[] {
   switch (condition.kind) {
-    case "compare":
-      return [
-        {
-          text: `${operandText(condition.left)} ${t.rule.comparators[condition.comparator]} ${operandText(condition.right)}`,
-          depth,
-        },
-      ];
+    case "compare": {
+      const line: RuleLine = {
+        text: `${operandText(condition.left)} ${t.rule.comparators[condition.comparator]} ${operandText(condition.right)}`,
+        depth,
+      };
+      if (observe) line.observed = observe(condition.left);
+      return [line];
+    }
     case "and":
       return depth === 0
-        ? condition.conditions.flatMap((child) => conditionLines(child, depth))
+        ? condition.conditions.flatMap((child) => conditionLines(child, depth, observe))
         : [
             { text: t.rule.and, depth },
-            ...condition.conditions.flatMap((child) => conditionLines(child, depth + 1)),
+            ...condition.conditions.flatMap((child) => conditionLines(child, depth + 1, observe)),
           ];
     case "or":
       return [
         { text: t.rule.or, depth },
-        ...condition.conditions.flatMap((child) => conditionLines(child, depth + 1)),
+        ...condition.conditions.flatMap((child) => conditionLines(child, depth + 1, observe)),
       ];
     case "not":
-      return [{ text: t.rule.not, depth }, ...conditionLines(condition.condition, depth + 1)];
+      return [
+        { text: t.rule.not, depth },
+        ...conditionLines(condition.condition, depth + 1, observe),
+      ];
   }
 }
 
