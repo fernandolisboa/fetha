@@ -20,6 +20,7 @@ import { getPreferences } from "@/modules/preferences";
 import {
   groupSuggestionsByStructureCap,
   SuggestionCard,
+  SuggestionRow,
   t,
   type StructureOverflowGroup,
   type SuggestionView,
@@ -83,75 +84,88 @@ export async function SuggestionList({
   ]);
   const available = await isAnalysisAvailable();
 
+  const compact = !onPage && preferences.suggestionDensity === "compact";
+
   const cardById = new Map(
     suggestions.map((suggestion, index) => {
       const decision = decisions.get(suggestion.id);
-      const card = (
+      const risk = <LimitCheck result={checks[index] ?? { kind: "unpriced" }} />;
+      const actionsNode = (
+        <>
+          {!onPage && (
+            <Link
+              href={`/sugestoes/${suggestion.id}`}
+              className={buttonVariants({ variant: "outline", size: "sm" })}
+            >
+              {t.suggestions.actions.recipe}
+            </Link>
+          )}
+          <Link
+            href={`/carteira/nova-operacao?sugestao=${suggestion.id}`}
+            className={buttonVariants({ variant: "ghost", size: "sm" })}
+          >
+            {t.suggestions.actions.builder}
+          </Link>
+          <Link
+            href={`/planos/novo?sugestao=${suggestion.id}`}
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
+            {t.suggestions.actions.plan}
+          </Link>
+          <AnalysisDialog
+            subjectKind="suggestion"
+            subjectId={suggestion.id}
+            latest={analyses.get(suggestion.id) ?? null}
+            usage={usage}
+            available={available}
+          />
+          {decision ? (
+            <span className="text-muted-foreground text-xs" data-testid="suggestion-decision">
+              {t.suggestions.answered(
+                decisionsT.kind[decision.kind],
+                formatDate(decision.decidedAt),
+              )}
+            </span>
+          ) : suggestion.validity.archived ? (
+            <span className="text-muted-foreground text-xs" data-testid="suggestion-archived">
+              {t.suggestions.archivedCard(formatSessionDate(suggestion.validity.supersededBy))}
+            </span>
+          ) : (
+            <DecisionBar
+              originKind="suggestion"
+              targetId={suggestion.id}
+              allowedKinds={allowedDecisionKinds({ kind: "suggestion" })}
+              defaultHorizon={suggestion.horizon}
+              defaultInstrument={suggestion.underlying}
+            />
+          )}
+        </>
+      );
+      const card = compact ? (
+        <SuggestionRow suggestion={suggestion} risk={risk} actions={actionsNode} />
+      ) : (
         <SuggestionCard
           suggestion={suggestion}
           headline={!onPage}
-          risk={<LimitCheck result={checks[index] ?? { kind: "unpriced" }} />}
-          actions={
-            <>
-              {!onPage && (
-                <Link
-                  href={`/sugestoes/${suggestion.id}`}
-                  className={buttonVariants({ variant: "outline", size: "sm" })}
-                >
-                  {t.suggestions.actions.recipe}
-                </Link>
-              )}
-              <Link
-                href={`/carteira/nova-operacao?sugestao=${suggestion.id}`}
-                className={buttonVariants({ variant: "ghost", size: "sm" })}
-              >
-                {t.suggestions.actions.builder}
-              </Link>
-              <Link
-                href={`/planos/novo?sugestao=${suggestion.id}`}
-                className={buttonVariants({ variant: "outline", size: "sm" })}
-              >
-                {t.suggestions.actions.plan}
-              </Link>
-              <AnalysisDialog
-                subjectKind="suggestion"
-                subjectId={suggestion.id}
-                latest={analyses.get(suggestion.id) ?? null}
-                usage={usage}
-                available={available}
-              />
-              {decision ? (
-                <span className="text-muted-foreground text-xs" data-testid="suggestion-decision">
-                  {t.suggestions.answered(
-                    decisionsT.kind[decision.kind],
-                    formatDate(decision.decidedAt),
-                  )}
-                </span>
-              ) : suggestion.validity.archived ? (
-                <span className="text-muted-foreground text-xs" data-testid="suggestion-archived">
-                  {t.suggestions.archivedCard(formatSessionDate(suggestion.validity.supersededBy))}
-                </span>
-              ) : (
-                <DecisionBar
-                  originKind="suggestion"
-                  targetId={suggestion.id}
-                  allowedKinds={allowedDecisionKinds({ kind: "suggestion" })}
-                  defaultHorizon={suggestion.horizon}
-                  defaultInstrument={suggestion.underlying}
-                />
-              )}
-            </>
-          }
+          risk={risk}
+          actions={actionsNode}
         />
       );
       // Off the page each card is framed, so the list's own title never reads as part of the first
-      // card; the wrapper always carries the id the seen tracker observes.
+      // card; the wrapper always carries the id the seen tracker observes. A compact row (card B,
+      // docs/adr/0067 amendment) carries its own hairline and padding, so the wrapper adds neither.
       return [
         suggestion.id,
         <div
           key={suggestion.id}
           data-suggestion-id={suggestion.id}
-          className={onPage ? undefined : "border-border rounded-[var(--radius)] border p-3"}
+          className={
+            onPage
+              ? undefined
+              : compact
+                ? "border-border overflow-hidden rounded-[var(--radius)] border"
+                : "border-border rounded-[var(--radius)] border p-3"
+          }
         >
           {card}
         </div>,

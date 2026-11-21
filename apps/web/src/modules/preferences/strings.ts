@@ -59,6 +59,21 @@ const en = {
       },
     },
   },
+  suggestionDensityPicker: {
+    title: "Suggestions",
+    subtitle: "How Today's suggestions and the radar list show each suggestion.",
+    options: {
+      full: {
+        label: "Full",
+        description: "One card per suggestion, with its chart and lot open at a glance.",
+      },
+      compact: {
+        label: "Compact",
+        description:
+          "One line per suggestion, with a small chart; open a row to see its full card.",
+      },
+    },
+  },
   suggestionArchive: {
     title: "Seen suggestions",
     subtitle:
@@ -167,6 +182,21 @@ const ptBR = {
         label: "Dock",
         description:
           "Menu flutuante sobre a borda esquerda: só ícones e, ao passar o mouse, os nomes. Não ocupa coluna própria, então a tela fica com quase toda a largura.",
+      },
+    },
+  },
+  suggestionDensityPicker: {
+    title: "Sugestões",
+    subtitle: "Como as sugestões de hoje e a lista do radar mostram cada sugestão.",
+    options: {
+      full: {
+        label: "Completas",
+        description: "Um card por sugestão, com o gráfico e o lote já abertos.",
+      },
+      compact: {
+        label: "Compactas",
+        description:
+          "Uma linha por sugestão, com um gráfico pequeno; abra a linha para ver o card completo.",
       },
     },
   },

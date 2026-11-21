@@ -3,6 +3,7 @@ import {
   getPreferences,
   LayoutPicker,
   SuggestionArchivePicker,
+  SuggestionDensityPicker,
   ThemePicker,
   t as preferencesStrings,
 } from "@/modules/preferences";
@@ -30,6 +31,13 @@ export default async function AppearanceSettingsPage() {
         className="@container"
       >
         <ThemePicker current={preferences.theme} />
+      </SettingsSection>
+      <SettingsSection
+        title={preferencesStrings.suggestionDensityPicker.title}
+        subtitle={preferencesStrings.suggestionDensityPicker.subtitle}
+        className="@container"
+      >
+        <SuggestionDensityPicker current={preferences.suggestionDensity} />
       </SettingsSection>
       <SettingsSection
         id="sugestoes"

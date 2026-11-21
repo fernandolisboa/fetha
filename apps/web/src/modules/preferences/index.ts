@@ -3,6 +3,7 @@ export {
   dismissTourAction,
   setLayoutAction,
   setRailCollapsedAction,
+  setSuggestionDensityAction,
   setThemeAction,
   type PreferencesActionResult,
 } from "./actions";
@@ -10,6 +11,7 @@ export { SettingsTabs } from "./components/settings-tabs";
 export { LayoutPicker } from "./components/layout-picker";
 export { ThemePicker } from "./components/theme-picker";
 export { SuggestionArchivePicker } from "./components/suggestion-archive-picker";
+export { SuggestionDensityPicker } from "./components/suggestion-density-picker";
 export { PreferencesRepository, type Preferences } from "./preferences-repository";
 export { getPreferences } from "./queries";
 export { preferencesStrings, t } from "./strings";

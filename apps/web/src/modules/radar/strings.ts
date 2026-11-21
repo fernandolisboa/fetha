@@ -153,6 +153,18 @@ const en = {
       gainToRisk: "Gain ÷ risk",
       gainToRiskHint: "best case",
     },
+    compactRow: {
+      risked: "Risks",
+      gainUpTo: "gains up to",
+      gainUnbounded: "no limit",
+      zoneBetween: (lower: string, upper: string) => `Profit between ${lower} and ${upper}`,
+      zoneOutside: (lower: string, upper: string) => `Profit below ${lower} or above ${upper}`,
+      zoneAbove: (level: string) => `Profit above ${level}`,
+      zoneBelow: (level: string) => `Profit below ${level}`,
+      expiresAt: (date: string) => `expires ${date}`,
+      open: "Open",
+      close: "Close",
+    },
     whyTitle: "Why now",
     legsTable: {
       title: "How to set it up (1 lot)",
@@ -475,6 +487,19 @@ const ptBR = {
       gainUnbounded: "Sem limite",
       gainToRisk: "Ganho ÷ risco",
       gainToRiskHint: "no melhor cenário",
+    },
+    compactRow: {
+      risked: "Arrisca",
+      gainUpTo: "ganha até",
+      gainUnbounded: "sem limite",
+      zoneBetween: (lower: string, upper: string) => `Lucro entre ${lower} e ${upper}`,
+      zoneOutside: (lower: string, upper: string) =>
+        `Lucro abaixo de ${lower} ou acima de ${upper}`,
+      zoneAbove: (level: string) => `Lucro acima de ${level}`,
+      zoneBelow: (level: string) => `Lucro abaixo de ${level}`,
+      expiresAt: (date: string) => `vence ${date}`,
+      open: "Abrir",
+      close: "Fechar",
     },
     whyTitle: "Por que agora",
     legsTable: {
