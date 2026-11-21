@@ -10,6 +10,7 @@ import {
 } from "@fetha/contracts";
 import { decisionKinds, type DecisionKind } from "@fetha/engine";
 
+import type { Executor } from "@/db/client";
 import { UserScopedRepository } from "@/lib/user-scoped-repository";
 
 import { journalOriginKinds, type JournalOriginKind } from "./allowed-kinds";
@@ -137,10 +138,12 @@ const JOURNAL_LIMIT = 500;
 // the `decisions_no_update` trigger (0009_green_white_queen.sql), the same
 // belt-and-suspenders pattern strategy_versions and backtest_runs use.
 export class DecisionsRepository extends UserScopedRepository {
-  async record(input: RecordDecisionInput): Promise<{ id: string }> {
+  // `executor` defaults to this repository's own `db`; a caller recording the "enter" decision
+  // a saved plan writes alongside its contemplated operation (ADR-0079) passes the same `tx`.
+  async record(input: RecordDecisionInput, executor: Executor = this.db): Promise<{ id: string }> {
     const inputs = decisionInputsSchema.parse(input.inputs);
     try {
-      const [row] = await this.db
+      const [row] = await executor
         .insert(decisions)
         .values({
           userId: this.userId,

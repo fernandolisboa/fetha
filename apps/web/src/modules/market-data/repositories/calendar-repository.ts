@@ -183,6 +183,24 @@ export async function nthSessionAfter(
   return row;
 }
 
+// The `count`th trading session strictly before `date` (1 is the one immediately before it):
+// where a plan's "N sessions before expiry" exit and roll rules land (ticket #379), the mirror
+// of `nthSessionAfter`.
+export async function nthSessionBefore(
+  db: Database,
+  date: string,
+  count: number,
+): Promise<{ date: string; open: Date; close: Date } | undefined> {
+  const [row] = await db
+    .select()
+    .from(tradingSessions)
+    .where(lt(tradingSessions.date, date))
+    .orderBy(desc(tradingSessions.date))
+    .offset(count - 1)
+    .limit(1);
+  return row;
+}
+
 // How many trading sessions after `date` have closed by `at`: how far the radar's newest read
 // close trails the calendar (docs/adr/0073).
 export async function countSessionsClosedAfter(

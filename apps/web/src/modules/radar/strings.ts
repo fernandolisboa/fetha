@@ -92,6 +92,7 @@ const en = {
     actions: {
       recipe: "See the recipe",
       builder: "Study in the builder",
+      plan: "Build plan",
     },
     moreOfStructure: (structureName: string, count: number) =>
       `More of the ${structureName} structure (${String(count)})`,
@@ -276,6 +277,7 @@ const ptBR = {
     actions: {
       recipe: "Ver receita",
       builder: "Montar no simulador",
+      plan: "Montar plano",
     },
     moreOfStructure: (structureName: string, count: number) =>
       `Mais da estrutura ${structureName} (${String(count)})`,

@@ -7,6 +7,7 @@ import {
 } from "@fetha/contracts";
 
 import { contemplatedOperations } from "./schema";
+import type { Executor } from "@/db/client";
 import { UserScopedRepository } from "@/lib/user-scoped-repository";
 
 export interface SaveContemplatedOperationInput {
@@ -33,8 +34,14 @@ export class ContemplatedOperationNotFoundError extends Error {
 }
 
 export class OperationsRepository extends UserScopedRepository {
-  async save(input: SaveContemplatedOperationInput): Promise<{ id: string }> {
-    const [row] = await this.db
+  // `executor` defaults to this repository's own `db`, but a caller saving a plan
+  // (ADR-0079) passes the `tx` its own `db.transaction` opened, so the contemplated
+  // operation, its plan rules and its decision commit or roll back together.
+  async save(
+    input: SaveContemplatedOperationInput,
+    executor: Executor = this.db,
+  ): Promise<{ id: string }> {
+    const [row] = await executor
       .insert(contemplatedOperations)
       .values({
         userId: this.userId,

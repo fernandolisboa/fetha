@@ -83,3 +83,4 @@ supersedes or amends them and says so.
 | 0076 | Fetha gives a closed verdict on each researched idea; the research is stored and each idea scored (#358, amends 0009, 0057, 0058, 0065, 0067, 0075)                         |
 | 0077 | The engine computes a "today" (T+0) payoff curve next to the expiry curve (amends 0013)                                                                                     |
 | 0078 | Production runs at `fetha.filx.app` and sends mail from `filx.app`                                                                                                          |
+| 0079 | An operation plan is a contemplated operation plus its own rules table (#379)                                                                                               |

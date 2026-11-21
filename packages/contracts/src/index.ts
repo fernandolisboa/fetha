@@ -115,6 +115,14 @@ export {
   type Recipe,
 } from "./recipe";
 export {
+  planRulesSchema,
+  resolvedExitRuleSchema,
+  rollRuleSchema,
+  type PlanRules,
+  type ResolvedExitRule,
+  type RollRule,
+} from "./plan-rule";
+export {
   analysisConfidenceLevels,
   analysisFactSchema,
   analysisHorizons,
