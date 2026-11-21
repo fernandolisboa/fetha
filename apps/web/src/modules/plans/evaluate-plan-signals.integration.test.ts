@@ -4,6 +4,7 @@ import {
   decimalStringSchema,
   instantSchema,
   quantitySchema,
+  structureSchema,
   tickerSchema,
   type ContemplatedLeg,
   type Instant,
@@ -62,14 +63,13 @@ async function ensureStockStructure(): Promise<void> {
 }
 
 async function ensureNakedCallStructure(): Promise<void> {
-  await getDb()
-    .insert(structures)
-    .values({
-      id: "naked-call",
-      name: "Venda de call a descoberto",
-      legs: [{ role: "call", side: "sell", ratio: 1, strikeRank: 0 }],
-    })
-    .onConflictDoNothing();
+  const row = {
+    id: "naked-call",
+    name: "Venda de call a descoberto",
+    legs: [{ role: "call", side: "sell", ratio: 1, strikeRank: 1 } as const],
+  };
+  structureSchema.parse({ ...row, expiry: "shared" });
+  await getDb().insert(structures).values(row).onConflictDoNothing();
 }
 
 function businessDays(startIso: string, count: number): string[] {

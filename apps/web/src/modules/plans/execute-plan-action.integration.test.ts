@@ -6,6 +6,9 @@ import { decimalStringSchema, type ContemplatedLeg, type PlanRules } from "@feth
 import { getDb } from "@/db/client";
 import { deleteTestUser } from "@/db/test/cleanup";
 import { user } from "@/modules/auth/schema";
+import { cotahistStockRowSchema } from "@/modules/market-data/adapters/cotahist/schema";
+import { upsertDailyCandles } from "@/modules/market-data/repositories/candle-repository";
+import { candles } from "@/modules/market-data/schema";
 import { parsePriceInput } from "@/modules/portfolio/parse-price";
 import { contemplatedOperations, fills, operations } from "@/modules/portfolio/schema";
 import { structures } from "@/modules/strategies/schema";
@@ -103,16 +106,16 @@ function fixtureRules(): PlanRules {
   };
 }
 
-async function insertPlan(userId: string): Promise<string> {
+async function insertPlanForTicker(userId: string, ticker: string): Promise<string> {
   const legs: ContemplatedLeg[] = [
-    { role: "stock", side: "buy", ticker: "PETR4", quantity: 100 } as ContemplatedLeg,
+    { role: "stock", side: "buy", ticker, quantity: 100 } as ContemplatedLeg,
   ];
   const [operation] = await getDb()
     .insert(contemplatedOperations)
     .values({
       userId,
       structureId: "stock",
-      underlying: "PETR4",
+      underlying: ticker,
       legs,
       session: "2024-01-02",
       netPremiumCentavos: 300000,
@@ -130,12 +133,20 @@ async function insertPlan(userId: string): Promise<string> {
   return operation.id;
 }
 
+async function insertPlan(userId: string): Promise<string> {
+  return insertPlanForTicker(userId, "PETR4");
+}
+
 const createdEmails: string[] = [];
+const seededUnderlyings: string[] = [];
 
 afterEach(async () => {
   const db = getDb();
   for (const email of createdEmails.splice(0)) {
     await deleteTestUser(db, email);
+  }
+  for (const ticker of seededUnderlyings.splice(0)) {
+    await db.delete(candles).where(eq(candles.ticker, ticker));
   }
   currentUser = null;
 });
@@ -393,6 +404,85 @@ describe("executePlanAction", () => {
     });
     expect(result).toEqual({ status: "error", error: "not_found" });
 
+    const [rulesRow] = await getDb()
+      .select()
+      .from(operationPlanRules)
+      .where(eq(operationPlanRules.contemplatedOperationId, planId));
+    expect(rulesRow?.operationId).toBeNull();
+  });
+
+  // Deferred from review round 2 (#381): the stock leg must go through the same
+  // `resolveFillInstrument` refusal `recordFillAction` gives, writing nothing and leaving the
+  // plan unlinked, not just whatever `recordFillsAsOperation` happens to do internally.
+  it("refuses a plan whose stock leg is an unknown ticker, the same way recordFillAction does", async () => {
+    await ensureStockStructure();
+    const email = uniqueEmail("unknown-ticker");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    currentUser = owner;
+    const planId = await insertPlanForTicker(owner.id, "ZZZZ9");
+
+    const result = await executePlanAction({
+      contemplatedOperationId: planId,
+      session: "2024-01-02",
+      fills: [{ ticker: "ZZZZ9", quantity: 100, price: "30,00", costs: "" }],
+    });
+    expect(result).toEqual({ status: "error", error: "unknown_instrument" });
+
+    const fillRows = await getDb().select().from(fills).where(eq(fills.userId, owner.id));
+    expect(fillRows).toHaveLength(0);
+    const operationRows = await getDb()
+      .select()
+      .from(operations)
+      .where(eq(operations.userId, owner.id));
+    expect(operationRows).toHaveLength(0);
+    const [rulesRow] = await getDb()
+      .select()
+      .from(operationPlanRules)
+      .where(eq(operationPlanRules.contemplatedOperationId, planId));
+    expect(rulesRow?.operationId).toBeNull();
+  });
+
+  // ADR-0062: a stock fill on a market index is never a real B3 fill, even once the index
+  // itself has an ingested candle (deferred from review round 2, #381).
+  it("refuses a plan whose stock leg is a market index, the same way recordFillAction does", async () => {
+    await ensureStockStructure();
+    const email = uniqueEmail("index-ticker");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    currentUser = owner;
+    const planId = await insertPlanForTicker(owner.id, "IBOV11");
+
+    seededUnderlyings.push("IBOV11");
+    await upsertDailyCandles(getDb(), "2024-01-02", new Date("2024-01-02T20:00:00.000Z"), [
+      cotahistStockRowSchema.parse({
+        kind: "stock",
+        session: "2024-01-02",
+        ticker: "IBOV11",
+        open: "100000.000000",
+        high: "100000.000000",
+        low: "100000.000000",
+        average: "100000.000000",
+        close: "100000.000000",
+        trades: 0,
+        tradedQuantity: 0,
+      }),
+    ]);
+
+    const result = await executePlanAction({
+      contemplatedOperationId: planId,
+      session: "2024-01-02",
+      fills: [{ ticker: "IBOV11", quantity: 1, price: "100000,00", costs: "" }],
+    });
+    expect(result).toEqual({ status: "error", error: "index_stock_leg" });
+
+    const fillRows = await getDb().select().from(fills).where(eq(fills.userId, owner.id));
+    expect(fillRows).toHaveLength(0);
+    const operationRows = await getDb()
+      .select()
+      .from(operations)
+      .where(eq(operations.userId, owner.id));
+    expect(operationRows).toHaveLength(0);
     const [rulesRow] = await getDb()
       .select()
       .from(operationPlanRules)
