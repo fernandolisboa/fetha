@@ -13,6 +13,31 @@ import { PayoffSparkline } from "./payoff-sparkline";
 import { scenarioLabel, suggestionHeadline, SuggestionCard } from "./suggestion-card";
 import { displayDate } from "./radar-facts";
 
+const PRICE_PATTERN = /R\$\s[\d.,]+/g;
+
+// The row's text wraps freely at this width, but "R$ 21,00" must never break between the symbol
+// and the figure; `whitespace-nowrap` on the money-bearing elements fixes the two isolated
+// (Arrisca / ganha até), and this pulls each "R$ <amount>" out of the zone phrase's one string
+// (built by `profitZoneText`) into its own non-wrapping span, leaving the rest of the sentence
+// free to wrap.
+function withNowrapPrices(text: string): ReactNode[] {
+  const parts: ReactNode[] = [];
+  let lastIndex = 0;
+  let key = 0;
+  for (const match of text.matchAll(PRICE_PATTERN)) {
+    const index = match.index;
+    if (index > lastIndex) parts.push(text.slice(lastIndex, index));
+    parts.push(
+      <span key={key++} className="whitespace-nowrap">
+        {match[0]}
+      </span>,
+    );
+    lastIndex = index + match[0].length;
+  }
+  parts.push(text.slice(lastIndex));
+  return parts;
+}
+
 // Card B (ticket: compact suggestions, docs/adr/0067 amendment): one line per suggestion for
 // sweeping a long list, built from exactly the same engine-computed numbers the full card reads
 // (`summarizePayoff`); opening the row mounts card A inline below it rather than a second
@@ -60,15 +85,17 @@ export function SuggestionRow({
         </span>
         <span className="text-muted-foreground text-xs [grid-area:n]">
           {t.suggestions.compactRow.risked}{" "}
-          <b className="text-foreground font-mono tabular-nums">{formatBRL(suggestion.maxLoss)}</b>
+          <b className="text-foreground font-mono whitespace-nowrap tabular-nums">
+            {formatBRL(suggestion.maxLoss)}
+          </b>
           {" · "}
           {t.suggestions.compactRow.gainUpTo}{" "}
-          <b className="font-mono tabular-nums" style={{ color: "var(--up)" }}>
+          <b className="font-mono whitespace-nowrap tabular-nums" style={{ color: "var(--up)" }}>
             {gainText}
           </b>
         </span>
         <span className="text-muted-foreground text-xs [grid-area:z]">
-          {zoneText ? `${zoneText} · ${expiresText}` : expiresText}
+          {zoneText ? withNowrapPrices(`${zoneText} · ${expiresText}`) : expiresText}
         </span>
         <span className="w-24 justify-self-end [grid-area:spark] @min-[44rem]:w-[120px]">
           <PayoffSparkline payoff={suggestion.pricing.payoff} />

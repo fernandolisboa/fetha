@@ -88,8 +88,24 @@ describe("SuggestionRow", () => {
     expect(html).toContain("R$ 11,00");
     expect(html).toContain("ganha até");
     expect(html).toContain("R$ 39,00");
-    expect(html).toContain("Lucro entre R$ 8,89 e R$ 9,67");
+    expect(html).toContain("Lucro entre");
+    expect(html).toContain("R$ 8,89");
+    expect(html).toContain("R$ 9,67");
     expect(html).toContain("vence 18/12/2026");
+  });
+
+  it("never lets a money value break between the R$ sign and its figure", () => {
+    const html = renderToStaticMarkup(
+      createElement(SuggestionRow, { suggestion: suggestion(), risk: null, actions: null }),
+    );
+    expect(html).toContain(
+      '<b class="text-foreground font-mono tabular-nums whitespace-nowrap">R$ 11,00</b>',
+    );
+    expect(html).toContain(
+      '<b class="font-mono tabular-nums whitespace-nowrap" style="color:var(--up)">R$ 39,00</b>',
+    );
+    expect(html).toContain('<span class="whitespace-nowrap">R$ 8,89</span>');
+    expect(html).toContain('<span class="whitespace-nowrap">R$ 9,67</span>');
   });
 
   it("omits the zone phrase and keeps the expiry when the shape cannot be classified", () => {
