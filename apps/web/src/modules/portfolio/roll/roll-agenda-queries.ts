@@ -1,5 +1,11 @@
 import { cache } from "react";
-import { decimalStringSchema, type SessionDate, type Ticker } from "@fetha/contracts";
+import {
+  decimalStringSchema,
+  type DecimalString,
+  type SessionDate,
+  type Ticker,
+} from "@fetha/contracts";
+import type { OptionRight } from "@fetha/engine";
 
 import { getDb, type Database } from "@/db/client";
 import type { ScopedUser } from "@/lib/user-scoped-repository";
@@ -15,22 +21,22 @@ import { todaySaoPauloDate } from "@/lib/today-sao-paulo";
 import { openOperationPlansFor } from "../held-operations";
 
 import { buildRollAgenda, type RollAgendaInput, type RollAgendaItem } from "./roll-agenda";
-import { isShortLegAssignmentRisk } from "./roll-assignment-risk";
+import { isInTheMoney, isShortLegAssignmentRisk } from "./roll-assignment-risk";
 
 // The agenda's own trigger when an operation cannot be linked to a saved plan (ADR-0080):
 // nothing in the `operations` table names which structure, if any, it was planned from, so every
 // operation with an open option leg uses this one documented default, the same five-session
 // default `plans/exit-rules.ts`'s own `DEFAULT_ROLL_SESSIONS_BEFORE_EXPIRY` names for a plan's
-// own roll rule. Duplicated here rather than imported: `plans` does not export it, and
-// `portfolio` reading it would couple a frozen module boundary (ADR-0079) to a number that is a
-// coincidence of today's catalog, not a shared invariant.
+// own roll rule. Duplicated here rather than imported: `plans` depends on `portfolio`, so
+// `portfolio` importing from `plans` would be a cycle, and the number is a coincidence of
+// today's catalog, not a shared invariant worth breaking that boundary for.
 const DEFAULT_ROLL_SESSIONS_BEFORE_EXPIRY = 5;
 
 // Each open operation's own `RollAgendaInput`, read from the already-loaded plan
 // (`openOperationPlansFor`, narrow and markToMarket-free: Início and Carteira never need the
 // full engine-valued portfolio just to show the agenda) plus the underlying's last close and the
 // calendar's own session count to expiry — never a number this module computes itself (CLAUDE.md
-// principle 1): strike and spot come from `market-data`, compared by `isShortLegAssignmentRisk`.
+// principle 1): the market-data strike and close, compared in `roll-assignment-risk.ts`.
 // Parameterized by `db`/`user`/`today` so an integration test can exercise it for two different
 // users, and a fixed calendar date, without a request context.
 export async function rollAgendaFor(
@@ -76,13 +82,16 @@ export async function rollAgendaFor(
     const spotClose = candle?.close ?? null;
     const moneynessKnown =
       spotClose !== null && optionLegs.every((leg) => leg.strike !== null && leg.right !== null);
-    const inTheMoney = (side: "buy" | "sell") =>
+    const anyLegInTheMoney = (
+      side: "buy" | "sell",
+      inTheMoney: (right: OptionRight, strike: DecimalString, spot: DecimalString) => boolean,
+    ) =>
       moneynessKnown &&
       optionLegs
         .filter((leg) => leg.side === side)
         .some((leg) => {
           if (leg.strike === null || leg.right === null) return false;
-          return isShortLegAssignmentRisk(
+          return inTheMoney(
             leg.right,
             decimalStringSchema.parse(leg.strike),
             decimalStringSchema.parse(spotClose),
@@ -95,8 +104,8 @@ export async function rollAgendaFor(
       expiry: heldExpiry,
       sessionsToExpiry,
       hasShortLeg,
-      anyShortLegInTheMoney: inTheMoney("sell"),
-      anyLongLegInTheMoney: inTheMoney("buy"),
+      anyShortLegInTheMoney: anyLegInTheMoney("sell", isShortLegAssignmentRisk),
+      anyLongLegInTheMoney: anyLegInTheMoney("buy", isInTheMoney),
       moneynessKnown,
       rollTriggerSessions: DEFAULT_ROLL_SESSIONS_BEFORE_EXPIRY,
     });

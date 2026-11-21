@@ -93,6 +93,7 @@ describe("selectNearestStrikeAtExpiry", () => {
     right: "call" as const,
     expiry: nextExpiry,
     currentStrike: decimalStringSchema.parse("30.000000"),
+    at: "2026-11-20T21:00:00.000Z",
   };
 
   it("picks the nearest strike at the given expiry", () => {
@@ -178,5 +179,50 @@ describe("selectNearestStrikeAtExpiry", () => {
     expect(selectNearestStrikeAtExpiry(list, target)).toEqual(
       selectNearestStrikeAtExpiry(list, target),
     );
+  });
+
+  it("collapses a ticker's stale pre-split epoch to its current one before picking a strike", () => {
+    // Regression for #382: a split can leave two rows for the same option ticker, a stale
+    // pre-split epoch and the current one, both still in range for `expiry`.
+    const stalePreSplit = series({
+      ticker: tickerSchema.parse("PETR4G300"),
+      strike: decimalStringSchema.parse("30.000000"),
+      expiry: nextExpiry,
+      asOf: "2026-11-10T18:00:00.000Z",
+    });
+    const currentPostSplit = series({
+      ticker: tickerSchema.parse("PETR4G300"),
+      strike: decimalStringSchema.parse("15.000000"),
+      expiry: nextExpiry,
+      asOf: "2026-11-18T18:00:00.000Z",
+    });
+
+    const result = selectNearestStrikeAtExpiry([stalePreSplit, currentPostSplit], {
+      ...target,
+      currentStrike: decimalStringSchema.parse("15.000000"),
+    });
+
+    if (!result.ok) throw new Error("expected a selection");
+    expect(result.series.strike).toBe("15.000000");
+  });
+
+  it("never selects an epoch not yet in effect at `at`", () => {
+    const notYetInEffect = series({
+      ticker: tickerSchema.parse("PETR4G300"),
+      strike: decimalStringSchema.parse("15.000000"),
+      expiry: nextExpiry,
+      asOf: "2026-11-21T18:00:00.000Z",
+    });
+    const inEffect = series({
+      ticker: tickerSchema.parse("PETR4G300"),
+      strike: decimalStringSchema.parse("30.000000"),
+      expiry: nextExpiry,
+      asOf: "2026-11-10T18:00:00.000Z",
+    });
+
+    const result = selectNearestStrikeAtExpiry([notYetInEffect, inEffect], target);
+
+    if (!result.ok) throw new Error("expected a selection");
+    expect(result.series.strike).toBe("30.000000");
   });
 });

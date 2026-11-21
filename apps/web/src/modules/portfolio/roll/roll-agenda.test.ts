@@ -28,12 +28,6 @@ describe("suggestRollAction", () => {
     expect(suggestRollAction({ ...base, sessionsToExpiry: 6 })?.action).toBe("let_expire");
   });
 
-  it("suggests letting it expire for a structure that does not roll, far from assignment risk", () => {
-    expect(
-      suggestRollAction({ ...base, rollTriggerSessions: null, sessionsToExpiry: 3 })?.action,
-    ).toBe("let_expire");
-  });
-
   it("suggests closing early when a short leg is already in the money one session from expiry", () => {
     expect(
       suggestRollAction({
@@ -78,7 +72,6 @@ describe("suggestRollAction", () => {
     expect(
       suggestRollAction({
         ...base,
-        rollTriggerSessions: null,
         sessionsToExpiry: 8,
         anyLongLegInTheMoney: true,
       })?.action,
@@ -90,7 +83,6 @@ describe("suggestRollAction", () => {
       suggestRollAction({
         ...base,
         hasShortLeg: false,
-        rollTriggerSessions: null,
         sessionsToExpiry: 8,
       })?.action,
     ).toBe("watch");
@@ -100,7 +92,6 @@ describe("suggestRollAction", () => {
     expect(
       suggestRollAction({
         ...base,
-        rollTriggerSessions: null,
         sessionsToExpiry: 8,
         moneynessKnown: false,
       })?.action,
@@ -111,7 +102,7 @@ describe("suggestRollAction", () => {
     expect(
       suggestRollAction({
         ...base,
-        rollTriggerSessions: null,
+        rollTriggerSessions: 0,
         anyShortLegInTheMoney: true,
         sessionsToExpiry: 1,
         moneynessKnown: false,

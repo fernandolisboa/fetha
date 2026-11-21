@@ -109,7 +109,7 @@ function toBuildError(
 const buildInputSchema = z.strictObject({ operationId: idSchema });
 
 // Builds the roll proposal for one open operation (#382): leg by leg, each closing with its side
-// reversed and reopening at the next monthly expiry's nearest strike (ADR-0080 addendum), priced
+// reversed and reopening at the next monthly expiry's nearest strike (ADR-0080), priced
 // by the engine only. Recomputed from scratch on every call.
 export async function buildRollProposalAction(input: unknown): Promise<BuildRollProposalResult> {
   const parsed = buildInputSchema.safeParse(input);

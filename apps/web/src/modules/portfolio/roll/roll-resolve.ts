@@ -129,6 +129,7 @@ export async function resolveRoll(operationId: string): Promise<RollResolveOutco
     legsFacts,
     monthlyView.optionSeries,
     tradedView.optionSeries,
+    session.at,
   );
   if (!plan.ok) {
     return {

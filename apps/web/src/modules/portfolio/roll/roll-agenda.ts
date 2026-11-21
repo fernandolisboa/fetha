@@ -28,22 +28,23 @@ export interface RollAgendaInput {
   // gets `let_expire`: B3 auto-exercises an in-the-money long on the holder's behalf, so a
   // long-only position always needs a human look, never a computed "nothing to do" (#382)).
   hasShortLeg: boolean;
-  // True once any short leg (the one a buyer could exercise) is in the money at the last close:
-  // the literal strike-vs-spot comparison plus its assignment-risk band
-  // (`roll/roll-assignment-risk.ts`), never the display moneyness a series picker shows with its
-  // own at-the-money band.
+  // True once any short leg (the one a buyer could exercise) is in the money at the last close,
+  // or within the assignment-risk band: the strike-vs-spot comparison plus a 1% band, the same
+  // width the builder's own display band uses, reused here deliberately
+  // (`roll/roll-assignment-risk.ts`'s `isShortLegAssignmentRisk`).
   anyShortLegInTheMoney: boolean;
   // True once any long leg (the one the holder could exercise, or B3 auto-exercises) is in the
-  // money at the last close: `let_expire` is wrong advice while a long leg would actually settle
-  // in cash or stock rather than expire worthless.
+  // money at the last close, the plain comparison with no band
+  // (`roll/roll-assignment-risk.ts`'s `isInTheMoney`): `let_expire` is wrong advice while a long
+  // leg would actually settle in cash or stock rather than expire worthless.
   anyLongLegInTheMoney: boolean;
   // False when the last close or a leg's series facts were not available to compute the two
   // moneyness flags above: the agenda still lists the operation, but can only ever watch it, not
   // claim it is safe to let expire.
   moneynessKnown: boolean;
   // `rollTriggerSessionsBeforeExpiry` (plans/exit-rules.ts): the business-day count the held
-  // structure's own roll rule fires at, or null when the structure does not roll.
-  rollTriggerSessions: number | null;
+  // structure's own roll rule fires at.
+  rollTriggerSessions: number;
 }
 
 // The suggested action for one held operation (#382, documented rule):
@@ -70,7 +71,7 @@ export function suggestRollAction(input: RollAgendaInput): RollAgendaItem | null
     input.anyShortLegInTheMoney &&
     input.sessionsToExpiry <= ASSIGNMENT_RISK_SESSIONS
       ? "close_early_assignment_risk"
-      : input.rollTriggerSessions !== null && input.sessionsToExpiry <= input.rollTriggerSessions
+      : input.sessionsToExpiry <= input.rollTriggerSessions
         ? "roll"
         : input.moneynessKnown &&
             input.hasShortLeg &&

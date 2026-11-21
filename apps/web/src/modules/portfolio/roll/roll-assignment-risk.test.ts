@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { decimalStringSchema } from "@fetha/contracts";
 
-import { isShortLegAssignmentRisk } from "./roll-assignment-risk";
+import { isInTheMoney, isShortLegAssignmentRisk } from "./roll-assignment-risk";
 
 describe("isShortLegAssignmentRisk", () => {
   it("flags a short call strictly in the money", () => {
@@ -71,6 +71,38 @@ describe("isShortLegAssignmentRisk", () => {
         decimalStringSchema.parse("29.00"),
         decimalStringSchema.parse("30.00"),
       ),
+    ).toBe(false);
+  });
+});
+
+describe("isInTheMoney", () => {
+  it("is true for a call strictly in the money", () => {
+    expect(
+      isInTheMoney("call", decimalStringSchema.parse("29.75"), decimalStringSchema.parse("30.00")),
+    ).toBe(true);
+  });
+
+  it("is true for a call exactly at the money", () => {
+    expect(
+      isInTheMoney("call", decimalStringSchema.parse("30.00"), decimalStringSchema.parse("30.00")),
+    ).toBe(true);
+  });
+
+  it("is false for a call out of the money, even within the assignment-risk band", () => {
+    expect(
+      isInTheMoney("call", decimalStringSchema.parse("30.25"), decimalStringSchema.parse("30.00")),
+    ).toBe(false);
+  });
+
+  it("is true for a put strictly in the money", () => {
+    expect(
+      isInTheMoney("put", decimalStringSchema.parse("30.25"), decimalStringSchema.parse("30.00")),
+    ).toBe(true);
+  });
+
+  it("is false for a put out of the money, even within the assignment-risk band", () => {
+    expect(
+      isInTheMoney("put", decimalStringSchema.parse("29.75"), decimalStringSchema.parse("30.00")),
     ).toBe(false);
   });
 });

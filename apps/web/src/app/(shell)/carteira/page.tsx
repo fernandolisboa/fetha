@@ -32,10 +32,12 @@ import {
   getMyOperations,
   getMyPortfolio,
   PortfolioDashboard,
+  resolveRollSessionDefault,
   RollAgendaPanel,
   t,
 } from "@/modules/portfolio";
 import { ImportFillsDialog, RecordFillDialog } from "@/modules/portfolio/client";
+import { sessionBefore, tradingSessionForDate } from "@/modules/market-data";
 import { PageHeader, Panel, t as shellStrings } from "@/modules/shell";
 
 function LatestDecision({ decision }: { decision: DecisionListItem }) {
@@ -52,11 +54,18 @@ export const maxDuration = 120;
 export default async function PortfolioPage() {
   await requireUser();
   const [portfolio, operations] = await Promise.all([getMyPortfolio(), getMyOperations()]);
-  // The roll dialog's own default and max execution session (#382): today, the same session
-  // `RecordFillDialog` defaults and caps to. A roll at any time today is recordable today whether
-  // or not today's own session has closed yet; `recordRollAction` refuses a session earlier than
-  // the source operation's own last fill, not an earlier calendar date.
-  const rollSessionDefault = todaySaoPauloDate();
+  const today = todaySaoPauloDate();
+  const db = getDb();
+  const [todaySession, latestOpenedSession] = await Promise.all([
+    tradingSessionForDate(db, today),
+    sessionBefore(db, today),
+  ]);
+  const rollSessionDefault = resolveRollSessionDefault(
+    today,
+    todaySession ? { open: new Date(todaySession.open) } : null,
+    new Date(),
+    latestOpenedSession?.date ?? null,
+  );
 
   const operationIds = operations.map((operation) => operation.id);
   const heldOperations = new Map(
@@ -129,7 +138,7 @@ export default async function PortfolioPage() {
             <Link href="/carteira/nova-operacao" className={buttonVariants({ variant: "ghost" })}>
               {t.list.newOperation}
             </Link>
-            <RecordFillDialog today={todaySaoPauloDate()} />
+            <RecordFillDialog today={today} />
             <ImportFillsDialog />
           </div>
         }
@@ -141,6 +150,7 @@ export default async function PortfolioPage() {
         model={portfolio}
         decisionSlot={heldOperationDecision}
         analysisSlot={heldOperationAnalysis}
+        today={today}
         rollSessionDefault={rollSessionDefault}
       />
 

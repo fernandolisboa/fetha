@@ -9,16 +9,28 @@ import type { OptionRight } from "@fetha/engine";
 // still counts.
 const ASSIGNMENT_RISK_BAND = new Decimal("0.01");
 
-export function isShortLegAssignmentRisk(
+// The plain in-the-money comparison, no band (#382, ADR-0080): a long leg B3 would auto-exercise
+// on the holder's behalf is never "close to the money", only in it or not, unlike a short leg's
+// own assignment-risk check below.
+export function isInTheMoney(
   right: OptionRight,
   strike: DecimalString,
   spot: DecimalString,
 ): boolean {
   const spotValue = new Decimal(spot);
   const strikeValue = new Decimal(strike);
-  const inTheMoney = right === "call" ? spotValue.gte(strikeValue) : spotValue.lte(strikeValue);
-  if (inTheMoney) {
+  return right === "call" ? spotValue.gte(strikeValue) : spotValue.lte(strikeValue);
+}
+
+export function isShortLegAssignmentRisk(
+  right: OptionRight,
+  strike: DecimalString,
+  spot: DecimalString,
+): boolean {
+  if (isInTheMoney(right, strike, spot)) {
     return true;
   }
+  const spotValue = new Decimal(spot);
+  const strikeValue = new Decimal(strike);
   return strikeValue.minus(spotValue).abs().lte(spotValue.times(ASSIGNMENT_RISK_BAND));
 }

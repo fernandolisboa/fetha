@@ -63,12 +63,18 @@ const OPENED_SESSION = nthBusinessDayFrom(
 );
 const dayAfterToday = new Date(`${TODAY}T00:00:00.000Z`);
 dayAfterToday.setUTCDate(dayAfterToday.getUTCDate() + 1);
-const FUTURE_SESSIONS = businessDaysFrom(dayAfterToday.toISOString().slice(0, 10), 3);
+const FUTURE_SESSIONS = businessDaysFrom(dayAfterToday.toISOString().slice(0, 10), 8);
 const EXPIRY = sessionDateSchema.parse(
   nthBusinessDayFrom(dayAfterToday.toISOString().slice(0, 10), 3),
 );
+// Past the agenda's own default roll trigger (five sessions), but still inside the ten-session
+// agenda window (#382): the only expiry at which a missing candle's "watch, we don't know" can be
+// told apart from the unconditionally time-based "roll" suggestion, which never needs moneyness.
+const EXPIRY_PAST_TRIGGER = sessionDateSchema.parse(
+  nthBusinessDayFrom(dayAfterToday.toISOString().slice(0, 10), 8),
+);
 
-async function seedCalendarAndCandle(underlying: string): Promise<void> {
+async function seedCalendar(): Promise<void> {
   const db = getDb();
   const sessionDates = [OPENED_SESSION, LATEST_SESSION, ...FUTURE_SESSIONS];
   await db
@@ -81,7 +87,11 @@ async function seedCalendarAndCandle(underlying: string): Promise<void> {
       })),
     )
     .onConflictDoNothing();
+}
 
+async function seedCalendarAndCandle(underlying: string): Promise<void> {
+  await seedCalendar();
+  const db = getDb();
   await upsertDailyCandles(db, LATEST_SESSION, new Date(`${LATEST_SESSION}T20:00:00.000Z`), [
     cotahistStockRowSchema.parse({
       kind: "stock",
@@ -98,7 +108,12 @@ async function seedCalendarAndCandle(underlying: string): Promise<void> {
   ]);
 }
 
-async function seedOptionSeries(underlying: string, ticker: string, strike: string): Promise<void> {
+async function seedOptionSeries(
+  underlying: string,
+  ticker: string,
+  strike: string,
+  expiry: string = EXPIRY,
+): Promise<void> {
   await getDb()
     .insert(optionSeries)
     .values({
@@ -107,7 +122,7 @@ async function seedOptionSeries(underlying: string, ticker: string, strike: stri
       underlying,
       right: "call",
       strike,
-      expiry: EXPIRY,
+      expiry,
       style: "european",
       asOf: new Date(`${OPENED_SESSION}T13:00:00.000Z`),
     });
@@ -186,6 +201,40 @@ describe("rollAgendaFor", () => {
         expiry: EXPIRY,
         sessionsToExpiry: 3,
         action: "roll",
+      }),
+    ]);
+  });
+
+  it("watches an open short call past its own roll trigger when the underlying has no ingested candle yet", async () => {
+    const underlying = tickerSchema.parse(uniqueTicker("U"));
+    const ticker = tickerSchema.parse(`${underlying}F30`);
+    await seedCalendar();
+    await seedOptionSeries(underlying, ticker, "30.00000000", EXPIRY_PAST_TRIGGER);
+
+    const db = getDb();
+    const owner = await insertUser("no-candle");
+    const repository = new PortfolioRepository(db, owner);
+    await repository.insertFills([shortCallFill(ticker, { expiry: EXPIRY_PAST_TRIGGER })]);
+    const [opened] = await repository.listFills();
+    if (!opened) throw new Error("fixture setup failed");
+    const series: SeriesByHolding = new Map([
+      [
+        holdingKey(ticker, EXPIRY_PAST_TRIGGER),
+        { underlying, right: "call", strike: "30.00", expiry: EXPIRY_PAST_TRIGGER },
+      ],
+    ]);
+    const plan: PlanFromFills = (fills) => planOperation(fills, series);
+    const grouped = await repository.group(null, [opened.id], plan);
+    if (!grouped.ok) throw new Error(grouped.reason);
+
+    const items = await rollAgendaFor(db, owner, TODAY);
+    expect(items).toEqual([
+      expect.objectContaining({
+        operationId: grouped.operationId,
+        underlying,
+        expiry: EXPIRY_PAST_TRIGGER,
+        sessionsToExpiry: 8,
+        action: "watch",
       }),
     ]);
   });

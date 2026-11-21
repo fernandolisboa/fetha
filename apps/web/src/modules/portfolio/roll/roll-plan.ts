@@ -1,11 +1,11 @@
 import Decimal from "decimal.js";
-import type { DecimalString, SessionDate, Ticker } from "@fetha/contracts";
+import type { DecimalString, Instant, SessionDate, Ticker } from "@fetha/contracts";
 import type { Leg, LegInput, OptionRight, OptionSeries, Side } from "@fetha/engine";
 
 import { selectNearestStrikeAtExpiry, selectNextMonthlyExpiry } from "./roll-series-selection";
 
-// One held leg, with the series facts the ticket's own leg-by-leg rule needs (#382, ADR-0080
-// addendum "roll by leg, never by inferred structure"): `leg` carries the role/side/quantity the
+// One held leg, with the series facts the ticket's own leg-by-leg rule needs (#382, ADR-0080,
+// "roll by leg, never by inferred structure"): `leg` carries the role/side/quantity the
 // opening order keeps, `right`/`strike` are read from the held series, never inferred from the
 // structure the operation happens to look like.
 export interface HeldLegFacts {
@@ -45,7 +45,7 @@ function consecutiveWidths(strikes: readonly DecimalString[]): Decimal[] {
   return widths;
 }
 
-// The leg-by-leg roll plan (#382, ADR-0080 addendum): one shared next monthly expiry is chosen
+// The leg-by-leg roll plan (#382, ADR-0080): one shared next monthly expiry is chosen
 // for the whole operation first (`roll-series-selection.ts`'s `selectNextMonthlyExpiry`), so a
 // strangle or collar's legs never land on two different expiries; only then does each leg pick
 // its own nearest strike at that expiry. Each held option leg closes with its side reversed
@@ -59,6 +59,7 @@ export function planRoll(
   legs: readonly HeldLegFacts[],
   monthlySeries: readonly OptionSeries[],
   tradedSeries: readonly OptionSeries[],
+  at: Instant,
 ): RollPlanOutcome {
   const expirySelection = selectNextMonthlyExpiry(monthlySeries, { underlying, currentExpiry });
   if (!expirySelection.ok) {
@@ -73,6 +74,7 @@ export function planRoll(
       right,
       expiry,
       currentStrike: strike,
+      at,
     });
     if (!selection.ok) {
       return { ok: false, reason: "no_traded_series", ticker: leg.ticker };

@@ -1,8 +1,8 @@
 import Decimal from "decimal.js";
-import type { DecimalString, SessionDate, Ticker } from "@fetha/contracts";
+import type { DecimalString, Instant, SessionDate, Ticker } from "@fetha/contracts";
 import type { OptionRight, OptionSeries } from "@fetha/engine";
 
-// The leg-by-leg roll rule (#382, ADR-0080 addendum "roll by leg, never by inferred structure"):
+// The leg-by-leg roll rule (#382, ADR-0080, "roll by leg, never by inferred structure"):
 // one shared next monthly expiry for the whole roll (so a multi-leg structure never splits
 // across two expiries), then for each leg the nearest strike to its own held strike at that
 // expiry. Ties (two series equally close) resolve to the lower strike, deterministic rather than
@@ -43,10 +43,27 @@ export interface RollStrikeTarget {
   right: OptionRight;
   expiry: SessionDate;
   currentStrike: DecimalString;
+  at: Instant;
 }
 
 export type RollStrikeSelection =
   { ok: true; series: OptionSeries } | { ok: false; reason: "no_traded_series" };
+
+// Collapses two epochs of the same option ticker (a corporate action, e.g. a split, can leave a
+// stale pre-split strike and a current one both in `tradedSeries`) to the latest one already in
+// effect at `at`, the same `asOf <= at` and "latest wins" rule `roll-resolve.ts`'s own
+// `heldLegFactsOf` applies to the held leg's own series (#382).
+function latestEpochPerTicker(series: readonly OptionSeries[], at: Instant): OptionSeries[] {
+  const latestByTicker = new Map<Ticker, OptionSeries>();
+  for (const candidate of series) {
+    if (candidate.asOf > at) continue;
+    const current = latestByTicker.get(candidate.ticker);
+    if (!current || candidate.asOf > current.asOf) {
+      latestByTicker.set(candidate.ticker, candidate);
+    }
+  }
+  return [...latestByTicker.values()];
+}
 
 // Picks the nearest-strike series for one leg at the already-chosen shared expiry, among series
 // expected narrowed to traded ones (`tradedSeries`, market-data/traded-series.ts's
@@ -56,12 +73,13 @@ export function selectNearestStrikeAtExpiry(
   tradedSeries: readonly OptionSeries[],
   target: RollStrikeTarget,
 ): RollStrikeSelection {
-  const candidates = tradedSeries.filter(
+  const sameSeries = tradedSeries.filter(
     (series) =>
       series.underlying === target.underlying &&
       series.right === target.right &&
       series.expiry === target.expiry,
   );
+  const candidates = latestEpochPerTicker(sameSeries, target.at);
   if (candidates.length === 0) {
     return { ok: false, reason: "no_traded_series" };
   }

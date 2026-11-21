@@ -157,10 +157,12 @@ export function RollDialog({
   operationId,
   underlying,
   today,
+  defaultSession,
 }: {
   operationId: string;
   underlying: string;
   today: string;
+  defaultSession: string;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -168,7 +170,7 @@ export function RollDialog({
   const [pending, setPending] = useState(false);
   const [proposal, setProposal] = useState<RollProposal | null>(null);
   const [edits, setEdits] = useState<Record<string, OrderEdit>>({});
-  const [session, setSession] = useState(today);
+  const [session, setSession] = useState(defaultSession);
   const [error, setError] = useState<string | null>(null);
 
   function updateOrder(key: string, patch: Partial<OrderEdit>) {

@@ -25,6 +25,7 @@ function series(partial: Partial<OptionSeries>): OptionSeries {
 const currentExpiry = sessionDateSchema.parse("2026-11-20");
 const nextExpiry = sessionDateSchema.parse("2026-12-18");
 const underlying = tickerSchema.parse("PETR4");
+const at = "2026-11-20T21:00:00.000Z";
 
 describe("planRoll", () => {
   it("rolls a short call leg to the nearest strike at the next monthly expiry, side reversed to close", () => {
@@ -46,7 +47,7 @@ describe("planRoll", () => {
     ];
     const tradedSeries = monthlySeries;
 
-    const result = planRoll(underlying, currentExpiry, legs, monthlySeries, tradedSeries);
+    const result = planRoll(underlying, currentExpiry, legs, monthlySeries, tradedSeries, at);
     if (!result.ok) throw new Error("expected the roll to plan");
     expect(result.expiry).toBe(nextExpiry);
     const [leg] = result.legs;
@@ -84,7 +85,7 @@ describe("planRoll", () => {
     ];
     const tradedSeries = monthlySeries;
 
-    const result = planRoll(underlying, currentExpiry, legs, monthlySeries, tradedSeries);
+    const result = planRoll(underlying, currentExpiry, legs, monthlySeries, tradedSeries, at);
     if (!result.ok) throw new Error("expected the roll to plan");
     const [leg] = result.legs;
     expect(leg?.closingLeg).toEqual({
@@ -118,7 +119,7 @@ describe("planRoll", () => {
       series({ ticker: tickerSchema.parse("PETR4F300"), expiry: currentExpiry }),
     ];
 
-    const result = planRoll(underlying, currentExpiry, legs, monthlySeries, monthlySeries);
+    const result = planRoll(underlying, currentExpiry, legs, monthlySeries, monthlySeries, at);
     expect(result).toEqual({ ok: false, reason: "no_next_expiry" });
   });
 
@@ -143,7 +144,7 @@ describe("planRoll", () => {
       series({ ticker: tickerSchema.parse("PETR4F300"), expiry: currentExpiry }),
     ];
 
-    const result = planRoll(underlying, currentExpiry, legs, monthlySeries, tradedSeries);
+    const result = planRoll(underlying, currentExpiry, legs, monthlySeries, tradedSeries, at);
     expect(result).toEqual({ ok: false, reason: "no_traded_series", ticker: "PETR4F300" });
   });
 
@@ -192,7 +193,7 @@ describe("planRoll", () => {
     ];
     const tradedSeries = monthlySeries;
 
-    const result = planRoll(underlying, currentExpiry, legs, monthlySeries, tradedSeries);
+    const result = planRoll(underlying, currentExpiry, legs, monthlySeries, tradedSeries, at);
     if (!result.ok) throw new Error("expected the roll to plan");
     expect(result.legs.map((leg) => leg.targetSeries.expiry)).toEqual([nextExpiry, nextExpiry]);
   });
@@ -237,7 +238,7 @@ describe("planRoll", () => {
     ];
     const tradedSeries = monthlySeries;
 
-    const result = planRoll(underlying, currentExpiry, legs, monthlySeries, tradedSeries);
+    const result = planRoll(underlying, currentExpiry, legs, monthlySeries, tradedSeries, at);
     expect(result).toEqual({ ok: false, reason: "duplicate_ticker", ticker: "PETR4G300" });
   });
 
@@ -281,7 +282,7 @@ describe("planRoll", () => {
     ];
     const tradedSeries = monthlySeries;
 
-    const result = planRoll(underlying, currentExpiry, legs, monthlySeries, tradedSeries);
+    const result = planRoll(underlying, currentExpiry, legs, monthlySeries, tradedSeries, at);
     expect(result).toEqual({ ok: false, reason: "strike_width_changed" });
   });
 
@@ -319,7 +320,7 @@ describe("planRoll", () => {
     ];
     const tradedSeries = monthlySeries;
 
-    const result = planRoll(underlying, currentExpiry, legs, monthlySeries, tradedSeries);
+    const result = planRoll(underlying, currentExpiry, legs, monthlySeries, tradedSeries, at);
     expect(result).toEqual({ ok: false, reason: "no_traded_series", ticker: "PETR4F200" });
   });
 
@@ -341,8 +342,8 @@ describe("planRoll", () => {
       series({ ticker: tickerSchema.parse("PETR4G300"), expiry: nextExpiry }),
     ];
     const tradedSeries = monthlySeries;
-    expect(planRoll(underlying, currentExpiry, legs, monthlySeries, tradedSeries)).toEqual(
-      planRoll(underlying, currentExpiry, legs, monthlySeries, tradedSeries),
+    expect(planRoll(underlying, currentExpiry, legs, monthlySeries, tradedSeries, at)).toEqual(
+      planRoll(underlying, currentExpiry, legs, monthlySeries, tradedSeries, at),
     );
   });
 });

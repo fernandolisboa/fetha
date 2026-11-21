@@ -254,11 +254,13 @@ function OperationsTable({
   model,
   decisionSlot,
   analysisSlot,
+  today,
   rollSessionDefault,
 }: {
   model: PortfolioReadModel;
   decisionSlot?: OperationDecisionSlot;
   analysisSlot?: OperationDecisionSlot;
+  today: SessionDate;
   rollSessionDefault: SessionDate;
 }) {
   if (model.operations.length === 0) {
@@ -348,7 +350,8 @@ function OperationsTable({
                       <RollDialog
                         operationId={operation.id}
                         underlying={operation.underlying}
-                        today={rollSessionDefault}
+                        today={today}
+                        defaultSession={rollSessionDefault}
                       />
                     )}
                     <UngroupButton operationId={operation.id} />
@@ -436,11 +439,13 @@ export function PortfolioDashboard({
   model,
   decisionSlot,
   analysisSlot,
+  today,
   rollSessionDefault,
 }: {
   model: PortfolioReadModel;
   decisionSlot?: OperationDecisionSlot;
   analysisSlot?: OperationDecisionSlot;
+  today: SessionDate;
   rollSessionDefault: SessionDate;
 }) {
   const labelOf = new Map(
@@ -488,6 +493,7 @@ export function PortfolioDashboard({
               model={model}
               decisionSlot={decisionSlot}
               analysisSlot={analysisSlot}
+              today={today}
               rollSessionDefault={rollSessionDefault}
             />
           </Panel>

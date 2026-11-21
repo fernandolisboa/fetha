@@ -117,22 +117,25 @@ today's catalog, not a shared invariant. Once execution linking (#380/#381) lets
 the plan it came from, the agenda should read that plan's own trigger instead — this default is
 this ticket's interim, not the final rule.
 
-**Assignment risk is the strike-vs-spot comparison plus a 1% band, never the builder's own
-display band.** `roll/roll-assignment-risk.ts`'s `isShortLegAssignmentRisk` flags a short leg
-in the money (`spot >= strike` for a call, `spot <= strike` for a put) or within 1% of spot either
-way: close enough that one session's own move could put it there. This is the same width the
-builder's series-picker `moneyness` uses for its own "at" band, reused here deliberately rather
-than the stricter literal-only comparison an earlier pass tried: a call struck fractionally above
-spot is still a real assignment-risk candidate, not safely out of the money. The sessions-to-
+**Assignment risk is the strike-vs-spot comparison plus a 1% band, the same width the builder's
+own display band uses, reused here deliberately.** `roll/roll-assignment-risk.ts`'s
+`isShortLegAssignmentRisk` flags a short leg in the money (`spot >= strike` for a call,
+`spot <= strike` for a put) or within 1% of spot either way: close enough that one session's own
+move could put it there. This is the same width the builder's series-picker `moneyness` uses for
+its own "at" band, reused here deliberately rather than the stricter literal-only comparison an
+earlier pass tried: a call struck fractionally above spot is still a real assignment-risk
+candidate, not safely out of the money. A long leg never gets that band: `isInTheMoney`, the
+same module's plain comparison with no band, is what the agenda checks a long leg against,
+since B3 would auto-exercise it exactly at the money, never "close to" it. The sessions-to-
 expiry count the agenda compares against the roll trigger is anchored on the caller's own
 `today` (`rollAgendaFor`'s own parameter, defaulting to `todaySaoPauloDate()` for every real
 caller; an integration test injects a fixed one), not on the latest ingested candle's own
 session, so the "vence hoje" branch can actually fire on the expiry day itself even before that
 day's own candle lands.
 
-**The roll agenda's suggested action (`roll/roll-agenda.ts`) is a four-way rule** over
-engine-computed facts only (moneyness at the last close, sessions to expiry, the fixed trigger
-above):
+**The roll agenda's suggested action (`roll/roll-agenda.ts`) is a four-way rule** over the
+market-data strike and close, compared in `roll-assignment-risk.ts` (moneyness at the last
+close, sessions to expiry, the fixed trigger above):
 
 1. A short leg already in the money (by the band above) with one session or fewer left is
    flagged `close_early_assignment_risk`, regardless of the structure's own roll rule — close
@@ -150,7 +153,19 @@ above):
    to ask.
 
 An operation outside a ten-session window is left out of the agenda entirely: nothing to decide
-yet.
+yet. `filterToMonthlyExpiries` and `isB3MonthlyExpiry` live in `market-data/monthly-expiry.ts`,
+not `portfolio`, even though only the roll orchestrator calls them today: `plans` depends on
+`portfolio`, so a future `plans` caller of the same monthly-expiry rule could never import it
+from `portfolio` without a cycle.
+
+**A held-operation decision scores from the operation's own fills plus every fill in its
+recorded `heldFillIds`, whichever operation owns them now.** `held-operations.ts`'s
+`heldOperationForScoring` unions a decision's target operation's current fills with the fills
+named by the decision's own `heldFillIds` (ADR-0022), because a roll (this ticket) carries a
+covered call's stock leg forward by reassigning its `operationId`: a decision recorded against
+the source operation, before the roll, would otherwise lose that stock leg's own fills from its
+score the moment the roll moves them to the new operation. This amends ADR-0022 item 4's "the
+operation's fills".
 
 The roll-chain history is the chain walked from any operation through its `rolledFromOperationId`
 pointers, each link's own net credit/debit — its own option fills' net cash flow (`cashCentavos`

@@ -85,6 +85,7 @@ export async function seedE2ERollPair(
       right,
       expiry: next,
       currentStrike: nearSeries.strike,
+      at: trading.close,
     });
     if (!selection.ok) continue;
 

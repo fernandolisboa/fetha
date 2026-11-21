@@ -59,6 +59,7 @@ export {
   countSessionsClosedAfter,
   latestSessionOnOrBefore,
   nthSessionBefore,
+  sessionBefore,
 } from "./repositories/calendar-repository";
 export { filterToMonthlyExpiries, isB3MonthlyExpiry } from "./monthly-expiry";
 export { filterToTradedSeries, tradedTickersAt } from "./traded-series";
