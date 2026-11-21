@@ -207,6 +207,7 @@ export async function proposeSettlementFor(
   id: string,
   state: OperationState,
   expiry: SessionDate,
+  rolledFromOperationId: string | null = null,
 ): Promise<SettlementProposal | null> {
   const session = await tradingSessionForDate(db, expiry);
   if (!session) {
@@ -215,7 +216,7 @@ export async function proposeSettlementFor(
   const view = await buildOperationMarketView(db, state.underlying, session.close);
   const proposal = await engine.proposeSettlement({
     view,
-    operation: toEngineOperation(id, state),
+    operation: toEngineOperation(id, state, rolledFromOperationId),
   });
   return proposal.ok ? proposal.value : null;
 }
@@ -348,7 +349,13 @@ export async function loadPortfolio(
     }
     const openOption = state.legs.some((leg) => leg.role !== "stock");
     if (openOption && state.expiry && expired.has(state.expiry)) {
-      const proposal = await proposeSettlementFor(db, operation.id, state, state.expiry);
+      const proposal = await proposeSettlementFor(
+        db,
+        operation.id,
+        state,
+        state.expiry,
+        operation.rolledFromOperationId,
+      );
       const closing = proposal
         ? closingQuantities(
             operation.openedAt,
@@ -400,7 +407,9 @@ export async function loadPortfolio(
       view,
       at,
       positions: liveHoldings.map((holding) => holding.position),
-      operations: liveOperations.map(({ record, state }) => toEngineOperation(record.id, state)),
+      operations: liveOperations.map(({ record, state }) =>
+        toEngineOperation(record.id, state, record.rolledFromOperationId),
+      ),
       cash,
       ...(riskProfile ? { riskProfile } : {}),
     });
@@ -412,7 +421,12 @@ export async function loadPortfolio(
         liveOperations.map(async ({ record, state }) => {
           entryPayoffs.set(
             record.id,
-            await entryPayoff(view, at, toEngineOperation(record.id, state), asOf),
+            await entryPayoff(
+              view,
+              at,
+              toEngineOperation(record.id, state, record.rolledFromOperationId),
+              asOf,
+            ),
           );
         }),
       ),

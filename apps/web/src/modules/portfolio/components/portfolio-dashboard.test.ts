@@ -41,6 +41,7 @@ function operationRecord(): OperationRecord {
     expiry: "2026-10-16",
     openedAt: "2026-09-01",
     closedAt: null,
+    rolledFromOperationId: null,
   };
 }
 

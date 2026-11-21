@@ -24,6 +24,23 @@ export function resolveExitRules(
   }));
 }
 
+// The raw business-day count a structure's roll rule fires at, with no calendar involved: the
+// roll agenda (#382, `roll/roll-agenda.ts`) compares this straight against "sessions to expiry"
+// rather than resolving a second date from the calendar it already walked once for
+// `sessionsToExpiry` itself. Null for a structure that does not roll.
+export function rollTriggerSessionsBeforeExpiry(
+  structureId: string,
+  rules: readonly ExitRule[],
+): number | null {
+  if (!ROLLABLE_STRUCTURE_IDS.has(structureId)) {
+    return null;
+  }
+  const daysBeforeRule = rules.find((rule) => rule.kind === "days_before_expiry");
+  return daysBeforeRule?.kind === "days_before_expiry"
+    ? daysBeforeRule.businessDays
+    : DEFAULT_ROLL_SESSIONS_BEFORE_EXPIRY;
+}
+
 // The structure's roll rule: it applies only to a rollable structure, at the date its own
 // `days_before_expiry` exit rule names, or a default of five sessions before expiry when it
 // states none.
@@ -32,13 +49,9 @@ export function resolveRollRule(
   rules: readonly ExitRule[],
   sessionsBeforeExpiry: (businessDays: number) => SessionDate | null,
 ): RollRule {
-  if (!ROLLABLE_STRUCTURE_IDS.has(structureId)) {
+  const businessDays = rollTriggerSessionsBeforeExpiry(structureId, rules);
+  if (businessDays === null) {
     return { applies: false, session: null };
   }
-  const daysBeforeRule = rules.find((rule) => rule.kind === "days_before_expiry");
-  const businessDays =
-    daysBeforeRule?.kind === "days_before_expiry"
-      ? daysBeforeRule.businessDays
-      : DEFAULT_ROLL_SESSIONS_BEFORE_EXPIRY;
   return { applies: true, session: sessionsBeforeExpiry(businessDays) };
 }

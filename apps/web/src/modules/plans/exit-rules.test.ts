@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { decimalStringSchema, type ExitRule, type SessionDate } from "@fetha/contracts";
 
-import { resolveExitRules, resolveRollRule } from "./exit-rules";
+import { resolveExitRules, resolveRollRule, rollTriggerSessionsBeforeExpiry } from "./exit-rules";
 
 function session(value: string): SessionDate {
   return value;
@@ -56,5 +56,20 @@ describe("resolveRollRule", () => {
       applies: true,
       session: "2027-01-09",
     });
+  });
+});
+
+describe("rollTriggerSessionsBeforeExpiry", () => {
+  it("is null for a structure that is not rolled", () => {
+    expect(rollTriggerSessionsBeforeExpiry("bull-call-spread", [])).toBeNull();
+  });
+
+  it("is the structure's own days_before_expiry count", () => {
+    const rules: ExitRule[] = [{ kind: "days_before_expiry", businessDays: 10 }];
+    expect(rollTriggerSessionsBeforeExpiry("covered-call", rules)).toBe(10);
+  });
+
+  it("defaults to five sessions when the structure names no days_before_expiry rule", () => {
+    expect(rollTriggerSessionsBeforeExpiry("bull-put-spread", [])).toBe(5);
   });
 });

@@ -397,7 +397,13 @@ export async function confirmSettlementAction(input: unknown): Promise<Portfolio
     if (!plan.ok || !expiry) {
       return { status: "error" as const, error: "no_proposal" as const };
     }
-    const proposal = await proposeSettlementFor(db, operation.id, plan.state, expiry);
+    const proposal = await proposeSettlementFor(
+      db,
+      operation.id,
+      plan.state,
+      expiry,
+      operation.rolledFromOperationId,
+    );
     if (!proposal || !(await hasExpired(db, expiry, nowInstant()))) {
       return { status: "error" as const, error: "no_proposal" as const };
     }

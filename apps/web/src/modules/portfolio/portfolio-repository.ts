@@ -37,6 +37,7 @@ export interface OperationRecord {
   expiry: SessionDate | null;
   openedAt: SessionDate;
   closedAt: SessionDate | null;
+  rolledFromOperationId: string | null;
 }
 
 export interface NewFill {
@@ -71,6 +72,14 @@ export type GroupResult =
   | { ok: false; reason: "fills_unavailable" | "operation_unavailable" | GroupRefusal };
 
 export type WriteResult = { ok: true } | { ok: false; reason: "not_found" | "conflict" };
+
+// A roll (#382) replaces one open operation with another: the closing fills settle every leg of
+// the source operation to zero, and the opening fills form a brand new operation that carries
+// `rolledFromOperationId` back to the source. `conflict` also covers the closing fills not
+// actually closing the source operation (the proposal the caller priced no longer matches it).
+export type RollResult =
+  | { ok: true; newOperationId: string }
+  | { ok: false; reason: "not_found" | "conflict" | GroupRefusal };
 
 // A journal decision references the operation (ADR-0022 item 2): the
 // database refuses the delete, so the append-only journal never points at an
@@ -131,6 +140,7 @@ function toOperationRecord(row: typeof operations.$inferSelect): OperationRecord
     expiry: row.expiry,
     openedAt: row.openedAt,
     closedAt: row.closedAt,
+    rolledFromOperationId: row.rolledFromOperationId,
   };
 }
 
@@ -362,6 +372,96 @@ export class PortfolioRepository extends UserScopedRepository {
         .set({ status: "expired", closedAt })
         .where(and(eq(operations.id, operationId), eq(operations.userId, this.userId)));
       return { ok: true };
+    });
+  }
+
+  // Records a roll (#382): closes the source operation with `closingFills`, then groups
+  // `openingFills` into a brand new operation that points back at it. `expectedFillIds` guards
+  // the same way `settle`'s does, against the source operation having changed since the
+  // proposal was priced.
+  async roll(
+    operationId: string,
+    expectedFillIds: readonly string[],
+    closingFills: readonly NewFill[],
+    openingFills: readonly NewFill[],
+    rolledAt: SessionDate,
+    plan: PlanFromFills,
+  ): Promise<RollResult> {
+    if (openingFills.length === 0) {
+      return { ok: false, reason: "empty" };
+    }
+    return this.db.transaction(async (tx) => {
+      const [existing] = await tx
+        .select({ id: operations.id })
+        .from(operations)
+        .where(
+          and(
+            eq(operations.id, operationId),
+            eq(operations.userId, this.userId),
+            eq(operations.status, "open"),
+          ),
+        )
+        .for("update");
+      if (!existing) {
+        return { ok: false, reason: "not_found" };
+      }
+      const current = await tx
+        .select(FILL_COLUMNS)
+        .from(fills)
+        .where(and(eq(fills.operationId, operationId), eq(fills.userId, this.userId)))
+        .for("update");
+      const expected = new Set(expectedFillIds);
+      if (current.length !== expected.size || current.some((row) => !expected.has(row.id))) {
+        return { ok: false, reason: "conflict" };
+      }
+
+      const insertedClosing =
+        closingFills.length > 0
+          ? await tx
+              .insert(fills)
+              .values(closingFills.map((fill) => ({ ...fill, userId: this.userId, operationId })))
+              .returning(FILL_COLUMNS)
+          : [];
+      const closedPlan = plan([...current, ...insertedClosing].map(toFillRecord));
+      if (!closedPlan.ok) {
+        return { ok: false, reason: closedPlan.reason };
+      }
+      if (closedPlan.state.status !== "closed") {
+        return { ok: false, reason: "conflict" };
+      }
+      await tx
+        .update(operations)
+        .set({ status: "closed", closedAt: rolledAt })
+        .where(and(eq(operations.id, operationId), eq(operations.userId, this.userId)));
+
+      const insertedOpening = await tx
+        .insert(fills)
+        .values(openingFills.map((fill) => ({ ...fill, userId: this.userId })))
+        .returning(FILL_COLUMNS);
+      const openedPlan = plan(insertedOpening.map(toFillRecord));
+      if (!openedPlan.ok) {
+        return { ok: false, reason: openedPlan.reason };
+      }
+      const [created] = await tx
+        .insert(operations)
+        .values({ ...openedPlan.state, userId: this.userId, rolledFromOperationId: operationId })
+        .returning({ id: operations.id });
+      if (!created) {
+        throw new Error("failed to create rolled operation");
+      }
+      await tx
+        .update(fills)
+        .set({ operationId: created.id })
+        .where(
+          and(
+            inArray(
+              fills.id,
+              insertedOpening.map((row) => row.id),
+            ),
+            eq(fills.userId, this.userId),
+          ),
+        );
+      return { ok: true, newOperationId: created.id };
     });
   }
 }

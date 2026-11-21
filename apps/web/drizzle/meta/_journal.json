@@ -351,6 +351,13 @@
       "when": 1795213113196,
       "tag": "0049_operation_plans",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1795226225074,
+      "tag": "0050_roll_chain",
+      "breakpoints": true
     }
   ]
 }
