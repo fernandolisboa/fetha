@@ -1,0 +1,200 @@
+{
+  "id": "what-is-an-option",
+  "version": 2,
+  "minutes": 4,
+  "title": {
+    "en": "What is an option",
+    "pt": "O que é uma opção"
+  },
+  "summary": {
+    "en": "A contract that gives a right, not an obligation, paid for with a premium.",
+    "pt": "Um contrato que dá um direito, não uma obrigação, pago com um prêmio."
+  },
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "An option is a contract between two parties on an underlying stock: the buyer pays a premium for the right to do something later (buy or sell that stock at a fixed price), and the seller receives that premium in exchange for the matching obligation, should the buyer choose to exercise the right.",
+        "pt": "Uma opção é um contrato entre duas partes sobre uma ação: quem compra paga um prêmio pelo direito de fazer algo mais tarde (comprar ou vender aquela ação por um preço fixo), e quem vende recebe esse prêmio em troca da obrigação correspondente, caso quem comprou decida exercer o direito."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "The usual comparison is insurance: you pay a premium today for protection you may never use. If the thing you insured against never happens, the premium is simply gone — and that is exactly how a bought option that expires worthless works.",
+        "pt": "A comparação de sempre é com um seguro: você paga um prêmio hoje por uma proteção que talvez nunca use. Se o que você segurou nunca acontece, o prêmio simplesmente se perde — e é exatamente assim que funciona uma opção comprada que vence sem valor."
+      }
+    },
+    {
+      "type": "list",
+      "items": {
+        "en": [
+          "The buyer (holder) pays the premium and holds a right: to exercise it or to let it expire.",
+          "The seller (writer, “lançador”) receives the premium and takes on an obligation: to deliver on the buyer's exercise if it happens."
+        ],
+        "pt": [
+          "Quem compra (titular) paga o prêmio e fica com um direito: exercer ou deixar vencer.",
+          "Quem vende (lançador) recebe o prêmio e assume uma obrigação: atender ao exercício de quem comprou, se ele acontecer."
+        ]
+      }
+    },
+    {
+      "type": "payoff-example",
+      "exampleId": "long-call",
+      "caption": {
+        "en": "A long call on the fictitious {{underlying}}, trading at {{spot}}: paying a {{long-call.premiumAbs}} premium for the right to buy later. However far the stock falls, the loss stops at the premium paid.",
+        "pt": "Uma call comprada no fictício {{underlying}}, cotado a {{spot}}: pagando um prêmio de {{long-call.premiumAbs}} pelo direito de comprar depois. Não importa o quanto a ação caia, a perda para no prêmio pago."
+      }
+    },
+    {
+      "type": "callout",
+      "tone": "info",
+      "text": {
+        "en": "The premium above is a made-up price, from a fictitious market invented for this lesson, never a real quote. The break-even, the max loss and the chart, though, are not made up: Fetha's own pricing engine computes them from that premium.",
+        "pt": "O prêmio acima é um preço inventado, de um mercado fictício criado para esta lição, nunca uma cotação real. Já o ponto de equilíbrio, a perda máxima e o gráfico não são inventados: o motor de cálculo da própria Fetha os calcula a partir desse prêmio."
+      }
+    }
+  ],
+  "quiz": [
+    {
+      "id": "q1",
+      "prompt": {
+        "en": "What does an option give its buyer?",
+        "pt": "O que uma opção dá a quem a compra?"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "A right, which may or may not be exercised",
+            "pt": "Um direito, que pode ser exercido ou não"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "An obligation to buy or sell the stock",
+            "pt": "Uma obrigação de comprar ou vender a ação"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "Ownership of the underlying stock",
+            "pt": "A posse da ação-objeto"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "The buyer pays a premium for a right, never an obligation; the obligation sits with whoever sold the option.",
+        "pt": "Quem compra paga um prêmio por um direito, nunca por uma obrigação; a obrigação é de quem vendeu a opção."
+      }
+    },
+    {
+      "id": "q2",
+      "prompt": {
+        "en": "Who receives the premium?",
+        "pt": "Quem recebe o prêmio?"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "The buyer (holder)",
+            "pt": "Quem compra (titular)"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "The seller (writer)",
+            "pt": "Quem vende (lançador)"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "B3, as a fee",
+            "pt": "A B3, como uma taxa"
+          }
+        }
+      ],
+      "correctOptionId": "b",
+      "explanation": {
+        "en": "The seller (writer) receives the premium from the buyer when the position opens, in exchange for taking on the obligation.",
+        "pt": "Quem vende (lançador) recebe o prêmio de quem compra, na abertura da posição, em troca de assumir a obrigação."
+      }
+    },
+    {
+      "id": "q3",
+      "prompt": {
+        "en": "In the insurance analogy, what happens to the premium if the insured event never occurs?",
+        "pt": "Na comparação com seguro, o que acontece com o prêmio se o evento segurado nunca ocorre?"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "It is refunded",
+            "pt": "Ele é devolvido"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "It is carried over to the next contract",
+            "pt": "Ele é transferido para o próximo contrato"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "It is kept by whoever received it",
+            "pt": "Ele fica com quem o recebeu"
+          }
+        }
+      ],
+      "correctOptionId": "b",
+      "explanation": {
+        "en": "Just like an insurance premium, it is not refunded: it stays with the seller once the position opens, whether or not the buyer ever exercises.",
+        "pt": "Assim como o prêmio de um seguro, ele não é devolvido: fica com quem vendeu desde a abertura da posição, exercendo ou não quem comprou."
+      }
+    },
+    {
+      "id": "q4",
+      "prompt": {
+        "en": "Buying the long call in this lesson's example, what is the most you can lose?",
+        "pt": "Comprando a call do exemplo desta lição, qual é o máximo que se pode perder?"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "{{long-call.premiumAbs}}, the premium paid",
+            "pt": "{{long-call.premiumAbs}}, o prêmio pago"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "An amount with no upper bound",
+            "pt": "Um valor sem limite superior"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "The full value of the underlying stock",
+            "pt": "O valor integral da ação-objeto"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "A bought option's loss stops at the premium paid, however far the stock moves against the position.",
+        "pt": "A perda de uma opção comprada para no prêmio pago, não importa o quanto a ação se mova contra a posição."
+      }
+    }
+  ]
+}

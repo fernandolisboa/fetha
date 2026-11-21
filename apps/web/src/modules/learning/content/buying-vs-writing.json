@@ -1,0 +1,195 @@
+{
+  "id": "buying-vs-writing",
+  "version": 2,
+  "minutes": 5,
+  "title": {
+    "en": "Buying vs. writing",
+    "pt": "Comprar vs. lançar"
+  },
+  "summary": {
+    "en": "The buyer's risk is capped at the premium; the writer's can be large.",
+    "pt": "O risco de quem compra para no prêmio; o de quem lança pode ser grande."
+  },
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "The buyer pays the premium and holds a right. However the stock moves, the worst outcome is the option expiring worthless: a loss capped at the premium paid, {{long-call.premiumAbs}} in this lesson's call.",
+        "pt": "Quem compra paga o prêmio e fica com um direito. Por mais que a ação se mova, o pior resultado é a opção vencer sem valor: uma perda travada no prêmio pago, {{long-call.premiumAbs}} na call desta lição."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "The writer (“lançador”) receives the premium and takes on an obligation instead of a right. Selling a call naked — without owning the stock behind it — means the loss grows with the stock's rise and has no built-in ceiling.",
+        "pt": "Quem lança recebe o prêmio e assume uma obrigação em vez de um direito. Vender uma call a descoberto — sem ter a ação por trás dela — significa que a perda cresce junto com a alta da ação, sem um teto natural."
+      }
+    },
+    {
+      "type": "payoff-example",
+      "exampleId": "long-call",
+      "caption": {
+        "en": "Buying the call: loss capped at the {{long-call.premiumAbs}} premium, gain unbounded above the break-even.",
+        "pt": "Comprando a call: perda travada no prêmio de {{long-call.premiumAbs}}, ganho sem limite acima do ponto de equilíbrio."
+      }
+    },
+    {
+      "type": "payoff-example",
+      "exampleId": "short-call",
+      "caption": {
+        "en": "Writing the same call naked: the mirror image. Gain capped at the {{short-call.maxGainAbs}} premium received, loss unbounded above the break-even.",
+        "pt": "Lançando a mesma call a descoberto: a imagem espelhada. Ganho travado no prêmio recebido de {{short-call.maxGainAbs}}, perda sem limite acima do ponto de equilíbrio."
+      }
+    },
+    {
+      "type": "callout",
+      "tone": "warning",
+      "text": {
+        "en": "Covered vs. naked writing, in one sentence: writing a call while holding the underlying stock (covered) caps the loss at the stock's own downside and gives up upside above the strike; writing it without the stock (naked) is the unbounded-loss position above.",
+        "pt": "Lançamento coberto vs. a descoberto, numa frase: lançar uma call tendo a ação (coberto) trava a perda na própria queda da ação e abre mão da alta acima do strike; lançar sem ter a ação (a descoberto) é a posição de perda sem limite acima."
+      }
+    }
+  ],
+  "quiz": [
+    {
+      "id": "q1",
+      "prompt": {
+        "en": "The option buyer's maximum possible loss is:",
+        "pt": "A perda máxima possível de quem compra a opção é:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "The premium paid",
+            "pt": "O prêmio pago"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "Unbounded",
+            "pt": "Sem limite"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "The full price of the underlying stock",
+            "pt": "O preço integral da ação-objeto"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "Buying an option risks only what was paid for it, worst case.",
+        "pt": "Comprar uma opção arrisca, no pior caso, só o que foi pago por ela."
+      }
+    },
+    {
+      "id": "q2",
+      "prompt": {
+        "en": "Writing (selling) a call naked exposes the writer to:",
+        "pt": "Lançar (vender) uma call a descoberto expõe quem lança a:"
+      },
+      "options": [
+        {
+          "id": "b",
+          "text": {
+            "en": "A loss capped at the premium received",
+            "pt": "Uma perda travada no prêmio recebido"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "A loss that grows with the stock's rise, with no built-in ceiling",
+            "pt": "Uma perda que cresce com a alta da ação, sem um teto natural"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "No risk at all",
+            "pt": "Nenhum risco"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "A naked short call's loss grows as the stock rises past the break-even, with no ceiling of its own.",
+        "pt": "A perda de uma call vendida a descoberto cresce conforme a ação sobe além do ponto de equilíbrio, sem um teto próprio."
+      }
+    },
+    {
+      "id": "q3",
+      "prompt": {
+        "en": "In this lesson's example, writing the call naked caps the gain at:",
+        "pt": "No exemplo desta lição, lançar a call a descoberto trava o ganho em:"
+      },
+      "options": [
+        {
+          "id": "b",
+          "text": {
+            "en": "An amount with no upper bound",
+            "pt": "Um valor sem limite superior"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "The strike price",
+            "pt": "O preço do strike"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "{{short-call.maxGainAbs}}, the premium received",
+            "pt": "{{short-call.maxGainAbs}}, o prêmio recebido"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "The most a short call can ever earn is the premium it was sold for, if the stock stays at or below the strike.",
+        "pt": "O máximo que uma call vendida pode ganhar é o prêmio pelo qual foi vendida, se a ação ficar no strike ou abaixo dele."
+      }
+    },
+    {
+      "id": "q4",
+      "prompt": {
+        "en": "A covered call — writing a call while holding the stock behind it — compared to a naked one:",
+        "pt": "Um lançamento coberto — lançar uma call tendo a ação por trás — comparado a um a descoberto:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "Caps the loss at the stock's own downside instead of leaving it unbounded",
+            "pt": "Trava a perda na própria queda da ação, em vez de deixá-la sem limite"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "Removes all risk from writing the call",
+            "pt": "Remove todo risco de lançar a call"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "Doubles the premium received",
+            "pt": "Dobra o prêmio recebido"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "Owning the stock behind a short call turns the unbounded naked-call loss into the stock's own downside, at the cost of giving up gains above the strike.",
+        "pt": "Ter a ação por trás da call vendida transforma a perda sem limite do lançamento a descoberto na própria queda da ação, ao custo de abrir mão dos ganhos acima do strike."
+      }
+    }
+  ]
+}

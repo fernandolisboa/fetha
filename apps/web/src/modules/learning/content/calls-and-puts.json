@@ -1,0 +1,174 @@
+{
+  "id": "calls-and-puts",
+  "version": 2,
+  "minutes": 5,
+  "title": {
+    "en": "Calls and puts",
+    "pt": "Calls e puts"
+  },
+  "summary": {
+    "en": "A call is the right to buy; a put is the right to sell, both at a fixed price.",
+    "pt": "A call é o direito de comprar; a put é o direito de vender, ambas por um preço fixo."
+  },
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "There are only two kinds of option. A call gives its buyer the right to buy the underlying stock at a fixed price. A put gives its buyer the right to sell it at a fixed price. Everything else — structures, strategies, the whole catalog — combines calls and puts, bought or sold, in different strikes and quantities.",
+        "pt": "Existem só dois tipos de opção. A call dá a quem a compra o direito de comprar a ação por um preço fixo. A put dá o direito de vender por um preço fixo. Todo o resto — estruturas, estratégias, o catálogo inteiro — combina calls e puts, compradas ou vendidas, em strikes e quantidades diferentes."
+      }
+    },
+    {
+      "type": "payoff-example",
+      "exampleId": "long-call",
+      "caption": {
+        "en": "Long call on {{underlying}}, spot at {{spot}}, strike at {{lowerStrike}}: the position only turns a profit once the stock passes its break-even of {{long-call.breakEven0}}, strike plus the {{long-call.premiumAbs}} premium paid.",
+        "pt": "Call comprada em {{underlying}}, com o ativo a {{spot}} e strike em {{lowerStrike}}: a posição só fica no lucro depois que a ação passa o ponto de equilíbrio de {{long-call.breakEven0}}, o strike mais o prêmio de {{long-call.premiumAbs}} pago."
+      }
+    },
+    {
+      "type": "payoff-example",
+      "exampleId": "long-put",
+      "caption": {
+        "en": "Long put on {{underlying}}, spot at {{spot}}, strike at {{lowerStrike}}: profitable below its break-even of {{long-put.breakEven0}}, strike minus the {{long-put.premiumAbs}} premium paid.",
+        "pt": "Put comprada em {{underlying}}, com o ativo a {{spot}} e strike em {{lowerStrike}}: fica no lucro abaixo do ponto de equilíbrio de {{long-put.breakEven0}}, o strike menos o prêmio de {{long-put.premiumAbs}} pago."
+      }
+    },
+    {
+      "type": "callout",
+      "tone": "info",
+      "text": {
+        "en": "A call rewards the stock going up past its break-even; a put rewards it going down past its own. Both still cap the buyer's loss at the premium paid.",
+        "pt": "A call premia a ação subindo além do seu ponto de equilíbrio; a put premia a ação caindo além do dela. Nas duas, a perda de quem comprou para no prêmio pago."
+      }
+    }
+  ],
+  "quiz": [
+    {
+      "id": "q1",
+      "prompt": {
+        "en": "A call option gives its buyer the right to:",
+        "pt": "Uma opção de call dá a quem a compra o direito de:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "Buy the underlying stock at a fixed price",
+            "pt": "Comprar a ação-objeto por um preço fixo"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "Sell the underlying stock at a fixed price",
+            "pt": "Vender a ação-objeto por um preço fixo"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "Call comes from “call away”: the buyer can call the stock away from the seller at the strike.",
+        "pt": "O nome call vem do inglês “to call away”: quem compra pode “chamar” a ação de quem vendeu, pelo strike."
+      }
+    },
+    {
+      "id": "q2",
+      "prompt": {
+        "en": "A put option gives its buyer the right to:",
+        "pt": "Uma opção de put dá a quem a compra o direito de:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "Buy the underlying stock at a fixed price",
+            "pt": "Comprar a ação-objeto por um preço fixo"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "Sell the underlying stock at a fixed price",
+            "pt": "Vender a ação-objeto por um preço fixo"
+          }
+        }
+      ],
+      "correctOptionId": "b",
+      "explanation": {
+        "en": "Put comes from “to put to someone”: the buyer can put the stock onto the seller at the strike.",
+        "pt": "O nome put vem do inglês “to put to someone”: quem compra pode “colocar” a ação em quem vendeu, pelo strike."
+      }
+    },
+    {
+      "id": "q3",
+      "prompt": {
+        "en": "In this lesson's examples, the long call needs the stock above {{long-call.breakEven0}} to profit. What is that value called?",
+        "pt": "Nos exemplos desta lição, a call comprada precisa da ação acima de {{long-call.breakEven0}} para dar lucro. Como esse valor é chamado?"
+      },
+      "options": [
+        {
+          "id": "b",
+          "text": {
+            "en": "Strike",
+            "pt": "Strike"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "Premium",
+            "pt": "Prêmio"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Break-even",
+            "pt": "Ponto de equilíbrio"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "The break-even is where the position's P&L crosses zero; for a long call it sits above the strike, by the premium paid.",
+        "pt": "O ponto de equilíbrio é onde o resultado da posição cruza o zero; na call comprada, ele fica acima do strike, pela distância do prêmio pago."
+      }
+    },
+    {
+      "id": "q4",
+      "prompt": {
+        "en": "Buying a call instead of a put is a bet that the stock will mostly:",
+        "pt": "Comprar uma call em vez de uma put é uma aposta de que a ação vai, de forma geral:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "Rise",
+            "pt": "Subir"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "Fall",
+            "pt": "Cair"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "Stay exactly at the strike",
+            "pt": "Ficar exatamente no strike"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "A call gains as the stock rises past its break-even; buying one is the directional bet that it will.",
+        "pt": "A call ganha conforme a ação sobe além do ponto de equilíbrio; comprá-la é a aposta direcional de que isso vai acontecer."
+      }
+    }
+  ]
+}

@@ -3,6 +3,7 @@ export * from "../modules/audit/schema";
 export * from "../modules/auth/schema";
 export * from "../modules/backtests/schema";
 export * from "../modules/decisions/schema";
+export * from "../modules/learning/schema";
 export * from "../modules/market-data/schema";
 export * from "../modules/nightly/schema";
 export * from "../modules/plans/schema";

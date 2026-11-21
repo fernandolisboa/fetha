@@ -39,6 +39,7 @@ const en = {
     strategies: "Strategies",
     portfolio: "Portfolio",
     journal: "Journal",
+    learn: "Learn",
     settings: "Settings",
   },
   statusBar: {
@@ -111,6 +112,7 @@ const ptBR = {
     strategies: "Estratégias",
     portfolio: "Carteira",
     journal: "Diário",
+    learn: "Aprender",
     settings: "Configurações",
   },
   statusBar: {

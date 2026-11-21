@@ -4,7 +4,6 @@ import { Panel } from "@/modules/shell/client";
 
 import { guideSections } from "../guide-sections";
 import { t } from "../strings";
-import { Options101Section } from "./options-101-section";
 
 function StepList({ steps, ordered = false }: { steps: string[]; ordered?: boolean }) {
   if (ordered) {
@@ -75,8 +74,16 @@ export function HowToUseGuide() {
         </div>
       </div>
 
-      <Panel title={t.optionsBasics.title}>
-        <Options101Section />
+      <Panel title={t.learningPointer.title}>
+        <div className="flex flex-col gap-3">
+          <p className="text-muted-foreground max-w-[72ch] text-[13px]">{t.learningPointer.body}</p>
+          <Link
+            href="/aprender"
+            className="text-primary inline-flex min-h-8 items-center self-start text-[13px] underline-offset-4 hover:underline"
+          >
+            {t.learningPointer.cta}
+          </Link>
+        </div>
       </Panel>
     </div>
   );

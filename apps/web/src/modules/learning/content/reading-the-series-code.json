@@ -1,0 +1,187 @@
+{
+  "id": "reading-the-series-code",
+  "version": 3,
+  "minutes": 4,
+  "title": {
+    "en": "Reading an option's series code",
+    "pt": "Lendo o código de uma série de opção"
+  },
+  "summary": {
+    "en": "The ticker's root, type-and-month letter, and the number that is not the strike.",
+    "pt": "A raiz do ticker, a letra de tipo e mês, e o número que não é o strike."
+  },
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "An option series' ticker is built from the underlying's own root, usually four letters (the illustrative EXMP3 behind this module's examples has the root EXMP), followed by one letter that encodes both the option's type (call or put) and its expiry month, followed by a number.",
+        "pt": "O ticker de uma série de opção é formado pela raiz do próprio ativo, geralmente com quatro letras (o EXMP3 fictício usado nos exemplos deste módulo tem raiz EXMP), seguida de uma letra que codifica o tipo da opção (call ou put) e o mês de vencimento, seguida de um número."
+      }
+    },
+    {
+      "type": "list",
+      "items": {
+        "en": [
+          "Letters A through L mark a call, one letter per month: A for January, B for February, and so on through L for December.",
+          "Letters M through X mark a put, the same way: M for January through X for December.",
+          "A weekly series (on the underlyings that have one) adds a W1 through W5 suffix naming which week of the month it expires in, on top of the same letter-and-number shape."
+        ],
+        "pt": [
+          "As letras de A a L marcam uma call, uma letra por mês: A para janeiro, B para fevereiro, e assim até L para dezembro.",
+          "As letras de M a X marcam uma put, do mesmo jeito: M para janeiro até X para dezembro.",
+          "Uma série semanal (nos ativos que têm uma) acrescenta um sufixo de W1 a W5 dizendo em qual semana do mês ela vence, além do mesmo formato de letra e número."
+        ]
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "This module's two illustrative February series are {{long-call.ticker}} (letter {{long-call.tickerLetter}}, a call) and {{long-put.ticker}} (letter {{long-put.tickerLetter}}, a put) — same root EXMP, same month, different type letter.",
+        "pt": "As duas séries fictícias de fevereiro deste módulo são {{long-call.ticker}} (letra {{long-call.tickerLetter}}, uma call) e {{long-put.ticker}} (letra {{long-put.tickerLetter}}, uma put) — mesma raiz EXMP, mesmo mês, letra de tipo diferente."
+      }
+    },
+    {
+      "type": "callout",
+      "tone": "warning",
+      "text": {
+        "en": "The number at the end of the ticker is not the strike price: it only happens to look like one. It is an identifier B3 assigns to tell series of the same underlying, type and month apart from one another, and it never follows a corporate action that adjusts the strike — the strike itself is always a separate field in the option's own data, never something to read off the ticker.",
+        "pt": "O número no final do ticker não é o preço de strike: ele só parece um. É um identificador que a B3 atribui para diferenciar séries do mesmo ativo, tipo e mês entre si, e ele nunca acompanha um evento corporativo que ajusta o strike — o strike em si é sempre um campo separado nos dados da própria opção, nunca algo para ler direto do ticker."
+      }
+    }
+  ],
+  "quiz": [
+    {
+      "id": "q1",
+      "prompt": {
+        "en": "The letter in an option's series code encodes:",
+        "pt": "A letra no código de uma série de opção codifica:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "The option's type (call or put) and its expiry month",
+            "pt": "O tipo da opção (call ou put) e o mês de vencimento"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "The strike price",
+            "pt": "O preço de strike"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "The underlying's sector",
+            "pt": "O setor do ativo"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "One letter carries two pieces of information at once: call-or-put, and which month it expires.",
+        "pt": "Uma única letra carrega duas informações ao mesmo tempo: se é call ou put, e em que mês vence."
+      }
+    },
+    {
+      "id": "q2",
+      "prompt": {
+        "en": "This module's {{long-call.ticker}} series, letter {{long-call.tickerLetter}}, is:",
+        "pt": "A série {{long-call.ticker}} deste módulo, de letra {{long-call.tickerLetter}}, é:"
+      },
+      "options": [
+        {
+          "id": "b",
+          "text": {
+            "en": "A put expiring in February",
+            "pt": "Uma put que vence em fevereiro"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "A call expiring in February",
+            "pt": "Uma call que vence em fevereiro"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "Letters A through L (12, one per month) mark a call; B is the second letter, so February. Letters M through X mark a put the same way.",
+        "pt": "As letras de A a L (12, uma por mês) marcam uma call; B é a segunda letra, logo fevereiro. As letras de M a X marcam uma put do mesmo jeito."
+      }
+    },
+    {
+      "id": "q3",
+      "prompt": {
+        "en": "The number at the end of a series code is:",
+        "pt": "O número no final do código de uma série é:"
+      },
+      "options": [
+        {
+          "id": "b",
+          "text": {
+            "en": "The strike price, in reais",
+            "pt": "O preço de strike, em reais"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "The day of the month it expires",
+            "pt": "O dia do mês em que vence"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "An identifier telling series apart, which may look like a strike but is not one",
+            "pt": "Um identificador para diferenciar séries, que pode parecer um strike, mas não é"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "Reading the number as a strike is a common mistake; the strike always comes from the option's own data, and only that field moves when a corporate action adjusts it.",
+        "pt": "Ler esse número como strike é um erro comum; o strike sempre vem dos dados da própria opção, e só esse campo muda quando um evento corporativo o ajusta."
+      }
+    },
+    {
+      "id": "q4",
+      "prompt": {
+        "en": "A weekly series' ticker, on top of the usual letter and number, adds:",
+        "pt": "O ticker de uma série semanal, além da letra e do número usuais, acrescenta:"
+      },
+      "options": [
+        {
+          "id": "b",
+          "text": {
+            "en": "A second letter naming the expiry year",
+            "pt": "Uma segunda letra indicando o ano de vencimento"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "A W1 through W5 suffix naming the week of the month it expires in",
+            "pt": "Um sufixo de W1 a W5 dizendo em qual semana do mês ela vence"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "The underlying's own class digit",
+            "pt": "O dígito de classe do próprio ativo"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "A weekly series keeps the same letter-and-number shape as a monthly one and only adds a W1-W5 suffix for which week it expires in.",
+        "pt": "Uma série semanal mantém o mesmo formato de letra e número de uma mensal e só acrescenta um sufixo de W1 a W5 para a semana em que vence."
+      }
+    }
+  ]
+}
