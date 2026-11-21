@@ -1,21 +1,18 @@
-import { centavosSchema } from "@fetha/contracts";
+import {
+  centavosSchema,
+  illustrativeExampleIdSchema,
+  type IllustrativeExampleId,
+} from "@fetha/contracts";
 
 import { formatBRL, formatPriceBRL } from "@/lib/format/brl";
 
-import type { IllustrativeExampleId, IllustrativeExamples } from "./illustrative-market";
+import type { IllustrativeExamples } from "./illustrative-market";
 import { seriesLetterOf } from "./series-code";
 
 const PLACEHOLDER_PATTERN = /\{\{([a-zA-Z0-9-]+(?:\.[a-zA-Z0-9]+)?)\}\}/g;
 
-const EXAMPLE_IDS: readonly IllustrativeExampleId[] = [
-  "long-call",
-  "long-put",
-  "short-call",
-  "bull-call-spread",
-];
-
 function isExampleId(value: string): value is IllustrativeExampleId {
-  return (EXAMPLE_IDS as readonly string[]).includes(value);
+  return illustrativeExampleIdSchema.safeParse(value).success;
 }
 
 // Every placeholder a lesson may use, resolved only from engine output over

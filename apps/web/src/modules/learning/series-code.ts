@@ -15,6 +15,9 @@ export interface DecodedSeriesLetter {
 }
 
 export function decodeSeriesLetter(letter: string): DecodedSeriesLetter {
+  if (letter.length !== 1) {
+    throw new Error(`"${letter}" is not a single B3 series-code month letter`);
+  }
   const callIndex = CALL_LETTERS.indexOf(letter);
   if (callIndex >= 0) {
     return { right: "call", month: callIndex + 1 };

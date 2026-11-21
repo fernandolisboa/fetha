@@ -61,39 +61,44 @@ function dailySessions(startDate: string, count: number): TradingSession[] {
   return sessions;
 }
 
+// Exported so a test can decode every series' own ticker against its own
+// right, expiry and strike, instead of only the single-leg examples
+// `loadIllustrativeExamples` happens to expose a ticker for.
+export const ILLUSTRATIVE_OPTION_SERIES = [
+  {
+    ticker: CALL_LOWER_TICKER,
+    underlying: ILLUSTRATIVE_UNDERLYING,
+    right: "call" as const,
+    strike: ILLUSTRATIVE_LOWER_STRIKE,
+    expiry: ILLUSTRATIVE_EXPIRY,
+    style: "european" as const,
+    asOf: AT,
+  },
+  {
+    ticker: CALL_HIGHER_TICKER,
+    underlying: ILLUSTRATIVE_UNDERLYING,
+    right: "call" as const,
+    strike: ILLUSTRATIVE_HIGHER_STRIKE,
+    expiry: ILLUSTRATIVE_EXPIRY,
+    style: "european" as const,
+    asOf: AT,
+  },
+  {
+    ticker: PUT_LOWER_TICKER,
+    underlying: ILLUSTRATIVE_UNDERLYING,
+    right: "put" as const,
+    strike: ILLUSTRATIVE_LOWER_STRIKE,
+    expiry: ILLUSTRATIVE_EXPIRY,
+    style: "european" as const,
+    asOf: AT,
+  },
+];
+
 const ILLUSTRATIVE_VIEW: MarketView = {
   calendar: dailySessions(CALENDAR_START, CALENDAR_SESSIONS),
   candles: [],
   corporateActions: [],
-  optionSeries: [
-    {
-      ticker: CALL_LOWER_TICKER,
-      underlying: ILLUSTRATIVE_UNDERLYING,
-      right: "call",
-      strike: ILLUSTRATIVE_LOWER_STRIKE,
-      expiry: ILLUSTRATIVE_EXPIRY,
-      style: "european",
-      asOf: AT,
-    },
-    {
-      ticker: CALL_HIGHER_TICKER,
-      underlying: ILLUSTRATIVE_UNDERLYING,
-      right: "call",
-      strike: ILLUSTRATIVE_HIGHER_STRIKE,
-      expiry: ILLUSTRATIVE_EXPIRY,
-      style: "european",
-      asOf: AT,
-    },
-    {
-      ticker: PUT_LOWER_TICKER,
-      underlying: ILLUSTRATIVE_UNDERLYING,
-      right: "put",
-      strike: ILLUSTRATIVE_LOWER_STRIKE,
-      expiry: ILLUSTRATIVE_EXPIRY,
-      style: "european",
-      asOf: AT,
-    },
-  ],
+  optionSeries: ILLUSTRATIVE_OPTION_SERIES,
   optionPrices: [],
   quotes: [
     { ticker: ILLUSTRATIVE_UNDERLYING, asOf: AT, last: ILLUSTRATIVE_SPOT, bid: null, ask: null },

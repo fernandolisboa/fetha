@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  ILLUSTRATIVE_HIGHER_STRIKE,
-  ILLUSTRATIVE_LOWER_STRIKE,
-  loadIllustrativeExamples,
-} from "./illustrative-market";
+import { ILLUSTRATIVE_OPTION_SERIES } from "./illustrative-market";
 import { decodeSeriesLetter, seriesLetterOf } from "./series-code";
 
 describe("decodeSeriesLetter", () => {
@@ -24,34 +20,31 @@ describe("decodeSeriesLetter", () => {
     expect(() => decodeSeriesLetter("Y")).toThrow();
     expect(() => decodeSeriesLetter("Z")).toThrow();
   });
+
+  it("throws on anything that is not a single letter", () => {
+    expect(() => decodeSeriesLetter("")).toThrow();
+    expect(() => decodeSeriesLetter("AB")).toThrow();
+    expect(() => decodeSeriesLetter("A1")).toThrow();
+  });
 });
 
-describe("the illustrative market's own tickers", () => {
-  it("decode to the same right and month as the option series they price", async () => {
-    const examples = await loadIllustrativeExamples();
-    for (const exampleId of ["long-call", "long-put", "short-call"] as const) {
-      const pricing = examples[exampleId];
-      expect(pricing.legs).toHaveLength(1);
-      const leg = pricing.legs[0];
-      if (!leg) throw new Error("fixture example has no leg");
-      const letter = seriesLetterOf(leg.leg.ticker);
+describe("every illustrative option series' own ticker", () => {
+  it("decodes to that series' own right and expiry month", () => {
+    expect(ILLUSTRATIVE_OPTION_SERIES.length).toBeGreaterThan(0);
+    for (const series of ILLUSTRATIVE_OPTION_SERIES) {
+      const letter = seriesLetterOf(series.ticker);
       const decoded = decodeSeriesLetter(letter);
-      const expectedRight = leg.leg.role === "call" ? "call" : "put";
-      expect(decoded.right).toBe(expectedRight);
-      // The illustrative expiry is 2026-02-20: February.
-      expect(decoded.month).toBe(2);
+      expect(decoded.right).toBe(series.right);
+      // The illustrative expiry is 2026-02-20 for every series: February.
+      expect(decoded.month).toBe(Number(series.expiry.slice(5, 7)));
     }
   });
 
-  it("never uses a trailing ticker number equal to the series' own strike", async () => {
-    const examples = await loadIllustrativeExamples();
-    const lowerStrikeDigits = String(Number(ILLUSTRATIVE_LOWER_STRIKE));
-    const higherStrikeDigits = String(Number(ILLUSTRATIVE_HIGHER_STRIKE));
-
-    const callLowerTicker = examples["long-call"].legs[0]?.leg.ticker ?? "";
-    const putLowerTicker = examples["long-put"].legs[0]?.leg.ticker ?? "";
-    expect(callLowerTicker.slice(5)).not.toBe(lowerStrikeDigits);
-    expect(putLowerTicker.slice(5)).not.toBe(lowerStrikeDigits);
-    expect(higherStrikeDigits).toBe("22");
+  it("never uses a trailing ticker number equal to that series' own strike", () => {
+    for (const series of ILLUSTRATIVE_OPTION_SERIES) {
+      const trailingNumber = series.ticker.slice(5);
+      const strikeDigits = String(Number(series.strike));
+      expect(trailingNumber).not.toBe(strikeDigits);
+    }
   });
 });
