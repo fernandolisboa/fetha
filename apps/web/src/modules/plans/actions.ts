@@ -92,7 +92,7 @@ export type PlanActionError =
   | "rate_limited";
 
 export interface PlanLegSeries {
-  // The series' own underlying (round 4 review): the ticket's decoded order line names it, not
+  // The series' own underlying: the ticket's decoded order line names it, not
   // the option series' own ticker — a trader reads an order by what it is on, not by the chain's
   // internal code.
   underlying: Ticker;
@@ -120,8 +120,8 @@ interface ResolvedTarget {
   view: PlanView | null;
   ivDisplay: IvDisplay;
   session: PricingSession;
-  // Already built when `resolveFromView` needed it for its own IV reading (round 3 review
-  // "build the market view once per request"); `buildPlan` reuses it instead of asking
+  // Already built when `resolveFromView` needed it for its own IV reading (building the
+  // market view once per request); `buildPlan` reuses it instead of asking
   // `buildOperationMarketView` a second time. Undefined for a suggestion-origin target, which
   // never needed one of its own — `buildPlan` builds it fresh there, exactly as before.
   marketView: MarketView | undefined;
@@ -130,7 +130,7 @@ interface ResolvedTarget {
 type ResolveOutcome =
   { ok: true; target: ResolvedTarget } | { ok: false; reason: "no_data" | "no_recipe" };
 
-// The session every price in a plan comes from (round 2 review, refined round 3): the newest
+// The session every price in a plan comes from: the newest
 // session this underlying actually has an ingested candle for, not the newest closed session on
 // the calendar — between a session's close and the nightly ingestion finishing (or after a failed
 // ingestion run), the calendar already considers that session closed but no price for it exists
@@ -167,7 +167,7 @@ function resolveStructure(
 // From an underlying and the user's stated view (ticket #379): picks the recipe matching the
 // view and today's IV regime, the same matching `apps/web/src/modules/plans/select-recipe.ts`
 // is tested against. Distinguishes a data gap ("no_data": no reading for this ticker today)
-// from the view admitting no recipe at all ("no_recipe": round 1 review item 2).
+// from the view admitting no recipe at all ("no_recipe").
 async function resolveFromView(underlyingInput: string, view: PlanView): Promise<ResolveOutcome> {
   const parsed = tickerSchema.safeParse(underlyingInput);
   if (!parsed.success) return { ok: false, reason: "no_data" };
@@ -287,7 +287,7 @@ interface BuiltPlan {
 // One lot's two-rung pricing (generate-plan.ts's `LotPricing`): the probe at the market's own
 // last price (also where a stale or untraded leg is caught), then a second call pricing the
 // same legs with each leg's own limit price given explicitly, so the numbers this plan reports
-// can never be beaten by a limit fill (ticket #379, round 1 review item 3).
+// can never be beaten by a limit fill (ticket #379).
 async function priceLot(
   view: Awaited<ReturnType<typeof buildOperationMarketView>>,
   at: Instant,
@@ -336,11 +336,11 @@ async function priceLot(
 // so nothing persisted was ever only client-trusted. Falls back to the declared default risk
 // profile (docs/adr/0075) when the user has none, the same as every other feature that needs one.
 // Prices at `target.session`'s own close instant, not "now" and not merely the latest closed
-// calendar session (round 2 review, refined round 3): see `resolvePricingSessionFor`. Reuses
+// calendar session: see `resolvePricingSessionFor`. Reuses
 // `target.marketView` when the resolve step already built one (the view path) instead of asking
 // `buildOperationMarketView` a second time for the same underlying and instant. Beyond the
 // monthly-expiry filter, also narrows to series that actually traded at that same session
-// (round 3 review, `filterToTradedSeries`): the engine's own moneyness rule can then only pick a
+// (`filterToTradedSeries`): the engine's own moneyness rule can then only pick a
 // strike something traded that close, so a leg being `stale` or priceless becomes structurally
 // unlikely rather than something caught only after the fact.
 async function buildPlan(target: ResolvedTarget): Promise<BuiltPlan> {
@@ -357,7 +357,7 @@ async function buildPlan(target: ResolvedTarget): Promise<BuiltPlan> {
   const openOperationCount = await countLiveOpenOperations(getDb(), user, at);
 
   // Shared between this function's own lot-1 precompute (for `seriesByTicker`/expiry) and every
-  // lot count `generatePlan` prices while sizing (round 2 review "share one pricing cache"):
+  // lot count `generatePlan` prices while sizing (sharing one pricing cache):
   // `generatePlan` trusts a repeat call for the same lot count to be free, so this is the only
   // place that promise is kept.
   const cache = new Map<number, Promise<LotPricing | null>>();
@@ -490,7 +490,7 @@ export type SavePlanResult =
 
 const SAVE_RATE_LIMIT = { windowSeconds: 60, max: 20 };
 
-// The threshold a directional plan's auto-recorded decision is judged against (round 2 review):
+// The threshold a directional plan's auto-recorded decision is judged against:
 // the plan's own break-even, not the spot it was built at — the spot a view was taken on says
 // nothing about whether the position itself is still worth holding, while the break-even is the
 // level this exact structure needs to clear. Falls back to spot only for a structure with no

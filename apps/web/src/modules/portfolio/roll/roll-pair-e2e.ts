@@ -12,7 +12,7 @@ import {
 } from "@/modules/market-data";
 import { todaySaoPauloDate } from "@/lib/today-sao-paulo";
 
-import { selectNextMonthlySeries } from "./roll-series-selection";
+import { selectNearestStrikeAtExpiry } from "./roll-series-selection";
 
 export interface RollPairCandidate {
   underlying: Ticker;
@@ -35,7 +35,7 @@ export type SeedE2ERollPairResult =
 // preview actually ingested rather than a hardcoded ticker (apps/web/e2e/README.md) — the chain
 // only shrinks as near-month expiries roll off, so a fixed pair would eventually go stale. Picks
 // the first right (call, then put) whose two nearest unexpired monthly expiries both traded at
-// the newest session, and resolves the exact opening series through `selectNextMonthlySeries`,
+// the newest session, and resolves the exact opening series through `selectNearestStrikeAtExpiry`,
 // the same selection a real roll makes, so the spec can assert the dialog's "to open" order by
 // ticker rather than merely by its presence.
 export async function seedE2ERollPair(
@@ -80,10 +80,10 @@ export async function seedE2ERollPair(
     );
     if (!price?.close) continue;
 
-    const selection = selectNextMonthlySeries(view.optionSeries, {
+    const selection = selectNearestStrikeAtExpiry(view.optionSeries, {
       underlying,
       right,
-      currentExpiry: near,
+      expiry: next,
       currentStrike: nearSeries.strike,
     });
     if (!selection.ok) continue;

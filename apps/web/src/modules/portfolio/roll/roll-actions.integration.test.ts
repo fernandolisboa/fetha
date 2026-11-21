@@ -64,7 +64,7 @@ const OPENED_SESSION = SESSIONS[0] ?? "";
 const ANCHOR_SESSION = SESSIONS[2] ?? "";
 // A real trading session the fixture seeds but never gives a candle to: the user's own
 // execution session has to differ from the pricing session (the latest ingested candle) for
-// the regression this file's own tests guard (#382 review item 4) to mean anything.
+// the regression this file's own tests guard (#382) to mean anything.
 const EXECUTION_SESSION = SESSIONS[3] ?? "";
 const CURRENT_EXPIRY = SESSIONS[24] ?? "";
 const NEXT_EXPIRY = SESSIONS[44] ?? "";
@@ -230,7 +230,7 @@ async function openShortCall(market: Market): Promise<string> {
 }
 
 // A ticker that traded, and fully netted to zero, earlier in the operation's own fill history
-// (#382 review item 3): a round trip on `closedTicker`, grouped into the same operation as the
+// (#382): a round trip on `closedTicker`, grouped into the same operation as the
 // still-open short call.
 async function addClosedTickerHistory(market: Market, operationId: string): Promise<void> {
   const user0 = currentUser;
@@ -362,7 +362,7 @@ describe("recordRollAction", () => {
     expect(created).toMatchObject({ status: "open", rolledFromOperationId: operationId });
   });
 
-  it("stamps the roll with the user's own execution session, not the pricing session (#382 review item 4)", async () => {
+  it("stamps the roll with the user's own execution session, not the pricing session (#382)", async () => {
     const market = await seedMarket();
     const owner = await signIn("record-session");
     const operationId = await openShortCall(market);
@@ -400,7 +400,7 @@ describe("recordRollAction", () => {
     expect(newFills.every((fill) => fill.session === EXECUTION_SESSION)).toBe(true);
   });
 
-  it("rolls an operation whose history has a now-closed option ticker (#382 review item 3)", async () => {
+  it("rolls an operation whose history has a now-closed option ticker (#382)", async () => {
     const market = await seedMarket();
     const owner = await signIn("record-closed-ticker-history");
     const operationId = await openShortCall(market);

@@ -1,7 +1,10 @@
 import { cache } from "react";
 import { decimalStringSchema, type SessionDate, type Ticker } from "@fetha/contracts";
 
-import { getDb } from "@/db/client";
+import { getDb, type Database } from "@/db/client";
+import type { ScopedUser } from "@/lib/user-scoped-repository";
+import { recordAccess } from "@/modules/audit";
+import { requireUser } from "@/modules/auth";
 import {
   countSessionsClosedAfter,
   latestCandle,
@@ -10,7 +13,7 @@ import {
 import { todaySaoPauloDate } from "@/lib/today-sao-paulo";
 
 import { holdingKey } from "../bookkeeping";
-import { getMyPortfolio } from "../portfolio-queries";
+import { openOperationPlansFor } from "../held-operations";
 import { seriesByHolding } from "../portfolio-service";
 
 import { buildRollAgenda, type RollAgendaInput, type RollAgendaItem } from "./roll-agenda";
@@ -26,21 +29,19 @@ import { isShortLegAssignmentRisk } from "./roll-assignment-risk";
 // invariant.
 const DEFAULT_ROLL_SESSIONS_BEFORE_EXPIRY = 5;
 
-// Each open operation's own `RollAgendaInput`, read from the already-loaded portfolio
-// (`getMyPortfolio`, React-cached so the Início and Carteira pages share one read) plus the
+// Each open operation's own `RollAgendaInput`, read from the already-loaded plan
+// (`openOperationPlansFor`, narrow and markToMarket-free, #382 review advisory: Início and
+// Carteira never need the full engine-valued portfolio just to show the agenda) plus the
 // underlying's last close and the calendar's own session count to expiry — never a number this
 // module computes itself (CLAUDE.md principle 1): strike and spot are the engine's own series
-// facts and the latest ingested candle, compared by `isShortLegAssignmentRisk`.
-export const getMyRollAgenda = cache(async (): Promise<RollAgendaItem[]> => {
-  const db = getDb();
-  const model = await getMyPortfolio();
-  const candidates = model.operations.filter(
-    ({ operation, state, heldExpiry, pendingSettlement }) =>
-      operation.status === "open" &&
-      !pendingSettlement &&
-      heldExpiry !== null &&
-      state !== null &&
-      state.legs.some((leg) => leg.role !== "stock"),
+// facts and the latest ingested candle, compared by `isShortLegAssignmentRisk`. Parameterized by
+// `db`/`user` so an integration test can exercise it for two different users without a request
+// context.
+export async function rollAgendaFor(db: Database, user: ScopedUser): Promise<RollAgendaItem[]> {
+  const plans = await openOperationPlansFor(db, user);
+  const candidates = plans.filter(
+    ({ pendingSettlement, heldExpiry, legs }) =>
+      !pendingSettlement && heldExpiry !== null && legs.some((leg) => leg.role !== "stock"),
   );
   if (candidates.length === 0) {
     return [];
@@ -48,19 +49,17 @@ export const getMyRollAgenda = cache(async (): Promise<RollAgendaItem[]> => {
 
   const inputs: RollAgendaInput[] = [];
   const candleByUnderlying = new Map<Ticker, { session: SessionDate; close: string } | null>();
-  for (const { operation, state, heldExpiry } of candidates) {
-    if (!state || !heldExpiry) continue;
-    const underlying = operation.underlying;
+  for (const { operationId, underlying, legs, heldExpiry, fills } of candidates) {
+    if (!heldExpiry) continue;
     if (!candleByUnderlying.has(underlying)) {
       candleByUnderlying.set(underlying, (await latestCandle(db, underlying)) ?? null);
     }
     const candle = candleByUnderlying.get(underlying) ?? null;
 
-    const operationFills = model.fills.filter((fill) => fill.operationId === operation.id);
-    const series = await seriesByHolding(db, operationFills);
+    const series = await seriesByHolding(db, fills);
     const anyShortLegInTheMoney =
       candle !== null &&
-      state.legs
+      legs
         .filter((leg) => leg.role !== "stock" && leg.side === "sell")
         .some((leg) => {
           const facts = series.get(holdingKey(leg.ticker, heldExpiry));
@@ -85,7 +84,7 @@ export const getMyRollAgenda = cache(async (): Promise<RollAgendaItem[]> => {
     );
 
     inputs.push({
-      operationId: operation.id,
+      operationId,
       underlying,
       expiry: heldExpiry,
       sessionsToExpiry,
@@ -95,4 +94,10 @@ export const getMyRollAgenda = cache(async (): Promise<RollAgendaItem[]> => {
   }
 
   return buildRollAgenda(inputs);
+}
+
+export const getMyRollAgenda = cache(async (): Promise<RollAgendaItem[]> => {
+  const user = await requireUser();
+  await recordAccess("portfolio_read");
+  return rollAgendaFor(getDb(), user);
 });

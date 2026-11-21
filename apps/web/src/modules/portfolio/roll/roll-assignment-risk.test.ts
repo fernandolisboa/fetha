@@ -16,7 +16,7 @@ describe("isShortLegAssignmentRisk", () => {
 
   it("flags a short call within the builder's own display band but still in the money", () => {
     // 29.75 vs 30.00 is a 0.8% distance, inside the picker's +/-1% "at" band: still a real
-    // assignment risk, the exact regression this predicate exists for (#382 review item 6).
+    // assignment risk, the exact regression this predicate exists for (#382).
     expect(
       isShortLegAssignmentRisk(
         "call",

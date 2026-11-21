@@ -1,8 +1,10 @@
 import { cache } from "react";
 
+import type { Database } from "@/db/client";
 import { getDb } from "@/db/client";
+import type { ScopedUser } from "@/lib/user-scoped-repository";
 import { recordAccess } from "@/modules/audit";
-import { forCurrentUser } from "@/modules/auth";
+import { requireUser } from "@/modules/auth";
 
 import { cashCentavos } from "../bookkeeping";
 import { PortfolioRepository } from "../portfolio-repository";
@@ -14,14 +16,18 @@ import {
   type RollChainRow,
 } from "./roll-chain";
 
-// The roll chain containing `operationId`, from any link in it (#382, ADR-0080): each closed
-// link's own result is its complete fill set's net cash flow (`cashCentavos` with no declared
-// capital — an operation's fills already net to its own realized round trip), grouped by the
-// month it closed in. An operation still open carries no result yet, so it is left out of the
-// rows but still counts toward whether a chain exists at all.
-export const getMyRollChain = cache(async (operationId: string): Promise<RollChainRow[]> => {
-  const repository = await forCurrentUser(getDb(), PortfolioRepository);
-  await recordAccess("portfolio_read");
+// The roll chain containing `operationId`, from any link in it (#382, ADR-0080): each link's own
+// net is its complete fill set's net cash flow (`cashCentavos` with no declared capital), grouped
+// by the month it closed in for a closed link, or by the month it opened in for the chain's
+// still-open last link — whose fill set has no closing side yet, so its net is just the premium
+// already received or paid opening it (#382 review advisory). Parameterized by `db`/`user` so an
+// integration test can exercise it for two different users without a request context.
+export async function rollChainFor(
+  db: Database,
+  user: ScopedUser,
+  operationId: string,
+): Promise<RollChainRow[]> {
+  const repository = new PortfolioRepository(db, user);
   const [operations, fills] = await Promise.all([
     repository.listOperations(),
     repository.listFills(),
@@ -29,13 +35,19 @@ export const getMyRollChain = cache(async (operationId: string): Promise<RollCha
   const chainIds = new Set(chainIdsFrom(operations, operationId));
   const entries: RollChainEntry[] = [];
   for (const operation of operations) {
-    if (!chainIds.has(operation.id) || !operation.closedAt) continue;
+    if (!chainIds.has(operation.id)) continue;
     const operationFills = fills.filter((fill) => fill.operationId === operation.id);
     entries.push({
       operationId: operation.id,
-      month: operation.closedAt.slice(0, 7),
-      resultCentavos: cashCentavos(0, operationFills),
+      month: (operation.closedAt ?? operation.openedAt).slice(0, 7),
+      netCentavos: cashCentavos(0, operationFills),
     });
   }
   return aggregateRollChainByMonth(entries);
+}
+
+export const getMyRollChain = cache(async (operationId: string): Promise<RollChainRow[]> => {
+  const user = await requireUser();
+  await recordAccess("portfolio_read");
+  return rollChainFor(getDb(), user, operationId);
 });

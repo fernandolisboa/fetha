@@ -291,7 +291,7 @@ export async function groupFillsAction(input: unknown): Promise<PortfolioActionR
     const repository = new PortfolioRepository(db, user);
     const ownFills = await repository.listFills();
     const series = await seriesByHolding(db, ownFills);
-    // #271 review round 1 item 4: every path that nets fills into legs resolves its
+    // #271: every path that nets fills into legs resolves its
     // corporate-action factors the same way; a new grouping does not know its underlying until
     // `planOperation` itself resolves it, so the whole map is batched up front.
     const corporateActions = await corporateActionsByUnderlying(
@@ -340,7 +340,7 @@ const settlementInputSchema = z.strictObject({
         outcome: z.enum(["exercised", "assigned", "expired_worthless"]),
         price: z.string(),
         costs: z.string(),
-        // #271 review round 1 item 8: the delivered quantity the dialog showed, checked against
+        // #271: the delivered quantity the dialog showed, checked against
         // what the server recomputes before settling.
         quantity: z.int().positive(),
         // ADR-0062: the cash-settled leg's own cash flow the dialog showed, checked against the
@@ -415,7 +415,7 @@ export async function confirmSettlementAction(input: unknown): Promise<Portfolio
     if (!closing) {
       return { status: "error" as const, error: "no_proposal" as const };
     }
-    // #271 review round 1 item 8, #282: refuse rather than settle against a quantity the dialog
+    // #271, #282: refuse rather than settle against a quantity the dialog
     // showed before a corporate action was ingested between render and confirm. The dialog and
     // the ledger both read `closingQuantities`, so this compares what was shown with what would
     // be stored.

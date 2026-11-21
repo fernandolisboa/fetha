@@ -65,9 +65,12 @@ An operation outside a ten-session window is left out of the agenda entirely: no
 yet.
 
 The roll-chain history is the chain walked from any operation through its `rolledFromOperationId`
-pointers, each hop's realized result (closing cash flow plus, for the chain's last link, the
-position's own settlement) grouped by the calendar month it landed in
-(`roll/roll-chain.ts`'s `aggregateRollChainByMonth`), with a running total carried forward in
+pointers, each link's own net credit/debit — its complete fill set's net cash flow
+(`cashCentavos` with no declared capital): for a closed link, the premium it was opened with plus
+the cash that closed it; for the chain's still-open last link, just the premium it was opened
+with, since nothing has closed it yet — grouped by the calendar month it landed in (the month it
+closed in for a closed link, the month it opened in for the still-open one;
+`roll/roll-chain.ts`'s `aggregateRollChainByMonth`), with a running total carried forward in
 integer centavos, no `decimal.js` needed since centavos addition never leaves the integers. CSV
 export (`rollChainToCsv`) renders plain decimal numbers (`"5.00"`, not `"R$ 5,00"`) and ISO month
 keys, not the screen's own pt-BR formatting: a script or spreadsheet re-reading the file should
@@ -85,7 +88,7 @@ never have to locale-parse it.
 - The backtester still ignores roll rules entirely (`adjustment_not_applied`, #383); this ADR
   covers only the Carteira's own recording of a roll a human executed, never an automatic one.
 
-## Addendum (round 2): the agenda's trigger without a cheap plan link, and roll by leg
+## Addendum: the agenda's trigger without a cheap plan link, and roll by leg
 
 The body above left two things to the orchestration ticket (#382's remaining slice): how the
 "Rolar" proposal picks each leg's own next series, and what the roll agenda's suggested-action
@@ -94,12 +97,18 @@ read a structure-specific trigger from.
 
 - **Roll by leg, never by inferred structure**: the orchestrator (`roll/roll-plan.ts`,
   `roll/roll-resolve.ts`) never looks at an operation's legs and guesses which structure they
-  form. Each option leg rolls on its own: same right, nearest strike to its own held strike at
-  the next monthly expiry (`roll/roll-series-selection.ts`, already shipped), same side and
-  quantity reopened, side reversed to close. A stock leg (a covered call's own stock) is left out
-  of the roll entirely — there is nothing to roll for it. One leg's own failure (no later monthly
-  expiry, or none of it traded) refuses that leg with its own ticker in the error, not the whole
-  operation guessed as some other shape.
+  form. One shared next monthly expiry is chosen first, from the full monthly chain before it is
+  narrowed to traded series (`roll/roll-series-selection.ts`'s `selectNextMonthlyExpiry`), so an
+  expiry with no traded series yet still counts as the next one and `no_traded_series` stays its
+  own, later refusal, and so a strangle or collar's legs can never land on two different
+  expiries. Only then does each leg pick its own nearest strike to its own held strike at that
+  one expiry (`selectNearestStrikeAtExpiry`), same side and quantity reopened, side reversed to
+  close. A stock leg (a covered call's own stock) is left out of the roll entirely — there is
+  nothing to roll for it. The plan refuses the whole roll, not leg by leg, when two legs would
+  resolve to the same ticker (`duplicate_ticker`) or when the strike width between legs would
+  change (`strike_width_changed`): either would silently turn the structure the user holds into a
+  different one. One leg's own failure to find a traded series at the shared expiry refuses that
+  leg with its own ticker in the error, not the whole operation guessed as some other shape.
 - **No cheap plan link exists today**: the intended design (checking whether the operation is
   "cheaply linkable to a saved plan" and reusing that plan's own `rollTriggerSessionsBeforeExpiry`)
   assumed a join from a held `operations` row back to the `contemplated_operations`/
@@ -123,7 +132,7 @@ read a structure-specific trigger from.
   from, the agenda should read that plan's own trigger instead — this default is this ticket's
   interim, not the final rule.
 
-## Addendum (round 3): review fixes
+## Addendum: atomicity, covered calls, the series map and the execution session
 
 - **The roll is atomic.** `PortfolioRepository.roll` throws a typed `RollRefusal` on every
   post-write refusal instead of returning `{ ok: false }` from inside `db.transaction`: a bare

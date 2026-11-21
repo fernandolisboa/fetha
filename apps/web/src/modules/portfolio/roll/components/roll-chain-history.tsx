@@ -38,7 +38,7 @@ export async function RollChainHistory({ operationId }: { operationId: string })
         <TableHeader>
           <TableRow>
             <TableHead>{labels.month}</TableHead>
-            <TableHead className="text-right">{labels.result}</TableHead>
+            <TableHead className="text-right">{labels.net}</TableHead>
             <TableHead className="text-right">{labels.runningTotal}</TableHead>
           </TableRow>
         </TableHeader>
@@ -49,11 +49,11 @@ export async function RollChainHistory({ operationId }: { operationId: string })
                 {row.month}
               </TableCell>
               <TableCell
-                data-label={labels.result}
+                data-label={labels.net}
                 className="text-right font-mono tabular-nums"
-                style={{ color: row.resultCentavos >= 0 ? "var(--up)" : "var(--down)" }}
+                style={{ color: row.netCentavos >= 0 ? "var(--up)" : "var(--down)" }}
               >
-                {signedBRL(row.resultCentavos)}
+                {signedBRL(row.netCentavos)}
               </TableCell>
               <TableCell
                 data-label={labels.runningTotal}

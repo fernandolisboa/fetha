@@ -11,7 +11,7 @@ import {
 } from "@/modules/market-data";
 
 import { getMyHeldOperation, HeldOperationNotFoundError } from "../held-operations";
-import { planRollLegs, type HeldLegFacts } from "./roll-plan";
+import { planRoll, type HeldLegFacts } from "./roll-plan";
 
 export interface ResolvedRollLeg {
   ticker: Ticker;
@@ -42,7 +42,9 @@ export type RollResolveOutcome =
         | "no_expiry"
         | "no_data"
         | "no_next_expiry"
-        | "no_traded_series";
+        | "no_traded_series"
+        | "duplicate_ticker"
+        | "strike_width_changed";
       ticker?: Ticker;
     };
 
@@ -116,13 +118,24 @@ export async function resolveRoll(operationId: string): Promise<RollResolveOutco
     legsFacts.push({ leg, right: facts.right, strike: facts.strike });
   }
 
-  const candidateView = filterToTradedSeries(filterToMonthlyExpiries(rawView), session.date);
-  const results = planRollLegs(held.underlying, held.expiry, legsFacts, candidateView.optionSeries);
-  const failed = results.find(
-    (result): result is Extract<(typeof results)[number], { ok: false }> => !result.ok,
+  // The next monthly expiry is chosen from the full monthly chain first, before narrowing to
+  // traded series (#382 review advisory), so `no_traded_series` stays reachable on its own and a
+  // multi-leg structure is never split across two expiries.
+  const monthlyView = filterToMonthlyExpiries(rawView);
+  const tradedView = filterToTradedSeries(monthlyView, session.date);
+  const plan = planRoll(
+    held.underlying,
+    held.expiry,
+    legsFacts,
+    monthlyView.optionSeries,
+    tradedView.optionSeries,
   );
-  if (failed) {
-    return { ok: false, reason: failed.reason, ticker: failed.ticker };
+  if (!plan.ok) {
+    return {
+      ok: false,
+      reason: plan.reason,
+      ...("ticker" in plan ? { ticker: plan.ticker } : {}),
+    };
   }
 
   return {
@@ -131,26 +144,19 @@ export async function resolveRoll(operationId: string): Promise<RollResolveOutco
     underlying: held.underlying,
     expiry: held.expiry,
     fillIds: held.fillIds,
-    // The raw (unfiltered) view, not `candidateView`: pricing the closing legs needs the held
+    // The raw (unfiltered) view, not `tradedView`: pricing the closing legs needs the held
     // series' own facts, which the monthly/traded filters (meant only to narrow which series
-    // `selectNextMonthlySeries` may pick among) can drop, e.g. a held series no longer trading.
+    // the plan may pick among) can drop, e.g. a held series no longer trading.
     view: rawView,
     at: session.at,
     sessionDate: session.date,
-    legs: results.flatMap((result, index) => {
-      if (!result.ok) return [];
-      const facts = legsFacts[index];
-      if (!facts) return [];
-      return [
-        {
-          ticker: result.openingLeg.ticker,
-          right: facts.right,
-          currentStrike: facts.strike,
-          closingLeg: result.closingLeg,
-          openingLeg: result.openingLeg,
-          targetSeries: result.targetSeries,
-        },
-      ];
-    }),
+    legs: plan.legs.map((leg) => ({
+      ticker: leg.openingLeg.ticker,
+      right: leg.right,
+      currentStrike: leg.currentStrike,
+      closingLeg: leg.closingLeg,
+      openingLeg: leg.openingLeg,
+      targetSeries: leg.targetSeries,
+    })),
   };
 }

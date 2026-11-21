@@ -157,7 +157,7 @@ describe("PortfolioRepository.roll", () => {
       plan,
     );
     expect(result).toEqual({ ok: false, reason: "conflict" });
-    // The transaction must roll every write of this attempt back (#382 review item 1): a
+    // The transaction must roll every write of this attempt back (#382): a
     // refusal after writes have already happened must never leave them committed.
     expect(await repository.listFills()).toHaveLength(1);
     expect((await repository.listOperations())[0]?.status).toBe("open");
@@ -182,7 +182,7 @@ describe("PortfolioRepository.roll", () => {
       plan,
     );
     expect(result).toEqual({ ok: false, reason: "conflict" });
-    // Before the fix, the closing fill's own insert committed anyway (#382 review item 1):
+    // Before the fix, the closing fill's own insert committed anyway (#382):
     // the refusal must leave the fill set exactly as it was, not with a dangling closing fill.
     expect(await repository.listFills()).toHaveLength(1);
     expect((await repository.listOperations())[0]?.status).toBe("open");
@@ -222,7 +222,7 @@ describe("PortfolioRepository.roll", () => {
     const sourceFills = fills.filter((fill) => fill.operationId === grouped.operationId);
     const newFills = fills.filter((fill) => fill.operationId === result.newOperationId);
     // The stock leg's own original fill moved to the new operation, cost basis intact (its
-    // price is untouched), rather than being closed (#382 review item 2).
+    // price is untouched), rather than being closed (#382).
     expect(newFills).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ assetClass: "stock", side: "buy", price: "30.000000" }),

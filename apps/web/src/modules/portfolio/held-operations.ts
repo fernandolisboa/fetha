@@ -33,53 +33,58 @@ export class HeldOperationNotFoundError extends Error {
 }
 
 interface PlannedOperation {
+  underlying: Ticker;
   fillIds: string[];
+  fills: FillRecord[];
   plan: OperationPlan;
 }
 
-// The plan of each of the user's open operations among `ids`, from its
-// fills: the live legs a held operation's expiry and default horizon come
-// from, never the stored `operations.expiry` alone (#259).
+// The plan of each of the user's open operations, from its fills: the live
+// legs a held operation's expiry and default horizon come from, never the
+// stored `operations.expiry` alone (#259). `ids`, when given, narrows the
+// set planned; omitted, every open operation is planned (#382 review
+// advisory: the roll agenda and the operation page need this without the
+// engine valuation `getMyPortfolio` carries).
 async function planMyOpenOperations(
   db: Database,
   user: ScopedUser,
-  ids: readonly string[],
+  ids?: readonly string[],
 ): Promise<Map<string, PlannedOperation>> {
   const repository = new PortfolioRepository(db, user);
-  const wanted = new Set(ids);
+  const wanted = ids ? new Set(ids) : null;
   const [operations, fills] = await Promise.all([
     repository.listOperations(),
     repository.listFills(),
   ]);
-  const openIds = new Set(
-    operations
-      .filter((operation) => operation.status === "open" && wanted.has(operation.id))
-      .map((operation) => operation.id),
+  const openOperations = operations.filter(
+    (operation) => operation.status === "open" && (!wanted || wanted.has(operation.id)),
   );
-  const fillsById = new Map([...openIds].map((id) => [id, [] as FillRecord[]]));
+  const underlyingById = new Map(
+    openOperations.map((operation) => [operation.id, operation.underlying]),
+  );
+  const fillsById = new Map(openOperations.map((operation) => [operation.id, [] as FillRecord[]]));
   for (const fill of fills) {
     if (fill.operationId !== null) {
       fillsById.get(fill.operationId)?.push(fill);
     }
   }
-  const underlyingById = new Map(
-    operations.map((operation) => [operation.id, operation.underlying]),
-  );
   const [series, corporateActions] = await Promise.all([
     seriesByHolding(db, [...fillsById.values()].flat()),
-    corporateActionsByUnderlying(
-      db,
-      [...openIds].map((id) => underlyingById.get(id)),
-    ),
+    corporateActionsByUnderlying(db, underlyingById.values()),
   ]);
   return new Map(
-    [...fillsById].map(([id, own]) => [
-      id,
-      {
-        fillIds: own.map((fill) => fill.id),
-        plan: planOperation(own, series, corporateActions),
-      },
-    ]),
+    openOperations.map((operation) => {
+      const own = fillsById.get(operation.id) ?? [];
+      return [
+        operation.id,
+        {
+          underlying: operation.underlying,
+          fillIds: own.map((fill) => fill.id),
+          fills: own,
+          plan: planOperation(own, series, corporateActions),
+        },
+      ];
+    }),
   );
 }
 
@@ -123,6 +128,53 @@ export async function getMyOpenOperationExpiries(
     [...planned].map(([id, { plan }]) => [id, plan.ok ? heldExpiry(plan.state) : null]),
   );
 }
+
+export interface OpenOperationPlanRow {
+  operationId: string;
+  underlying: Ticker;
+  legs: OperationLeg[];
+  heldExpiry: SessionDate | null;
+  pendingSettlement: boolean;
+  fills: FillRecord[];
+}
+
+// Every one of the user's open operations' own legs, held expiry and fills, without the engine
+// valuation `getMyPortfolio` carries (#382 review advisory): the roll agenda and the operation
+// page header only need an operation's legs, expiry and whether it is pending settlement, never
+// a mark-to-market. "Pending settlement" here means the same thing `loadPortfolio` means by it:
+// an open option leg whose expiry session has already closed. Parameterized by `db`/`user`
+// (rather than reading the session itself) so an integration test can exercise it for two
+// different users without a request context, the same split `loadPortfolio`/`getMyPortfolio`
+// already makes.
+export async function openOperationPlansFor(
+  db: Database,
+  user: ScopedUser,
+): Promise<OpenOperationPlanRow[]> {
+  const planned = await planMyOpenOperations(db, user);
+  const rows: OpenOperationPlanRow[] = [];
+  for (const [operationId, { underlying, fills, plan }] of planned) {
+    if (!plan.ok) continue;
+    const expiry = heldExpiry(plan.state);
+    const openOption = plan.state.legs.some((leg) => leg.role !== "stock");
+    const pendingSettlement =
+      openOption && expiry !== null && (await hasExpired(db, expiry, nowInstant()));
+    rows.push({
+      operationId,
+      underlying,
+      legs: plan.state.legs,
+      heldExpiry: expiry,
+      pendingSettlement,
+      fills,
+    });
+  }
+  return rows;
+}
+
+export const getMyOpenOperationPlans = cache(async (): Promise<OpenOperationPlanRow[]> => {
+  const user = await requireUser();
+  await recordAccess("portfolio_read");
+  return openOperationPlansFor(getDb(), user);
+});
 
 export interface HeldOperationScoringRequest {
   operationId: string;

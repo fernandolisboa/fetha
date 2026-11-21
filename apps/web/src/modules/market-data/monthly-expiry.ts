@@ -42,7 +42,7 @@ export function isB3MonthlyExpiry(date: SessionDate, calendar: readonly TradingS
   return candidate === date;
 }
 
-// The plan's own series rule (ticket #379, round 1 review): never a weekly, so this filters the
+// The plan's own series rule (ticket #379): never a weekly, so this filters the
 // view's option chain down to monthly expiries before the engine ever sees it. A caller passing
 // this filtered view to `engine.priceOperation` gets the same engine, with fewer series to pick
 // from — no engine internal is touched.

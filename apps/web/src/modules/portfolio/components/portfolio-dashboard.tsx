@@ -163,7 +163,7 @@ function PositionsTable({ rows }: { rows: PositionRow[] }) {
   );
 }
 
-// #271 review round 1 item 5: the dialog defaults its price from the engine's own rebased fill,
+// #271: the dialog defaults its price from the engine's own rebased fill,
 // not the leg's strike. #282: an option leg shows the count it closes at
 // (`closingQuantities`), the same one the ledger stores and the confirm action checks; a kept
 // stock leg shows the engine's fill or its nominal quantity.

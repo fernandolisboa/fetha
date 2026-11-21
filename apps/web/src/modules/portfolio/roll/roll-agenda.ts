@@ -41,7 +41,7 @@ export interface RollAgendaInput {
 //    trigger, is a roll.
 // 3. Otherwise, a short leg already in the money (but not yet at the assignment-risk window)
 //    is only watched: "let it expire" would be wrong advice for a leg a buyer could still
-//    exercise before the trigger fires (#382 review item 7).
+//    exercise before the trigger fires (#382).
 // 4. Otherwise every short leg is out of the money, so the position is left to expire worthless.
 //
 // Returns null when the operation is outside the agenda window (CLAUDE.md: the engine computes,

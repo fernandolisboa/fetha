@@ -22,7 +22,7 @@ export interface RollOrder {
   quantity: Leg["quantity"];
   price: DecimalString | null;
   // The session the engine's own close is stale against, carried from `LegValuation.stale`
-  // (#382 review item 5): a dialog showing this order's price as current when it is actually
+  // (#382): a dialog showing this order's price as current when it is actually
   // this many sessions old would misrepresent the net as live when it is not.
   stale: { session: SessionDate } | null;
 }

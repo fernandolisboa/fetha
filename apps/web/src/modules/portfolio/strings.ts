@@ -277,6 +277,9 @@ const en = {
       no_next_expiry: (ticker: string) => `No later monthly expiry found for ${ticker}.`,
       no_traded_series: (ticker: string) =>
         `No traded series at the next monthly expiry for ${ticker}.`,
+      duplicate_ticker: (ticker: string) =>
+        `Rolling would put two legs on the same series (${ticker}).`,
+      strike_width_changed: "Rolling would change the strike width between the legs.",
       unpriceable: "Could not price the roll with the current data.",
     },
   },
@@ -319,7 +322,7 @@ const en = {
       title: "Roll history",
       empty: "This operation was never rolled.",
       month: "Month",
-      result: "Result",
+      net: "Net credit/debit",
       runningTotal: "Running total",
       download: "Download CSV",
     },
@@ -635,6 +638,9 @@ const ptBR = {
       no_next_expiry: (ticker: string) => `Não há um vencimento mensal posterior para ${ticker}.`,
       no_traded_series: (ticker: string) =>
         `Não há série negociada no próximo vencimento mensal para ${ticker}.`,
+      duplicate_ticker: (ticker: string) =>
+        `A rolagem colocaria duas pernas na mesma série (${ticker}).`,
+      strike_width_changed: "A rolagem mudaria a distância entre os strikes das pernas.",
       unpriceable: "Não foi possível precificar a rolagem com os dados atuais.",
     },
   },
@@ -677,7 +683,7 @@ const ptBR = {
       title: "Histórico de rolagens",
       empty: "Esta operação nunca foi rolada.",
       month: "Mês",
-      result: "Resultado",
+      net: "Crédito/débito líquido",
       runningTotal: "Total acumulado",
       download: "Baixar CSV",
     },

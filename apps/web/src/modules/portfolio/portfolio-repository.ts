@@ -145,7 +145,7 @@ function toOperationRecord(row: typeof operations.$inferSelect): OperationRecord
 }
 
 // Thrown inside `roll`'s transaction on every post-write refusal, so Postgres rolls every write
-// of that attempt back instead of committing a half-executed roll (#382 review item 1):
+// of that attempt back instead of committing a half-executed roll (#382):
 // returning `{ ok: false }` from a Drizzle transaction callback still commits whatever the
 // callback already wrote.
 class RollRefusal extends Error {

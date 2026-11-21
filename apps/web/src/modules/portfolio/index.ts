@@ -17,16 +17,18 @@ export {
   type SaveContemplatedOperationInput,
 } from "./operations-repository";
 export { getMyOperation, getMyOperations } from "./operations-queries";
-export { getMyPortfolio } from "./portfolio-queries";
+export { getMyOperationSummary, getMyPortfolio, type OperationSummary } from "./portfolio-queries";
 export type { PortfolioReadModel } from "./portfolio-service";
 export { countLiveOpenOperations } from "./portfolio-service";
 export { PortfolioDashboard, type OperationDecisionSlot } from "./components/portfolio-dashboard";
 export {
   getMyHeldOperation,
   getMyOpenOperationExpiries,
+  getMyOpenOperationPlans,
   heldOperationForScoring,
   HeldOperationNotFoundError,
   type HeldOperation,
+  type OpenOperationPlanRow,
 } from "./held-operations";
 export { declareRiskProfileAction, type RiskProfileActionResult } from "./risk-profile-actions";
 export { getCurrentRiskProfile, getMyDeclaredCapital } from "./risk-profile-queries";

@@ -35,6 +35,8 @@ export type RollActionError =
   | "no_data"
   | "no_next_expiry"
   | "no_traded_series"
+  | "duplicate_ticker"
+  | "strike_width_changed"
   | "unpriceable"
   | "conflict"
   | "not_a_session"
@@ -87,7 +89,7 @@ async function priceProposal(
     opening: opening.value,
   });
   // A leg with no price would show a debit as a credit (or the reverse) once netted; refuse
-  // outright rather than show "indisponível" (#382 review item 5).
+  // outright rather than show "indisponível" (#382).
   if (proposal.orders.some((order) => order.price === null)) {
     return { status: "error", error: "unpriceable" };
   }
@@ -198,7 +200,7 @@ function toNewFills(
 export async function recordRollAction(input: unknown): Promise<RecordRollResult> {
   const parsed = recordRollInputSchema.safeParse(input);
   if (!parsed.success) return { status: "error", error: "invalid" };
-  // A roll is stamped with the session the user actually executed it in (#382 review item 4),
+  // A roll is stamped with the session the user actually executed it in (#382),
   // never the pricing session: validated the same way `recordFillAction` validates a fill's own
   // session, so a roll can never be recorded for a session that has not opened yet.
   if (parsed.data.session > todaySaoPauloDate()) {
@@ -255,7 +257,7 @@ export async function recordRollAction(input: unknown): Promise<RecordRollResult
     // The whole fill history, not only the legs rolling today: the repository replans the
     // source operation from its complete fill set, so a ticker that was closed earlier in the
     // operation's life needs its own series facts too, or the replan refuses as `unknown_series`
-    // (#382 review item 3).
+    // (#382).
     const historicalSeries = await seriesByHolding(db, operationFills);
     const series: SeriesByHolding = new Map([
       ...historicalSeries,

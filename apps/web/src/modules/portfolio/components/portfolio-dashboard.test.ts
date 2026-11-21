@@ -98,7 +98,7 @@ function pendingSettlement(
   };
 }
 
-describe("settlementLegs (#271 review round 1 item 5)", () => {
+describe("settlementLegs (#271)", () => {
   it("shows the engine's own rebased fill quantity and price, not the leg's nominal values", () => {
     const [view] = settlementLegs(pendingSettlement([exercisedLegSettlement()]));
     expect(view).toMatchObject({ quantity: 2, price: "28.00" });

@@ -57,7 +57,7 @@ export default async function PortfolioPage() {
     getMyOperations(),
     latestSessionOnOrBefore(getDb(), new Date()),
   ]);
-  // The roll dialog's own default execution session (#382 review item 4): the latest trading
+  // The roll dialog's own default execution session (#382): the latest trading
   // session that has already opened and closed, never the raw calendar date, so clicking
   // straight through never hits `recordRollAction`'s own "not a session" refusal on a weekend
   // or a holiday.

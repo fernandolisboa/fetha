@@ -36,20 +36,23 @@ export function chainIdsFrom(operations: readonly OperationLink[], id: string): 
   return chain;
 }
 
-// One operation in a roll chain (#382): the month it closed or expired in (an ISO "YYYY-MM",
-// the chain's own calendar unit — rolls happen monthly, ADR-0080), and the signed cash flow that
-// month's roll (or final close) carried. Centavos stay integers end to end; only
-// `rollChainToCsv` converts to a plain decimal at the export boundary.
+// One operation in a roll chain (#382): the month it closed, expired or (for the still-open last
+// link) opened in (an ISO "YYYY-MM", the chain's own calendar unit — rolls happen monthly,
+// ADR-0080), and the net credit/debit that link's own fills carried: for a closed link, its
+// closing cash plus the opening cash that created it (what was received or paid rolling into and
+// out of it); for the chain's still-open last link, only the opening cash, since nothing has
+// closed it yet. Centavos stay integers end to end; only `rollChainToCsv` converts to a plain
+// decimal at the export boundary.
 export interface RollChainEntry {
   operationId: string;
   month: string;
-  resultCentavos: Centavos;
+  netCentavos: Centavos;
 }
 
 export interface RollChainRow {
   month: string;
   operationIds: string[];
-  resultCentavos: Centavos;
+  netCentavos: Centavos;
   runningTotalCentavos: Centavos;
 }
 
@@ -57,16 +60,16 @@ export interface RollChainRow {
 // row silently shadowing another) and carries a running total forward across months in
 // chronological order; integer centavos addition throughout, so no rounding ever creeps in.
 export function aggregateRollChainByMonth(entries: readonly RollChainEntry[]): RollChainRow[] {
-  const byMonth = new Map<string, { operationIds: string[]; resultCentavos: number }>();
+  const byMonth = new Map<string, { operationIds: string[]; netCentavos: number }>();
   for (const entry of entries) {
     const existing = byMonth.get(entry.month);
     if (existing) {
       existing.operationIds.push(entry.operationId);
-      existing.resultCentavos += entry.resultCentavos;
+      existing.netCentavos += entry.netCentavos;
     } else {
       byMonth.set(entry.month, {
         operationIds: [entry.operationId],
-        resultCentavos: entry.resultCentavos,
+        netCentavos: entry.netCentavos,
       });
     }
   }
@@ -75,11 +78,11 @@ export function aggregateRollChainByMonth(entries: readonly RollChainEntry[]): R
   return months.map((month) => {
     const group = byMonth.get(month);
     if (!group) throw new Error("unreachable: month came from this map's own keys");
-    runningTotal += group.resultCentavos;
+    runningTotal += group.netCentavos;
     return {
       month,
       operationIds: group.operationIds,
-      resultCentavos: group.resultCentavos as Centavos,
+      netCentavos: group.netCentavos as Centavos,
       runningTotalCentavos: runningTotal as Centavos,
     };
   });
@@ -100,12 +103,12 @@ function csvField(value: string): string {
 // Plain decimal numbers and ISO dates, not pt-BR formatting (#382): a spreadsheet re-import or a
 // script reading this file should never have to locale-parse it, unlike the screen's own table.
 export function rollChainToCsv(rows: readonly RollChainRow[]): string {
-  const header = "month,operation_ids,result,running_total";
+  const header = "month,operation_ids,net,running_total";
   const lines = rows.map((row) =>
     [
       row.month,
       csvField(row.operationIds.join(";")),
-      centavosToPlainDecimal(row.resultCentavos),
+      centavosToPlainDecimal(row.netCentavos),
       centavosToPlainDecimal(row.runningTotalCentavos),
     ].join(","),
   );

@@ -52,12 +52,15 @@ function errorLabel(error: RollActionError, ticker?: string): string {
       return errors.no_next_expiry(ticker ?? "");
     case "no_traded_series":
       return errors.no_traded_series(ticker ?? "");
+    case "duplicate_ticker":
+      return errors.duplicate_ticker(ticker ?? "");
     case "invalid":
       return errors.invalid_input;
     case "not_found":
     case "no_option_legs":
     case "no_expiry":
     case "no_data":
+    case "strike_width_changed":
     case "unpriceable":
     case "conflict":
     case "not_a_session":
@@ -132,8 +135,8 @@ function signedBRL(value: Centavos): string {
   return value > 0 ? `+ ${formatBRL(value)}` : formatBRL(value);
 }
 
-// The net credit/debit recomputed from the prices the user actually edited (#382 review item
-// 5), never the engine's own mark: shown as "antes de custos" since it excludes each order's
+// The net credit/debit recomputed from the prices the user actually edited (#382), never the
+// engine's own mark: shown as "antes de custos" since it excludes each order's
 // costs, unlike the final recorded fills.
 function editedNetCentavos(
   orders: readonly RollOrder[],
