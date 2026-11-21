@@ -155,7 +155,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "type": "callout",
     },
     {
-      "text": "Uma opção de estilo europeu só pode ser exercida na própria data de vencimento, nunca antes. No vencimento, a B3 exerce automaticamente uma opção que está dentro do dinheiro depois que ela passa de uma margem mínima que a própria B3 define; abaixo dessa margem, quem detém a opção precisa pedir o exercício manualmente. Nos dois casos, quem detém a opção pode optar por não ser exercido.",
+      "text": "Uma opção de estilo europeu só pode ser exercida na própria data de vencimento, nunca antes. No vencimento, a B3 exerce automaticamente uma opção que está dentro do dinheiro depois que ela passa de uma margem mínima que a própria B3 define; abaixo dessa margem, quem detém a opção precisa pedir o exercício manualmente. No caso automático, quem detém a opção pode pedir que ela não seja exercida.",
       "type": "paragraph",
     },
     {
@@ -262,6 +262,16 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
         "Um identificador para diferenciar séries, que pode parecer um strike, mas não é",
       ],
       "prompt": "O número no final do código de uma série é:",
+    },
+    {
+      "correctOptionId": "a",
+      "explanation": "Uma série semanal mantém o mesmo formato de letra e número de uma mensal e só acrescenta um sufixo de W1 a W5 para a semana em que vence.",
+      "options": [
+        "Uma segunda letra indicando o ano de vencimento",
+        "Um sufixo de W1 a W5 dizendo em qual semana do mês ela vence",
+        "O dígito de classe do próprio ativo",
+      ],
+      "prompt": "O ticker de uma série semanal, além da letra e do número usuais, acrescenta:",
     },
   ],
   "summary": "A raiz do ticker, a letra de tipo e mês, e o número que não é o strike.",

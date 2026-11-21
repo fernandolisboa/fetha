@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { lessonSchema, quizQuestionSchema, type Lesson } from "./lesson-catalog";
+import {
+  lessonCatalogSchema,
+  lessonSchema,
+  quizQuestionSchema,
+  type Lesson,
+} from "./lesson-catalog";
 
 const localized = { en: "english text", pt: "texto em português" };
 
@@ -26,7 +31,12 @@ function makeLesson(overrides: Partial<Lesson> = {}): unknown {
     title: localized,
     summary: localized,
     blocks: [{ type: "paragraph", text: localized }],
-    quiz: [makeQuestion(), makeQuestion({ id: "q2" }), makeQuestion({ id: "q3" })],
+    quiz: [
+      makeQuestion(),
+      makeQuestion({ id: "q2" }),
+      makeQuestion({ id: "q3" }),
+      makeQuestion({ id: "q4" }),
+    ],
     ...overrides,
   };
 }
@@ -63,8 +73,9 @@ describe("lessonSchema", () => {
     expect(() => lessonSchema.parse(makeLesson({ level: "first-steps" } as never))).toThrow();
   });
 
-  it("rejects a quiz with fewer than 3 questions", () => {
-    expect(() => lessonSchema.parse(makeLesson({ quiz: [makeQuestion()] }))).toThrow();
+  it("rejects a quiz with fewer than 4 questions", () => {
+    const quiz = [makeQuestion(), makeQuestion({ id: "q2" }), makeQuestion({ id: "q3" })];
+    expect(() => lessonSchema.parse(makeLesson({ quiz }))).toThrow();
   });
 
   it("rejects a quiz with more than 5 questions", () => {
@@ -77,6 +88,7 @@ describe("lessonSchema", () => {
       makeQuestion({ id: "q1" }),
       makeQuestion({ id: "q1" }),
       makeQuestion({ id: "q2" }),
+      makeQuestion({ id: "q3" }),
     ];
     expect(() => lessonSchema.parse(makeLesson({ quiz }))).toThrow();
   });
@@ -84,6 +96,41 @@ describe("lessonSchema", () => {
   it("no longer accepts a structures field: it ships in PR 2, not reserved here", () => {
     expect(() =>
       lessonSchema.parse(makeLesson({ structures: ["bull-call-spread"] } as never)),
+    ).toThrow();
+  });
+});
+
+function makeCatalog(overrides: Partial<Parameters<typeof lessonCatalogSchema.parse>[0]> = {}) {
+  return {
+    levels: [{ id: "first-steps", title: localized, description: localized }],
+    topics: [{ id: "options-basics", title: localized }],
+    lessons: [{ id: "what-is-an-option", level: "first-steps", topic: "options-basics" }],
+    ...overrides,
+  };
+}
+
+describe("lessonCatalogSchema", () => {
+  it("accepts a well-formed catalog", () => {
+    expect(lessonCatalogSchema.parse(makeCatalog())).toBeDefined();
+  });
+
+  it("rejects a lesson whose level is not one of the catalog's own levels", () => {
+    expect(() =>
+      lessonCatalogSchema.parse(
+        makeCatalog({
+          lessons: [{ id: "what-is-an-option", level: "advanced", topic: "options-basics" }],
+        }),
+      ),
+    ).toThrow();
+  });
+
+  it("rejects a lesson whose topic is not one of the catalog's own topics", () => {
+    expect(() =>
+      lessonCatalogSchema.parse(
+        makeCatalog({
+          lessons: [{ id: "what-is-an-option", level: "first-steps", topic: "pricing" }],
+        }),
+      ),
     ).toThrow();
   });
 });

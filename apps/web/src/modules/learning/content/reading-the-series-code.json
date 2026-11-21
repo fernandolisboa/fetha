@@ -1,6 +1,6 @@
 {
   "id": "reading-the-series-code",
-  "version": 2,
+  "version": 3,
   "minutes": 4,
   "title": {
     "en": "Reading an option's series code",
@@ -146,6 +146,41 @@
       "explanation": {
         "en": "Reading the number as a strike is a common mistake; the strike always comes from the option's own data, and only that field moves when a corporate action adjusts it.",
         "pt": "Ler esse número como strike é um erro comum; o strike sempre vem dos dados da própria opção, e só esse campo muda quando um evento corporativo o ajusta."
+      }
+    },
+    {
+      "id": "q4",
+      "prompt": {
+        "en": "A weekly series' ticker, on top of the usual letter and number, adds:",
+        "pt": "O ticker de uma série semanal, além da letra e do número usuais, acrescenta:"
+      },
+      "options": [
+        {
+          "id": "b",
+          "text": {
+            "en": "A second letter naming the expiry year",
+            "pt": "Uma segunda letra indicando o ano de vencimento"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "A W1 through W5 suffix naming the week of the month it expires in",
+            "pt": "Um sufixo de W1 a W5 dizendo em qual semana do mês ela vence"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "The underlying's own class digit",
+            "pt": "O dígito de classe do próprio ativo"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "A weekly series keeps the same letter-and-number shape as a monthly one and only adds a W1-W5 suffix for which week it expires in.",
+        "pt": "Uma série semanal mantém o mesmo formato de letra e número de uma mensal e só acrescenta um sufixo de W1 a W5 para a semana em que vence."
       }
     }
   ]

@@ -96,7 +96,10 @@ export const quizQuestionSchema = z
   );
 export type QuizQuestion = z.infer<typeof quizQuestionSchema>;
 
-export const MIN_QUIZ_QUESTIONS = 3;
+// A 3-question quiz needs 3 of 3 (100%) to clear the 75% passing bar, which
+// defeats the point of a passing threshold at all; 4 is the smallest count
+// where 75% (3 of 4) differs from a perfect run.
+export const MIN_QUIZ_QUESTIONS = 4;
 export const MAX_QUIZ_QUESTIONS = 5;
 export const PASSING_SCORE_RATIO = 0.75;
 
@@ -142,9 +145,24 @@ export type CatalogLessonEntry = z.infer<typeof catalogLessonEntrySchema>;
 // `catalog.json`'s `lessons` array fixes Jornada order (by level, then by
 // position within the level); Temas order groups the same ids by topic at
 // read time (`learning/grouping.ts`), never re-listed here.
-export const lessonCatalogSchema = z.strictObject({
-  levels: z.array(levelCatalogEntrySchema).min(1),
-  topics: z.array(topicCatalogEntrySchema).min(1),
-  lessons: z.array(catalogLessonEntrySchema).min(1),
-});
+export const lessonCatalogSchema = z
+  .strictObject({
+    levels: z.array(levelCatalogEntrySchema).min(1),
+    topics: z.array(topicCatalogEntrySchema).min(1),
+    lessons: z.array(catalogLessonEntrySchema).min(1),
+  })
+  .refine(
+    (catalog) => {
+      const knownLevels = new Set(catalog.levels.map((level) => level.id));
+      return catalog.lessons.every((lesson) => knownLevels.has(lesson.level));
+    },
+    { message: "every lesson's level must be one of the catalog's own levels", path: ["lessons"] },
+  )
+  .refine(
+    (catalog) => {
+      const knownTopics = new Set(catalog.topics.map((topic) => topic.id));
+      return catalog.lessons.every((lesson) => knownTopics.has(lesson.topic));
+    },
+    { message: "every lesson's topic must be one of the catalog's own topics", path: ["lessons"] },
+  );
 export type LessonCatalog = z.infer<typeof lessonCatalogSchema>;
