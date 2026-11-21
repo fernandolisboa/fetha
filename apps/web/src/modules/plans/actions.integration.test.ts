@@ -158,6 +158,8 @@ function okPricing(lots: number): OperationPricing {
   };
 }
 
+const priceOperationCalls: string[] = [];
+
 vi.mock("@fetha/engine", async () => {
   const actual = await vi.importActual<typeof import("@fetha/engine")>("@fetha/engine");
   return {
@@ -169,8 +171,10 @@ vi.mock("@fetha/engine", async () => {
           ok: true,
           value: { impliedVolatility: { label: "low" } },
         }),
-      priceOperation: (input: { legs: unknown }): Promise<Result<OperationPricing>> =>
-        Promise.resolve({ ok: true, value: okPricing(lotsOf(input.legs)) }),
+      priceOperation: (input: { legs: unknown; at: string }): Promise<Result<OperationPricing>> => {
+        priceOperationCalls.push(input.at);
+        return Promise.resolve({ ok: true, value: okPricing(lotsOf(input.legs)) });
+      },
     },
   };
 });
@@ -223,6 +227,7 @@ const createdEmails: string[] = [];
 
 afterEach(async () => {
   currentUser = null;
+  priceOperationCalls.splice(0);
   const db = getDb();
   for (const email of createdEmails.splice(0)) {
     await deleteTestUser(db, email);
@@ -243,6 +248,25 @@ describe("buildPlanAction", () => {
     expect(outcome.plan.structureId).toBe("bull-call-spread");
     expect(outcome.plan.lots).toBeGreaterThan(0);
     expect(typeof outcome.fingerprint).toBe("string");
+  });
+
+  // Round 2 review, the accepted blocking item: a build made "during the next session" (real
+  // wall-clock time is long past the latest ingested close here) must still price at the latest
+  // ingested close, not at `nowInstant()` — otherwise every leg's own-session price looks stale
+  // against a session that has not closed yet, and the build always refuses with "stale_prices".
+  it("prices every leg at the latest ingested close, not at the real current instant", async () => {
+    await ensureBullCallSpreadStructure();
+    const email = uniqueEmail("prices-at-close");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+
+    const outcome = await buildPlanAction({ kind: "view", underlying: "PETR4", view: "up" });
+
+    expect(outcome.status).toBe("ok");
+    expect(priceOperationCalls.length).toBeGreaterThan(0);
+    for (const at of priceOperationCalls) {
+      expect(at).toBe("2027-01-02T20:00:00.000Z");
+    }
   });
 });
 

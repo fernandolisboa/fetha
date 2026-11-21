@@ -109,7 +109,8 @@ function baseInput(overrides: Partial<GeneratePlanInput> = {}): GeneratePlanInpu
     structureName: "Trava de alta com calls",
     underlying: UNDERLYING,
     view: "up",
-    ivRegime: "low",
+    ivDisplay: "low",
+    priceSessionDate: "2027-01-02",
     riskLimitCentavos: 35_000,
     pricingForLots: (lots) => Promise.resolve(okLotPricing(lots)),
     sessionsBeforeExpiry: (businessDays): SessionDate | null =>
@@ -186,7 +187,7 @@ describe("generatePlan", () => {
     const recipe = recipeById("bull-put-spread-high-iv");
     if (!recipe) throw new Error("fixture recipe missing");
     const result = await generatePlan(
-      baseInput({ recipe, structureId: "bull-put-spread", view: "up", ivRegime: "high" }),
+      baseInput({ recipe, structureId: "bull-put-spread", view: "up", ivDisplay: "high" }),
     );
     expect(result.ok).toBe(true);
     if (!result.ok) return;

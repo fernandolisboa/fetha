@@ -58,6 +58,24 @@ describe("planFingerprint", () => {
     expect(planFingerprint(plan())).not.toBe(planFingerprint(other));
   });
 
+  it("changes when the net premium differs (round 2 review: a price move must trigger plan_changed)", () => {
+    expect(planFingerprint(plan())).not.toBe(
+      planFingerprint(plan({ netPremiumCentavos: -215 as never })),
+    );
+  });
+
+  it("changes when the max loss differs", () => {
+    expect(planFingerprint(plan())).not.toBe(
+      planFingerprint(plan({ maxLossCentavos: 30_500 as never })),
+    );
+  });
+
+  it("handles an unbounded max loss without throwing", () => {
+    expect(planFingerprint(plan({ maxLossCentavos: "unbounded" }))).not.toBe(
+      planFingerprint(plan()),
+    );
+  });
+
   it("ignores the limit price (its own tolerance already covers that)", () => {
     const other = plan({
       legs: [

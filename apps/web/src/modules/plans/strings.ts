@@ -9,10 +9,11 @@ const en = {
         "Fetha built this {structure} on {ticker} to fit the current, {ivRegime} volatility, since you have no view on direction.",
     },
     fromSuggestion: "Fetha built this {structure} on {ticker} from today's suggestion.",
+    priceClose: (date: string) => ` Prices from the close on ${date}.`,
   },
   doesNotFit:
     "Even one lot of this {structure} loses more than your risk limit allows per operation; Fetha could not fit it.",
-  ivRegimes: { low: "low", high: "high", any: "any" },
+  ivRegimes: { low: "low", high: "high", normal: "normal", any: "any" },
   panel: { title: "Build a plan" },
   view: {
     question: "What do you expect from {ticker} in the coming weeks?",
@@ -81,10 +82,11 @@ const ptBR = {
         "A Fetha montou essa {structure} em {ticker} para a volatilidade atual, {ivRegime}, já que você não tem uma visão de direção.",
     },
     fromSuggestion: "A Fetha montou essa {structure} em {ticker} a partir da sugestão de hoje.",
+    priceClose: (date: string) => ` Preços do fechamento de ${date}.`,
   },
   doesNotFit:
     "Mesmo um lote dessa {structure} perde mais do que o seu limite de risco permite por operação; a Fetha não conseguiu encaixar o plano.",
-  ivRegimes: { low: "baixa", high: "alta", any: "qualquer" },
+  ivRegimes: { low: "baixa", high: "alta", normal: "normal", any: "qualquer" },
   panel: { title: "Montar plano" },
   view: {
     question: "O que você espera de {ticker} nas próximas semanas?",

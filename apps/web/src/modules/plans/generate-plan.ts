@@ -2,7 +2,6 @@ import {
   type Centavos,
   type DecimalString,
   type ExitRule,
-  type IvRegime,
   type Recipe,
   type ResolvedExitRule,
   type RollRule,
@@ -11,7 +10,10 @@ import {
 } from "@fetha/contracts";
 import type { Leg, LimitBreach, OperationPricing } from "@fetha/engine";
 
+import { formatSessionDate } from "@/lib/format/date-time";
+
 import { resolveExitRules, resolveRollRule } from "./exit-rules";
+import type { IvDisplay } from "./iv-regime";
 import { chooseLotSize } from "./sizing";
 import { t } from "./strings";
 import type { PlanView } from "./view";
@@ -68,8 +70,17 @@ export interface GeneratePlanInput {
   // Null: the plan came from a suggestion already matching today's conditions, not a stated
   // view (ticket #379).
   view: PlanView | null;
-  ivRegime: IvRegime;
+  // The word the summary names today's volatility by (round 2 review): the caller computes
+  // this once, on the same reading it used to pick the recipe, and passes it straight
+  // through — this module never reads the market a second time for it.
+  ivDisplay: IvDisplay;
+  // The session whose close every price in this plan comes from (round 2 review item 1): named
+  // in the summary so the user knows prices are not live, and the same instant `pricingForLots`
+  // was asked to price at.
+  priceSessionDate: SessionDate;
   riskLimitCentavos: number;
+  // The caller is expected to memoize this (round 2 review "share one pricing cache"): this
+  // module calls it once per lot count it needs, trusting a repeat call is free.
   pricingForLots: (lots: number) => Promise<LotPricing | null>;
   sessionsBeforeExpiry: (businessDays: number) => SessionDate | null;
 }
@@ -79,18 +90,26 @@ function maxLossOf(pricing: OperationPricing): number {
 }
 
 function summaryFor(
-  input: Pick<GeneratePlanInput, "structureName" | "underlying" | "view" | "ivRegime">,
+  input: Pick<
+    GeneratePlanInput,
+    "structureName" | "underlying" | "view" | "ivDisplay" | "priceSessionDate"
+  >,
 ): string {
-  const ivRegime = t.ivRegimes[input.ivRegime];
+  const ivWord = t.ivRegimes[input.ivDisplay];
+  const priceClose = t.summary.priceClose(formatSessionDate(input.priceSessionDate));
   if (input.view === null) {
-    return t.summary.fromSuggestion
-      .replace("{structure}", input.structureName)
-      .replace("{ticker}", input.underlying);
+    return (
+      t.summary.fromSuggestion
+        .replace("{structure}", input.structureName)
+        .replace("{ticker}", input.underlying) + priceClose
+    );
   }
-  return t.summary.fromView[input.view]
-    .replace("{structure}", input.structureName)
-    .replace("{ticker}", input.underlying)
-    .replace("{ivRegime}", ivRegime);
+  return (
+    t.summary.fromView[input.view]
+      .replace("{structure}", input.structureName)
+      .replace("{ticker}", input.underlying)
+      .replace("{ivRegime}", ivWord) + priceClose
+  );
 }
 
 // Legs at their final, given limit price (the `final` rung already echoes back the exact price
@@ -113,13 +132,7 @@ function legsFromFinal(pricing: OperationPricing): GeneratedPlanLeg[] {
 // (CLAUDE.md principle 1). Refuses outright, before sizing, when any leg of the structure has no
 // market price or only a stale one: a plan priced against them would be fiction.
 export async function generatePlan(input: GeneratePlanInput): Promise<GeneratePlanResult> {
-  const cache = new Map<number, LotPricing | null>();
-  async function pricingFor(lots: number): Promise<LotPricing | null> {
-    if (!cache.has(lots)) cache.set(lots, await input.pricingForLots(lots));
-    return cache.get(lots) ?? null;
-  }
-
-  const onePricing = await pricingFor(1);
+  const onePricing = await input.pricingForLots(1);
   if (!onePricing) return { ok: false, reason: "unpriceable" };
   if (onePricing.probe.legs.some((leg) => leg.stale !== null)) {
     return { ok: false, reason: "stale_prices" };
@@ -129,7 +142,7 @@ export async function generatePlan(input: GeneratePlanInput): Promise<GeneratePl
   }
 
   const sized = await chooseLotSize(async (lots) => {
-    const pricing = await pricingFor(lots);
+    const pricing = await input.pricingForLots(lots);
     return pricing ? maxLossOf(pricing.final) : null;
   }, input.riskLimitCentavos);
 
@@ -137,7 +150,7 @@ export async function generatePlan(input: GeneratePlanInput): Promise<GeneratePl
   if (!sized.fits)
     return { ok: false, reason: "does_not_fit", oneLotMaxLossCentavos: sized.maxLossCentavos };
 
-  const pricing = await pricingFor(sized.lots);
+  const pricing = await input.pricingForLots(sized.lots);
   if (!pricing) return { ok: false, reason: "unpriceable" };
 
   const exitRules: ExitRule[] = input.recipe.definition.exit;

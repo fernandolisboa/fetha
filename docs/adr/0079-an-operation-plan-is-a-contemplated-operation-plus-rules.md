@@ -66,8 +66,9 @@ module only widens the `expiry` window it asks for (`legSelectionFor`,
 
 - No engine change, no `ENGINE_VERSION` bump: every number is an existing `priceOperation` call,
   composed by `apps/web`, not a new engine capability.
-- A saved plan looks, in the Carteira, exactly like any other saved operation, since it is one; a
-  plan screen reads its extra row to show the rules a plain saved operation has none of.
+- A saved plan looks, in the Carteira, exactly like any other saved operation, since it is one;
+  a future plan screen (#380/#381) will read its extra row to show the rules a plain saved
+  operation has none of.
 - Deleting a user cascades through `operation_plan_rules` the same two ways `fills` does: via its
   own `user_id` and via its contemplated operation's cascading delete.
 - `recipe_id` is stored, not foreign-keyed: the recipe book is a static file, not a table (ADR-0064
@@ -121,8 +122,11 @@ implement.
     no exit rule has one. A structure with neither (a stock-only recipe with no dated exit rule;
     none exist in the book today) saves the plan without a decision rather than inventing a date.
   - **Claim**: derived from the recipe's own `expectedMove`, deterministically — `up`/`down` claim
-    a close above/below the engine's own spot at build time, `sideways`/`big_move` claim
-    `operation_pnl_positive` (a one-sided price level claims nothing useful for either).
+    a close above/below the plan's own first break-even (round 2 review: the spot the view was
+    taken at says nothing about whether this exact structure is still worth holding, while its
+    break-even is the level it actually needs to clear; falls back to spot only when the plan has
+    no break-even at all), `sideways`/`big_move` claim `operation_pnl_positive` (a one-sided price
+    level claims nothing useful for either).
   - **Confidence**: the decision form (`DecisionBar`) starts with no value filled in, so there is
     no existing default to copy; the auto-recorded decision uses 0.5 (50%, the schema's neutral
     midpoint) and says so here rather than inventing a precise number.
@@ -137,6 +141,48 @@ implement.
 - **No risk profile declared**: `buildPlan` falls back to `DEFAULT_RISK_PROFILE` (ADR-0075), the
   same default every other risk-limit-aware feature uses, instead of refusing to build a plan at
   all.
+
+## Addendum (round 2 review): pricing instant, IV regime, shared cache, fingerprint coverage
+
+- **Pricing instant**: the first pass priced every leg at `nowInstant()` — the real wall-clock
+  instant the request arrived at. During a trading day (from the open until the nightly ingestion)
+  that instant's own session has no price yet, only the previous close does, so the engine's own
+  staleness check (`LegValuation.stale`, ADR-0014 Q42: the price row's session is earlier than
+  "the session of `at`") marked every leg stale and the plan always refused with `stale_prices`.
+  Fixed by resolving the latest already-ingested session once (`latestSessionOnOrBefore`, the same
+  anchor the radar scan and `resolveOutlookHorizon` price against) and pricing at that session's
+  own close instant instead — the same `at` is then shared by `resolveFromView`'s IV reading,
+  `buildPlan`'s pricing and open-operation count, and the saved operation's own `session`, so the
+  plan is priced once, consistently, rather than against a moving "now". The plan's summary now
+  also says which close its prices come from ("Preços do fechamento de 19/11/2026"), since that
+  close is no longer necessarily "today's close read live".
+- **IV regime computed once**: `resolveFromView` is now the only caller of `engine.assetReading`
+  for a plan; it resolves both the regime used to pick a recipe (`ivRegimeFromReading`, "low" |
+  "high" | "any") and the word the summary names today's volatility by (`ivDisplayFromLabel`,
+  which keeps "normal" rather than resolving it away) from the same reading, and carries both on
+  the resolved target. `buildPlan` no longer reads the asset a second time. A normal reading
+  resolves to the regime nearer the reading's own IV rank (rank ≥ 50, the midpoint between the
+  "low" and "high" thresholds, prefers the high-regime recipe; below it prefers low) rather than
+  falling through to "any" and the catalog's first candidate, deterministic for the same reason
+  the catalog-order fallback already was.
+- **Shared pricing cache**: `buildPlan` builds one `Map<number, Promise<LotPricing | null>>`
+  memoizing `priceLot` by lot count, used both for its own lot-1 precompute (reading the series
+  facts and expiry) and as the `pricingForLots` callback `generatePlan` sizes against — the two
+  call sites this ticket always had, now sharing one cache instead of each pricing lot 1 on its
+  own.
+- **Fingerprint covers price**: `planFingerprint` now also covers net premium and max loss
+  centavos, not only structure, lot count and legs — a price move since the screen was built can
+  leave all three of those the same while still moving the numbers the user was shown, and that
+  move is exactly what `savePlanAction`'s "plan_changed" refusal exists to catch.
+- **Monthly expiry walks backward off a holiday, evidenced**: `apps/web/e2e/fixtures/
+b3-instruments/2026-09-18.csv` lists real PETR4 monthly series expiring 2026-11-19 and
+  2028-04-20; the third Friday of each of those months (2026-11-20, 2028-04-21) is a B3 holiday
+  (Consciência Negra, Tiradentes), confirming `isB3MonthlyExpiry`'s backward walk — not a forward
+  one — matches the real calendar, pinned in `monthly-expiry.test.ts`.
+- **Risk limit returned from the build**: `BuildPlanOutcome`'s ok variant now carries
+  `riskLimitCentavos` (computed once inside `buildPlan`, where the risk profile is already
+  resolved), so the plan page reads it from the build result instead of fetching the risk profile
+  a second time of its own.
 
 ## Alternatives considered
 

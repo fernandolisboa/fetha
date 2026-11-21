@@ -47,6 +47,37 @@ describe("isB3MonthlyExpiry", () => {
     expect(isB3MonthlyExpiry(sessionDateSchema.parse("2027-01-14"), calendar)).toBe(true);
     expect(isB3MonthlyExpiry(sessionDateSchema.parse("2027-01-15"), calendar)).toBe(false);
   });
+
+  // Pinned to real B3 instrument data (round 2 review): `apps/web/e2e/fixtures/b3-instruments/
+  // 2026-09-18.csv` lists PETR4 monthly series expiring 2026-11-19 and 2028-04-20 — the third
+  // Friday of each month (2026-11-20, 2028-04-21) is a B3 holiday (Consciência Negra, Tiradentes),
+  // so the real expiry falls on the trading session immediately before it, confirming the
+  // backward walk above, not a forward one.
+  it("walks backward off a holiday third Friday, matching real PETR4 monthly expiries", () => {
+    const novemberWeekdays = [
+      "2026-11-16",
+      "2026-11-17",
+      "2026-11-18",
+      "2026-11-19",
+      // 2026-11-20 (the third Friday) is Consciência Negra: not a trading session.
+      "2026-11-23",
+    ];
+    const novemberCalendar = novemberWeekdays.map(session);
+    expect(isB3MonthlyExpiry(sessionDateSchema.parse("2026-11-19"), novemberCalendar)).toBe(true);
+    expect(isB3MonthlyExpiry(sessionDateSchema.parse("2026-11-20"), novemberCalendar)).toBe(false);
+
+    const aprilWeekdays = [
+      "2028-04-17",
+      "2028-04-18",
+      "2028-04-19",
+      "2028-04-20",
+      // 2028-04-21 (the third Friday) is Tiradentes: not a trading session.
+      "2028-04-24",
+    ];
+    const aprilCalendar = aprilWeekdays.map(session);
+    expect(isB3MonthlyExpiry(sessionDateSchema.parse("2028-04-20"), aprilCalendar)).toBe(true);
+    expect(isB3MonthlyExpiry(sessionDateSchema.parse("2028-04-21"), aprilCalendar)).toBe(false);
+  });
 });
 
 function optionSeries(expiry: SessionDate, right: "call" | "put" = "call") {

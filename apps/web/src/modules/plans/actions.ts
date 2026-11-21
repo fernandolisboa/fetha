@@ -5,6 +5,7 @@ import { z } from "zod";
 import {
   confidenceSchema,
   decimalStringSchema,
+  sessionDateSchema,
   tickerSchema,
   type Confidence,
   type ContemplatedLeg,
@@ -55,7 +56,7 @@ import {
   type GeneratePlanResult,
   type LotPricing,
 } from "./generate-plan";
-import { ivRegimeFromLabel } from "./iv-regime";
+import { ivDisplayFromLabel, ivRegimeFromReading, type IvDisplay } from "./iv-regime";
 import { planFingerprint } from "./fingerprint";
 import { filterToMonthlyExpiries } from "./monthly-expiry";
 import { legSelectionFor } from "./plan-selection";
@@ -96,6 +97,7 @@ export type BuildPlanOutcome =
       plan: GeneratedPlan;
       seriesByTicker: Record<string, PlanLegSeries>;
       fingerprint: string;
+      riskLimitCentavos: number;
     }
   | { status: "error"; error: PlanActionError; oneLotMaxLossCentavos?: number };
 
@@ -106,10 +108,27 @@ interface ResolvedTarget {
   structure: Structure;
   underlying: Ticker;
   view: PlanView | null;
+  ivDisplay: IvDisplay;
 }
 
 type ResolveOutcome =
   { ok: true; target: ResolvedTarget } | { ok: false; reason: "no_data" | "no_recipe" };
+
+// The session every price in a plan comes from (round 2 review): the latest trading session
+// already ingested as of now, not "now" itself — the same anchor the radar and the analysis
+// horizon (`resolveOutlookHorizon`) price against, so a build during a trading day still prices
+// at the last close instead of refusing every leg as stale. `at` is that session's own close
+// instant, so the engine's own "session of `at`" resolves to this same session.
+interface PricingSession {
+  date: SessionDate;
+  at: Instant;
+}
+
+async function resolvePricingSession(): Promise<PricingSession | null> {
+  const session = await latestSessionOnOrBefore(getDb(), new Date());
+  if (!session) return null;
+  return { date: sessionDateSchema.parse(session.date), at: nowInstant(session.close) };
+}
 
 function resolveStructure(
   recipe: Recipe,
@@ -129,16 +148,21 @@ function resolveStructure(
 // view and today's IV regime, the same matching `apps/web/src/modules/plans/select-recipe.ts`
 // is tested against. Distinguishes a data gap ("no_data": no reading for this ticker today)
 // from the view admitting no recipe at all ("no_recipe": round 1 review item 2).
-async function resolveFromView(underlyingInput: string, view: PlanView): Promise<ResolveOutcome> {
+async function resolveFromView(
+  underlyingInput: string,
+  view: PlanView,
+  session: PricingSession,
+): Promise<ResolveOutcome> {
   const parsed = tickerSchema.safeParse(underlyingInput);
   if (!parsed.success) return { ok: false, reason: "no_data" };
   const underlying = parsed.data;
 
-  const at = nowInstant();
+  const { at } = session;
   const marketView = await buildOperationMarketView(getDb(), underlying, at);
   const reading = await engine.assetReading({ view: marketView, ticker: underlying, at });
   if (!reading.ok) return { ok: false, reason: "no_data" };
-  const ivRegime = ivRegimeFromLabel(reading.value.impliedVolatility.label);
+  const { label, ivRank } = reading.value.impliedVolatility;
+  const ivRegime = ivRegimeFromReading(label, ivRank);
 
   const recipe = recipeForView(view, ivRegime, recipes);
   if (!recipe) return { ok: false, reason: "no_recipe" };
@@ -153,6 +177,7 @@ async function resolveFromView(underlyingInput: string, view: PlanView): Promise
       structure: resolved.structure,
       underlying,
       view,
+      ivDisplay: ivDisplayFromLabel(label),
     },
   };
 }
@@ -174,6 +199,9 @@ async function resolveFromSuggestion(suggestionId: string): Promise<ResolveOutco
           (suggestion.structure as Structure),
         underlying,
         view: null,
+        // The summary for a suggestion-origin plan never names an IV regime (`t.summary.
+        // fromSuggestion` has no `{ivRegime}` placeholder), so this value is unused.
+        ivDisplay: "any",
       },
     };
   } catch (error) {
@@ -228,6 +256,7 @@ interface BuiltPlan {
   target: ResolvedTarget;
   result: GeneratePlanResult;
   seriesByTicker: Map<string, PlanLegSeries>;
+  riskLimitCentavos: number;
 }
 
 // One lot's two-rung pricing (generate-plan.ts's `LotPricing`): the probe at the market's own
@@ -281,20 +310,29 @@ async function priceLot(
 // no number of its own). Recomputed from scratch on every call, including right before a save,
 // so nothing persisted was ever only client-trusted. Falls back to the declared default risk
 // profile (docs/adr/0075) when the user has none, the same as every other feature that needs one.
-async function buildPlan(target: ResolvedTarget): Promise<BuiltPlan> {
-  const at = nowInstant();
+// Prices at `session`'s own close instant, not "now" (round 2 review): during a trading day
+// "now" has no price of its own yet, so pricing at it would mark every leg stale. `session` is
+// resolved once by the caller and is the same session `resolveFromView` read its IV regime at,
+// so this never calls `engine.assetReading` a second time.
+async function buildPlan(target: ResolvedTarget, session: PricingSession): Promise<BuiltPlan> {
+  const { at } = session;
   const marketView = filterToMonthlyExpiries(
     await buildOperationMarketView(getDb(), target.underlying, at),
   );
-  const reading = await engine.assetReading({ view: marketView, ticker: target.underlying, at });
-  const ivRegime = ivRegimeFromLabel(reading.ok ? reading.value.impliedVolatility.label : null);
 
   const riskProfile = (await getCurrentRiskProfile()) ?? DEFAULT_RISK_PROFILE;
   const user = await requireUser();
   const openOperationCount = await countLiveOpenOperations(getDb(), user, at);
 
-  const pricingForLots = async (lots: number): Promise<LotPricing | null> =>
-    priceLot(
+  // Shared between this function's own lot-1 precompute (for `seriesByTicker`/expiry) and every
+  // lot count `generatePlan` prices while sizing (round 2 review "share one pricing cache"):
+  // `generatePlan` trusts a repeat call for the same lot count to be free, so this is the only
+  // place that promise is kept.
+  const cache = new Map<number, Promise<LotPricing | null>>();
+  const pricingForLots = (lots: number): Promise<LotPricing | null> => {
+    const cached = cache.get(lots);
+    if (cached) return cached;
+    const pricing = priceLot(
       marketView,
       at,
       target.recipe,
@@ -304,6 +342,9 @@ async function buildPlan(target: ResolvedTarget): Promise<BuiltPlan> {
       riskProfile,
       openOperationCount,
     );
+    cache.set(lots, pricing);
+    return pricing;
+  };
 
   const onePricing = await pricingForLots(1);
   const seriesByTicker = onePricing
@@ -317,22 +358,24 @@ async function buildPlan(target: ResolvedTarget): Promise<BuiltPlan> {
       continue;
     }
     if (!expiry) continue;
-    const session = await nthSessionBefore(getDb(), expiry, days);
-    sessionsByDays.set(days, session ? session.date : null);
+    const beforeExpiry = await nthSessionBefore(getDb(), expiry, days);
+    sessionsByDays.set(days, beforeExpiry ? beforeExpiry.date : null);
   }
 
+  const limitCentavos = riskLimitCentavos(riskProfile);
   const result = await generatePlan({
     recipe: target.recipe,
     structureId: target.structureId,
     structureName: target.structureName,
     underlying: target.underlying,
     view: target.view,
-    ivRegime,
-    riskLimitCentavos: riskLimitCentavos(riskProfile),
+    ivDisplay: target.ivDisplay,
+    priceSessionDate: session.date,
+    riskLimitCentavos: limitCentavos,
     pricingForLots,
     sessionsBeforeExpiry: (businessDays) => sessionsByDays.get(businessDays) ?? null,
   });
-  return { target, result, seriesByTicker };
+  return { target, result, seriesByTicker, riskLimitCentavos: limitCentavos };
 }
 
 function toOutcome(built: BuiltPlan): BuildPlanOutcome {
@@ -343,6 +386,7 @@ function toOutcome(built: BuiltPlan): BuildPlanOutcome {
       plan: result.plan,
       seriesByTicker: Object.fromEntries(built.seriesByTicker),
       fingerprint: planFingerprint(result.plan),
+      riskLimitCentavos: built.riskLimitCentavos,
     };
   }
   if (result.reason === "does_not_fit") {
@@ -373,10 +417,13 @@ const saveInputSchema = z.union([
 ]);
 export type SavePlanActionInput = z.infer<typeof saveInputSchema>;
 
-async function resolveTarget(input: BuildPlanActionInput): Promise<ResolveOutcome> {
+async function resolveTarget(
+  input: BuildPlanActionInput,
+  session: PricingSession,
+): Promise<ResolveOutcome> {
   return input.kind === "suggestion"
     ? resolveFromSuggestion(input.suggestionId)
-    : resolveFromView(input.underlying, input.view);
+    : resolveFromView(input.underlying, input.view, session);
 }
 
 const BUILD_RATE_LIMIT = { windowSeconds: 60, max: 60 };
@@ -396,9 +443,12 @@ export async function buildPlanAction(input: unknown): Promise<BuildPlanOutcome>
       throw error;
     }
 
-    const resolved = await resolveTarget(parsed.data);
+    const session = await resolvePricingSession();
+    if (!session) return { status: "error", error: "no_data" };
+
+    const resolved = await resolveTarget(parsed.data, session);
     if (!resolved.ok) return { status: "error", error: resolved.reason };
-    const built = await buildPlan(resolved.target);
+    const built = await buildPlan(resolved.target, session);
     return toOutcome(built);
   });
 }
@@ -414,12 +464,21 @@ export type SavePlanResult =
 
 const SAVE_RATE_LIMIT = { windowSeconds: 60, max: 20 };
 
-function claimForMove(move: ExpectedMove, underlying: Ticker, spot: DecimalString): ThesisClaim {
+// The threshold a directional plan's auto-recorded decision is judged against (round 2 review):
+// the plan's own break-even, not the spot it was built at — the spot a view was taken on says
+// nothing about whether the position itself is still worth holding, while the break-even is the
+// level this exact structure needs to clear. Falls back to spot only for a structure with no
+// break-even at all.
+function claimForMove(
+  move: ExpectedMove,
+  underlying: Ticker,
+  threshold: DecimalString,
+): ThesisClaim {
   switch (move) {
     case "up":
-      return { kind: "close_above", instrument: underlying, level: spot };
+      return { kind: "close_above", instrument: underlying, level: threshold };
     case "down":
-      return { kind: "close_below", instrument: underlying, level: spot };
+      return { kind: "close_below", instrument: underlying, level: threshold };
     case "sideways":
     case "big_move":
       return { kind: "operation_pnl_positive" };
@@ -456,10 +515,13 @@ export async function savePlanAction(input: unknown): Promise<SavePlanResult> {
       throw error;
     }
 
-    const resolved = await resolveTarget(parsed.data);
+    const session = await resolvePricingSession();
+    if (!session) return { status: "error", error: "unpriceable" };
+
+    const resolved = await resolveTarget(parsed.data, session);
     if (!resolved.ok) return { status: "error", error: resolved.reason };
     const target = resolved.target;
-    const built = await buildPlan(target);
+    const built = await buildPlan(target, session);
     if (!built.result.ok) {
       const outcome = toOutcome(built);
       return outcome.status === "error" ? outcome : { status: "error", error: "unpriceable" };
@@ -469,9 +531,6 @@ export async function savePlanAction(input: unknown): Promise<SavePlanResult> {
     if (planFingerprint(plan) !== parsed.data.fingerprint) {
       return { status: "error", error: "plan_changed" };
     }
-
-    const session = await latestSessionOnOrBefore(getDb(), new Date(nowInstant()));
-    if (!session) return { status: "error", error: "unpriceable" };
 
     const legs: ContemplatedLeg[] = plan.legs.map(({ leg }) => ({
       role: leg.role,
@@ -537,7 +596,11 @@ export async function savePlanAction(input: unknown): Promise<SavePlanResult> {
             breachedLimits,
           },
           rationale: plan.summary,
-          claim: claimForMove(target.recipe.expectedMove, plan.underlying, plan.spot),
+          claim: claimForMove(
+            target.recipe.expectedMove,
+            plan.underlying,
+            plan.breakEvens[0] ?? plan.spot,
+          ),
           confidence: AUTO_DECISION_CONFIDENCE,
           horizon,
           costModel: DEFAULT_COST_MODEL,

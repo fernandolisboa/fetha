@@ -43,6 +43,12 @@ test("build a plan from a suggestion, save it, and decide on it from the portfol
   await page.getByRole("button", { name: "Salvar plano" }).click();
   await expect(page.getByText("Plano salvo.")).toBeVisible();
 
+  // The saved plan's own analysis entry point (round 2 review): the dialog trigger appears next
+  // to the save confirmation, and opening it offers to request a first analysis.
+  await page.getByRole("button", { name: "Análise" }).click();
+  await expect(page.getByRole("button", { name: "Pedir análise" })).toBeVisible();
+  await page.keyboard.press("Escape");
+
   // Saving a plan records its own "enter" decision in the same transaction (ADR-0079): the
   // portfolio row already shows it, no DecisionBar left to fill in.
   await page.getByRole("link", { name: "Ir para a carteira" }).click();
@@ -52,9 +58,11 @@ test("build a plan from a suggestion, save it, and decide on it from the portfol
   await expect(row.getByText(/^Entrar · /)).toBeVisible();
 
   await page.goto("/diario");
+  // Loosened from an exact match (round 2 review): the summary now carries a trailing price-
+  // close clause with a live session date, so this asserts the stable prefix instead.
   await expect(
     page.getByText(
-      "A Fetha montou essa Trava de alta com calls em PETR4 a partir da sugestão de hoje.",
+      /A Fetha montou essa Trava de alta com calls em PETR4 a partir da sugestão de hoje\./,
     ),
   ).toBeVisible();
 });
