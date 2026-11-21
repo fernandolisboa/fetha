@@ -914,7 +914,7 @@ describe("evaluateStrategy — stock-only strategies", () => {
     });
   });
 
-  it("rejects a roll rule whose own strikes.length does not match distinct ranks (#383 round-1 review item 9)", () => {
+  it("rejects a roll rule whose own strikes.length does not match distinct ranks (#383)", () => {
     const input: EvaluateStrategyInput = {
       view: emptyView,
       strategy: strategyVersion(
@@ -2505,10 +2505,10 @@ describe("evaluateStrategy — option structures (#23)", () => {
     expect(signal.operationId).toBe("op-1");
   });
 
-  // #383 round-1 review item 14: `resolveRollTarget` indexes `op.legs[index]` by the
+  // #383: `resolveRollTarget` indexes `op.legs[index]` by the
   // strategy's own structure template index with no check of its own; `checkRollLegConformance`
   // guards that assumption once a roll's own `when` has fired for a given op.
-  it("rebases the roll proposal's own stock leg the same way as its option leg, so maxLoss is bounded after a split (#383 round-2 review Q1)", () => {
+  it("rebases the roll proposal's own stock leg the same way as its option leg, so maxLoss is bounded after a split (#383)", () => {
     const nearExpiry = sessionAt(15);
     const farExpiry = sessionAt(32);
     const view: MarketView = {
@@ -2616,7 +2616,7 @@ describe("evaluateStrategy — option structures (#23)", () => {
     expect(signal.proposal.pricing.maxLoss).toBe(freshPricing.value.maxLoss);
   });
 
-  it("rolls, never refuses under limits: enforce, once the stock leg's own rebase brings the successor's maxLoss back under the limit (#383 round-2 review Q1)", () => {
+  it("rolls, never refuses under limits: enforce, once the stock leg's own rebase brings the successor's maxLoss back under the limit (#383)", () => {
     const nearExpiry = sessionAt(15);
     const farExpiry = sessionAt(32);
     const view: MarketView = {
@@ -2705,7 +2705,7 @@ describe("evaluateStrategy — option structures (#23)", () => {
     expect(signal.proposal.pricing.limitBreaches).toEqual([]);
   });
 
-  it("holds the operation without rolling, never a hard error, when a corporate-action factor since entry leaves a leg with no safe effective quantity to roll (#383 round-2 review C2)", () => {
+  it("holds the operation without rolling, never a hard error, when a corporate-action factor since entry leaves a leg with no safe effective quantity to roll (#383)", () => {
     const nearExpiry = sessionAt(15);
     const farExpiry = sessionAt(32);
     const view: MarketView = {
@@ -2787,7 +2787,7 @@ describe("evaluateStrategy — option structures (#23)", () => {
     expect(result.value.notes.some((n) => n.code === "roll_no_series_match")).toBe(true);
   });
 
-  it("returns invalid_input, never throws, when a roll's own rebase overflows a safe integer (genuinely corrupt factor, #383 round-2 review C2)", () => {
+  it("returns invalid_input, never throws, when a roll's own rebase overflows a safe integer (genuinely corrupt factor, #383)", () => {
     const nearExpiry = sessionAt(15);
     const farExpiry = sessionAt(32);
     const view: MarketView = {
@@ -3000,7 +3000,7 @@ describe("evaluateStrategy — option structures (#23)", () => {
     });
   });
 
-  it("does not fire a roll's own numeric when whose base is zero, and still records the zero-base reason (#383 round-1 review item 8)", () => {
+  it("does not fire a roll's own numeric when whose base is zero, and still records the zero-base reason (#383)", () => {
     const nearExpiry = sessionAt(15);
     const farExpiry = sessionAt(25);
     const view: MarketView = {

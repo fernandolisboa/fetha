@@ -2142,8 +2142,8 @@ describe("runBacktest — roll adjustments executed (#383)", () => {
     // sell-side slippage, rounded to PRICE_SCALE) against the same flat 1.20 mark, plus its
     // own 6-centavo entry fee: (1.20 - 1.19) * 100 * 100 = 100, + 6 = 106 of loss on the call
     // leg, plus the carried stock leg's own original entry cost (150: 50 B3 fee + 100
-    // brokerage), carried into the successor's own entryCosts rather than dropped (review item
-    // 4) — this mark never trades the stock, so it changes this pnl figure, not cash/equity:
+    // brokerage), carried into the successor's own entryCosts rather than dropped (#383) —
+    // this mark never trades the stock, so it changes this pnl figure, not cash/equity:
     // 106 + 150 = 256 of loss.
     expect(reopened.pnl).toBe(centavos(-256));
 
@@ -2290,7 +2290,7 @@ describe("runBacktest — roll adjustments executed (#383)", () => {
     expect(result.error.code).toBe("invalid_input");
   });
 
-  // #383 round-2 review C1: a factor whose own `exDate` falls on or before the roll's signal
+  // #383: a factor whose own `exDate` falls on or before the roll's signal
   // session, but whose own `asOf` lands strictly after that same session's close, was invisible
   // to the old entry-factor rebase (computed over `(signalSession, fillSession]`, which does not
   // contain this `exDate`) and to the signal-time proposal's own rebase alike (computed as of the
@@ -2298,7 +2298,7 @@ describe("runBacktest — roll adjustments executed (#383)", () => {
   // nominal quantity while the closing leg and the carried stock leg, both rebased through the
   // one true interval `(openedAt, fillSession]` seen at the fill's own close, already saw it.
   // The successor's own option leg must close and open the same quantity (every roll does).
-  it("closes and opens the same quantity on the rolled option leg, for a factor whose asOf lands strictly after the signal session's own close (#383 round-2 review C1)", () => {
+  it("closes and opens the same quantity on the rolled option leg, for a factor whose asOf lands strictly after the signal session's own close (#383)", () => {
     const { config, view, days } = coveredCallRollFixture();
     const signalSession = days[10] as string;
     const lateAsOfFactor: CorporateActionFactor = {
@@ -2370,12 +2370,12 @@ describe("runBacktest — roll adjustments executed (#383)", () => {
     },
   );
 
-  // Isolates the fourth overflow guard, at the roll's own fill (not evaluateStrategy's own
+  // A factor ex-dated on the fill session alone (not visible yet at evaluateStrategy's own
   // signal-time check above, which a stock-free leg selection never reaches with no factor
-  // yet visible at the signal session): a factor ex-dated on the fill session alone rounds a
-  // bought leg's own rescaled entry quantity down to zero. A stock-free structure is used so
-  // no stock-leg check (which runs first) intercepts it.
-  it("returns invalid_input, never throws, when a fill-session-only factor rounds the roll's new entry quantity to zero", () => {
+  // yet visible at the signal session) rounds a bought leg's own closed/rescaled quantity down
+  // to zero. Held without rolling instead of aborting the run (#383): the same `roll_no_series_match`
+  // degrade an empty selection already gets.
+  it("holds the operation without rolling, never aborting the run, when a fill-session-only factor rounds the roll's new entry quantity to zero (#383)", () => {
     const days = businessDays(40);
     const nearExpiry = days[15] as string;
     const farExpiry = days[32] as string;
@@ -2456,9 +2456,114 @@ describe("runBacktest — roll adjustments executed (#383)", () => {
     };
 
     const result = runBacktest({ view, config });
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.error.code).toBe("invalid_input");
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete") throw new Error("expected complete");
+    const { run } = result.value;
+    expect(
+      run.operations.some((op) => op.status === "closed" && op.closeReason.kind === "rolled"),
+    ).toBe(false);
+    expect(run.notes.some((n) => n.code === "roll_no_series_match")).toBe(true);
+  });
+
+  // #383: a corporate-action factor between the roll's own signal and its fill can round an
+  // option leg down to zero while a stock leg beside it, with a much larger nominal quantity
+  // (its own structure ratio outweighs the option leg's), stays well above zero -- the option
+  // leg alone is the one that would have aborted the whole run, before the fill-time pre-check
+  // above was widened from stock legs to every leg.
+  it("holds the operation without rolling, never aborting the run, when a factor rounds only the thinner option leg to zero while the stock leg stays positive (#383)", () => {
+    const thinCallDays = businessDays(40);
+    const thinCallNearExpiry = thinCallDays[15] as string;
+    const thinCallFarExpiry = thinCallDays[32] as string;
+    const thinCallCalendar = thinCallDays.map(session);
+    const thinCallCoveredCall: Structure = {
+      id: "thin_call_covered_call",
+      name: "Covered call (thin call ratio)",
+      expiry: "shared",
+      legs: [
+        { role: "stock", side: "buy", ratio: 2 },
+        { role: "call", side: "sell", ratio: 1, strikeRank: 1 },
+      ] as LegTemplate[],
+    };
+    const thinCallConfig = baseConfig({
+      strategy: strategyVersion(
+        {
+          ...definition({
+            entry: closeAbove9,
+            exit: [],
+            adjustments: [
+              {
+                kind: "roll",
+                when: { kind: "days_before_expiry", businessDays: 5 },
+                expiry: { kind: "business_days", min: 20, max: 25 },
+                strikes: [{ kind: "nearest", price: decimalString("11.00") }],
+              },
+            ],
+            sizing: { kind: "fixed_fractional", fraction: decimalString("0.09") },
+          }),
+          structureId: "thin_call_covered_call",
+          strikes: [{ kind: "nearest", price: decimalString("11.00") }],
+          expiry: { kind: "business_days", min: 1, max: 16 },
+        },
+        thinCallCoveredCall,
+      ),
+      universe: ["PETR4"],
+      initialCapital: centavos(1_000_000),
+      riskProfile: {
+        declaredCapital: centavos(1_000_000),
+        limits: {
+          maxLossPerOperation: decimalString("1"),
+          maxExposurePerOperation: decimalString("1"),
+          maxOpenOperations: 5,
+          maxPremiumBought: decimalString("1"),
+        },
+      },
+      period: { from: thinCallDays[0] as string, to: thinCallDays[12] as string },
+    });
+    const thinCallFillSession = thinCallDays[11] as string;
+    // Grouping factor 60:1: the stock leg's own ratio (2) is twice the call leg's (1), so its
+    // own larger nominal quantity still floors to a positive effective quantity, while the
+    // call leg's own smaller nominal quantity floors to zero.
+    const thinLegFactor: CorporateActionFactor = {
+      ticker: "PETR4",
+      exDate: thinCallFillSession,
+      asOf: `${thinCallFillSession}T13:00:00.000Z`,
+      factor: decimalString("60"),
+    };
+    const thinCallView: MarketView = {
+      ...emptyView,
+      calendar: thinCallCalendar,
+      corporateActions: [thinLegFactor],
+      candles: thinCallDays.map((d) => candle("PETR4", d, "10.00", "10.00")),
+      optionSeries: [
+        callOrPutSeries(
+          "PETR4C11",
+          "call",
+          "11.00",
+          thinCallNearExpiry,
+          `${thinCallDays[0] as string}T20:00:00.000Z`,
+        ),
+        callOrPutSeries(
+          "PETR4C11F",
+          "call",
+          "11.00",
+          thinCallFarExpiry,
+          `${thinCallDays[0] as string}T20:00:00.000Z`,
+        ),
+      ],
+      optionPrices: [
+        ...thinCallDays.slice(0, 16).map((d) => optionDayPrice("PETR4C11", d, "1.00")),
+        ...thinCallDays.slice(0, 33).map((d) => optionDayPrice("PETR4C11F", d, "1.20")),
+      ],
+    };
+
+    const result = runBacktest({ view: thinCallView, config: thinCallConfig });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete") throw new Error("expected complete");
+    const { run } = result.value;
+    expect(
+      run.operations.some((op) => op.status === "closed" && op.closeReason.kind === "rolled"),
+    ).toBe(false);
+    expect(run.notes.some((n) => n.code === "roll_no_series_match")).toBe(true);
   });
 
   it("never carries the adjustment_not_applied note (removed, #383): capabilities reports roll as implemented", () => {
@@ -2546,13 +2651,12 @@ describe("runBacktest — roll adjustments executed (#383)", () => {
     expect(run.operations.some((op) => op.status === "expired")).toBe(false);
   });
 
-  // #383 round-1 review item 5 regression: a roll rule's own `expiry` window wide enough to
-  // admit the operation's own already-held series (or an even earlier one) used to roll an
-  // operation into itself, or into the past, every session its `when` kept firing — four
-  // self-rolls across this fixture's own period before the fix excluding any candidate expiry
-  // at or before the held one. With the fix, the roll fires exactly once, into the one series
-  // whose own expiry clears that bar.
-  it("rolls exactly once, not into itself repeatedly, when the roll rule's own expiry window is wide enough to admit the held series (#383 round-1 review item 5)", () => {
+  // #383: a roll rule's own `expiry` window wide enough to admit the operation's own
+  // already-held series (or an even earlier one) would otherwise roll an operation into itself,
+  // or into the past, every session its `when` keeps firing — `resolveRollTarget` excludes any
+  // candidate expiry at or before the held one, so the roll fires exactly once, into the one
+  // series whose own expiry clears that bar.
+  it("rolls exactly once, not into itself repeatedly, when the roll rule's own expiry window is wide enough to admit the held series (#383)", () => {
     const days = businessDays(40);
     const nearExpiry = days[15] as string;
     const farExpiry = days[25] as string;
@@ -2643,12 +2747,12 @@ describe("runBacktest — roll adjustments executed (#383)", () => {
     expect(run.metrics.slippage).toBe(centavos(300));
   });
 
-  // #383 round-1 review item 3 regression: the fixture is identical to `coveredCallRollFixture`
-  // except for a 1-for-2 grouping ex-dated between the operation's own entry and the roll's own
-  // fire session — the successor's own option quantity must still equal the closed operation's
-  // own (rebased) quantity, keeping the structure's 1:1 ratio to the carried stock leg, not the
-  // held operation's stale pre-grouping count.
-  it("rebases the successor's new option leg quantity by the factor since entry, keeping the structure's ratio to the carried stock (#383 round-1 review item 3)", () => {
+  // #383: the fixture is identical to `coveredCallRollFixture` except for a 1-for-2 grouping
+  // ex-dated between the operation's own entry and the roll's own fire session — the successor's
+  // own option quantity must still equal the closed operation's own (rebased) quantity, keeping
+  // the structure's 1:1 ratio to the carried stock leg, not the held operation's stale
+  // pre-grouping count.
+  it("rebases the successor's new option leg quantity by the factor since entry, keeping the structure's ratio to the carried stock (#383)", () => {
     const { config, view, days } = coveredCallRollFixture();
     // A factor of 2 is a 1-for-2 grouping (reverse split): the effective count is the nominal
     // count divided by the factor (ADR-0014 Q51), so 100 nominal units become 50 effective.
@@ -2689,12 +2793,12 @@ describe("runBacktest — roll adjustments executed (#383)", () => {
     expect(newCallLeg?.quantity).toBe(carriedStockLeg?.quantity);
   });
 
-  // #383 round-1 review item 4 regression: every operation's own pnl, summed, must equal the
-  // run's own equity change (initialCapital to the final equity point) whenever no tax is due —
-  // the carried stock leg's own entry cost, dropped before the fix, broke this identity. Extends
+  // #383: every operation's own pnl, summed, must equal the run's own equity change
+  // (initialCapital to the final equity point) whenever no tax is due — the carried stock leg's
+  // own entry cost carries into the successor's own `entryCosts` so this identity holds. Extends
   // the golden fixture one session further so the carried stock is actually sold (a profit_target
   // exit on the successor), realizing the stock leg's own gain and taxing it.
-  it("sum(operations.pnl) equals the run's own equity change when no tax is due, and selling the carried stock later realizes its own stockGain (#383 round-1 review item 4)", () => {
+  it("sum(operations.pnl) equals the run's own equity change when no tax is due, and selling the carried stock later realizes its own stockGain (#383)", () => {
     const { config, view, days } = coveredCallRollFixture();
 
     const noTaxResult = runBacktest({ view, config });
@@ -2743,10 +2847,10 @@ describe("runBacktest — roll adjustments executed (#383)", () => {
     expect(stockSold).toBe(true);
   });
 
-  // #383 round-1 review item 10: a long call rolling into a far-dated series whose own
-  // premium alone breaches `maxPremiumBought` under `limits: "enforce"` is refused outright —
-  // the held operation stays open, unrolled, and the breach is recorded.
-  it("refuses a roll whose successor breaches maxPremiumBought under limits: enforce, and records the breach (#383 round-1 review item 10)", () => {
+  // #383: a long call rolling into a far-dated series whose own premium alone breaches
+  // `maxPremiumBought` under `limits: "enforce"` is refused outright — the held operation
+  // stays open, unrolled, and the breach is recorded.
+  it("refuses a roll whose successor breaches maxPremiumBought under limits: enforce, and records the breach (#383)", () => {
     const days = businessDays(40);
     const nearExpiry = days[15] as string;
     const farExpiry = days[32] as string;
@@ -2842,8 +2946,8 @@ describe("runBacktest — roll adjustments executed (#383)", () => {
     expect(run.notes.some((n) => n.code === "roll_refused_limit_breach")).toBe(true);
   });
 
-  // #383 round-1 review item 10 ("warn" branch of the same decision) and item 7 (coverage):
-  // a long call has no stock leg to carry forward at all, and closing/opening a bought leg
+  // #383: the "warn" branch of the same decision above, where a long call has no stock leg
+  // to carry forward at all, and closing/opening a bought leg
   // (rather than every other fixture's sold call) exercises the roll's own "buy" side
   // direction on both its close and its open fill. Under `warn`, the same breach the enforce
   // test above refuses instead fills, with the breach recorded against the successor.
@@ -2942,7 +3046,61 @@ describe("runBacktest — roll adjustments executed (#383)", () => {
     expect(run.notes.some((n) => n.code === "roll_refused_limit_breach")).toBe(false);
   });
 
-  // #383 round-1 review item 7 (coverage): a grouping factor that does not divide the carried
+  // #383: maxOpenOperations is exempt from a roll's own limit check — a roll replaces one
+  // operation with one, never changing the count — but `priceLegsAt` (shared with the entry
+  // path) has no way to know that from the plain `openOperationCountNow` it is handed: that
+  // count already includes the operation being rolled, so the shared pricing call's own
+  // `+ 1` reads as a genuinely new operation on top of it. With exactly one operation open and
+  // maxOpenOperations: 1, every roll would be wrongly refused under enforce (or wrongly warned
+  // under warn) without the fix filtering this one limit out of the roll's own breaches.
+  it("rolls under limits: enforce, with maxOpenOperations: 1 and one operation open, never refusing on a false maxOpenOperations breach", () => {
+    const { config, view } = coveredCallRollFixture();
+    const result = runBacktest({
+      view,
+      config: {
+        ...config,
+        limits: "enforce",
+        riskProfile: {
+          ...config.riskProfile,
+          limits: { ...config.riskProfile.limits, maxOpenOperations: 1 },
+        },
+      },
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete") throw new Error("expected complete");
+    const { run } = result.value;
+    const rolled = run.operations.find(
+      (op) => op.status === "closed" && op.closeReason.kind === "rolled",
+    );
+    expect(rolled).toBeDefined();
+    expect(run.limitBreaches.some((b) => b.limit === "maxOpenOperations")).toBe(false);
+    expect(run.notes.some((n) => n.code === "roll_refused_limit_breach")).toBe(false);
+  });
+
+  it("rolls under limits: warn, with maxOpenOperations: 1 and one operation open, never recording a false maxOpenOperations breach", () => {
+    const { config, view } = coveredCallRollFixture();
+    const result = runBacktest({
+      view,
+      config: {
+        ...config,
+        limits: "warn",
+        riskProfile: {
+          ...config.riskProfile,
+          limits: { ...config.riskProfile.limits, maxOpenOperations: 1 },
+        },
+      },
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete") throw new Error("expected complete");
+    const { run } = result.value;
+    const rolled = run.operations.find(
+      (op) => op.status === "closed" && op.closeReason.kind === "rolled",
+    );
+    expect(rolled).toBeDefined();
+    expect(run.limitBreaches.some((b) => b.limit === "maxOpenOperations")).toBe(false);
+  });
+
+  // #383: a grouping factor that does not divide the carried
   // stock leg's own quantity evenly leaves a fractional residue, cash-settled rather than
   // rounded into a share the operation was never granted.
   it("cash-settles a residue left on the carried stock leg by a factor that does not divide its quantity evenly", () => {
@@ -2971,11 +3129,11 @@ describe("runBacktest — roll adjustments executed (#383)", () => {
     expect(carriedStockLeg?.quantity).toBe(quantity(33));
   });
 
-  // #383 round-2 review C2: a grouping this aggressive is not a corrupt factor, only too
+  // #383: a grouping this aggressive is not a corrupt factor, only too
   // aggressive for this 100-share position to survive a roll with a whole share left — held
   // without rolling instead of aborting the whole run, the same `roll_no_series_match` degrade
   // an empty selection already gets.
-  it("holds the operation without rolling, never aborting the run, when a grouping factor leaves the carried stock leg with no whole share (#383 round-2 review C2)", () => {
+  it("holds the operation without rolling, never aborting the run, when a grouping factor leaves the carried stock leg with no whole share (#383)", () => {
     const { config, view, days } = coveredCallRollFixture();
     // Ex-dated on the roll's own fill session, exactly as the sibling overflow tests above
     // are, so this factor rescales only this fill's own legs and never an earlier session's
@@ -3002,7 +3160,7 @@ describe("runBacktest — roll adjustments executed (#383)", () => {
     expect(run.notes.some((n) => n.code === "roll_no_series_match")).toBe(true);
   });
 
-  // #383 round-1 review item 7 (coverage): a roll's own close/open fill retries, same as a
+  // #383: a roll's own close/open fill retries, same as a
   // pending exit or entry, when a leg's own option price is not yet available at the session
   // its `when` fired — here the far leg's own first listed price lags the fire session by one
   // day — and fills the next session once it is.
@@ -3035,7 +3193,7 @@ describe("runBacktest — roll adjustments executed (#383)", () => {
     expect(rolled.closedAt).toBe(days[12]);
   });
 
-  // #383 round-1 review item 7: `isValidPendingRoll`/`isValidLeg` guard a resumed
+  // #383: `isValidPendingRoll`/`isValidLeg` guard a resumed
   // checkpoint's own `state.pendingRolls`, a field that is only ever non-empty between the
   // session a roll's `when` fires (queueNextSignals queues it) and the very next session
   // (resolvePendingRollFills fills it) — this pauses exactly inside that one-session window.

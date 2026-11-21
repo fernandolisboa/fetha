@@ -3440,7 +3440,7 @@ reserved exactly for this.
   fresh position economically (a new series, usually a new strike), so a base carried over from the
   old one would compare today's premium against a price that was never paid for what is now held.
   The carried-forward stock leg is the one deliberate exception: its own cost basis moves into the
-  successor's `entryCosts` unchanged (round-1 review item 4), not reset to zero, because the
+  successor's `entryCosts` unchanged, not reset to zero, because the
   covered call's stock leg never actually re-entered — a profit_target or stop_loss on the
   successor still measures against the whole position's own combined basis, stock and option leg
   together, the same single-position reading ADR-0080 already gives a hand-rolled covered call.
@@ -3473,10 +3473,20 @@ reserved exactly for this.
   code stays in `NoteCode`/`noteCodes` (the frozen block's own comment on it) so a `backtest_runs`
   row persisted before this version still parses — the additive path the change policy already
   gives a shape nothing stops emitting outright but stops being the shape new rows take.
-  `roll_no_series_match` is strictly narrower: it fires only for the one gap rolling itself cannot
-  paper over, an empty selection (or, since the round-2 review, a corporate-action factor that
-  groups a leg below one effective unit, C2 below) at the session the rule's `when` fired, the same
-  shape every other partial, non-fatal gap in this file already degrades to a note for.
+  `roll_no_series_match` is strictly narrower: it fires only for the two gaps rolling itself
+  cannot paper over — an empty selection, or a corporate-action factor that groups a leg below
+  one effective unit (the next bullet) — at the session the rule's `when` fired, the same shape
+  every other partial, non-fatal gap in this file already degrades to a note for.
+- **A grouping that leaves a leg under one effective unit holds the operation without rolling,
+  never `invalid_input`.** Checked for every leg (stock or option) at both the signal
+  (`evaluateStrategy`'s own `resolveRollTarget`) and the fill (`runBacktest`'s
+  `resolvePendingRollFills`, before either loop that would otherwise start moving cash for the
+  close or the open): a factor this aggressive is not a corrupt factor, only one too aggressive
+  for this leg's own size to survive a roll, the same `roll_no_series_match` degrade an empty
+  selection already gets, never a path naming `openOperations[?]`, which a backtest's own pending
+  roll never actually has. `invalid_input` stays reserved for a genuinely corrupt factor — one
+  that overflows a safe integer or a safe centavos amount outright, not merely one that rounds a
+  leg to zero.
   `roll_refused_limit_breach` (`ROLL_REFUSED_LIMIT_BREACH_NOTE`) is new for this addendum too: under
   `limits: "enforce"`, a roll whose successor would breach the risk profile is refused the same way
   an entry already is, and the held operation carries this note rather than rolling into a breach
@@ -3485,15 +3495,16 @@ reserved exactly for this.
   (same shape a pending entry's `limitBreaches` already does) from the signal that queued the roll
   through to the fill that actually rolls onto `BacktestRun.limitBreaches` with the fill's own
   session and ticker, the same two-step roll a pending entry's own breach already takes.
-- **The enforce check runs at the signal that queues the roll, not at the fill that executes it**
-  (round-2 review C4, matching a pending entry's own breach check). A risk profile is read off the
+- **The enforce check runs at the signal that queues the roll, not at the fill that executes it**,
+  matching a pending entry's own breach check. A risk profile is read off the
   session the roll's `when` fires, against that session's own equity; if the operation's own equity
   or the underlying's price has moved by the fill session, the successor's actual fill is never
   re-checked against the risk profile a second time — the same timing a pending entry's own
   `limit_breach` refusal already has (`queueNextSignals` above, not `resolvePendingEntryFills`).
 - **A roll's own `expiry` window excludes the held operation's current expiry.**
   `resolveRollTarget` filters `view.optionSeries` to `series.expiry > heldExpiry` before ever
-  calling `resolveLegSelection` (round-1 review item 5, above): a roll rule whose own `expiry`
+  calling `resolveLegSelection`, so a roll rule never rolls an operation into itself or into the
+  past every session its `when` keeps firing: a roll rule whose own `expiry`
   window would otherwise admit the operation's own series, or an earlier one, is restricted to a
   strictly later one. A roll rule written to roll into the _same_ expiry at a different strike
   (a strike-only roll with no calendar move) is therefore never satisfiable — `no_series_match`
@@ -3509,8 +3520,10 @@ same as every prior version-only addendum above). A run whose roll does fire now
 operations and one open one where it used to carry a single operation straight through to
 settlement or period end — the shape change this addendum makes, exercised by a new golden fixture
 (`runBacktest — roll adjustments executed (#383)`, `run-backtest.test.ts`) with hand-verified fills,
-costs, slippage and taxes, and by roll-specific cases added to the three existing invariant property
-suites (`i1-future-blind.property.test.ts`, `i2-chunk-invariance.property.test.ts` and
-`i7-prefix-consistency.property.test.ts`, via a shared `rollBacktestFixtureArbitrary`) checking the
-roll obeys no-look-ahead, chunk-invariance and prefix-consistency the same way every other fixture
-in those suites already must.
+costs, slippage and taxes; by two property tests of its own (`roll-adjustment.property.test.ts`)
+checking the roll obeys the engine's no-look-ahead invariant and that its cash flows scale linearly
+with the strategy's sizing capital; and by roll-specific cases added to the three existing
+invariant property suites (`i1-future-blind.property.test.ts`, `i2-chunk-invariance.property.test.ts`
+and `i7-prefix-consistency.property.test.ts`, via a shared `rollBacktestFixtureArbitrary`) checking
+the roll obeys no-look-ahead, chunk-invariance and prefix-consistency the same way every other
+fixture in those suites already must.

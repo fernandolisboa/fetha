@@ -280,7 +280,7 @@ describe("I7 Prefix-consistency", () => {
     expect(shortAtCut.equity).toBe(fullAtCut.equity - earlyTax);
   });
 
-  // #383 round-1 review item 6: `longBacktestFixtureArbitrary` above is stock-only, so no I7
+  // #383: `longBacktestFixtureArbitrary` above is stock-only, so no I7
   // draw ever cuts a run with a `pendingRoll` in flight. `rollBacktestFixtureArbitrary` carries a
   // covered call that rolls once partway through; `cutIndex`'s own range is wide enough to
   // sometimes land before, exactly on, and after that roll's own fill session.

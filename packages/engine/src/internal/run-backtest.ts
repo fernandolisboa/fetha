@@ -190,7 +190,7 @@ type BacktestState = {
   // rollup the three notes above use.
   rollNoSeriesMatchNoted: boolean;
   // Set once a roll rule fired but its successor breached a risk-profile limit under
-  // `limits: "enforce"` (#383 round-1 review item 10): the operation was held without rolling,
+  // `limits: "enforce"` (#383): the operation was held without rolling,
   // the refused-not-silently-filled reading `finalizeMissedEntry`'s own `limit_breach` already
   // gives an entry, same run-wide rollup the notes above use.
   rollRefusedLimitBreachNoted: boolean;
@@ -256,7 +256,7 @@ function isValidPendingExit(value: unknown): boolean {
   return isPlainObject(value) && typeof value.operationId === "string" && isPlainObject(value.rule);
 }
 
-// #383 round-1 review advisory: unlike `isValidPendingEntry`'s own `legs` (a pre-existing gap,
+// #383: unlike `isValidPendingEntry`'s own `legs` (a pre-existing gap,
 // untouched here, out of this ticket's scope), `newLegs` is checked leg by leg — `Leg` has no
 // `DecimalString` field `isDecimalString` could lean on, so each leg's own shape (role, side,
 // ticker, quantity) is checked directly instead.
@@ -1135,19 +1135,18 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       );
       const entryCosts = state.entryCosts[op.id] ?? op.legs.map(() => toCentavos(0));
 
-      // A grouping this session's own splitFactor leaves a carried stock leg under one
-      // effective share is not a corrupt factor, only one too aggressive for this position's own
-      // size to survive a roll (round-2 review C2): held without rolling instead, the same
+      // A grouping this session's own splitFactor leaves any leg — a carried stock leg, or an
+      // option leg whose own ratio is thinner than the stock leg beside it, rounded down to zero
+      // between the signal and this fill — is not a corrupt factor, only one too aggressive for
+      // this position's own size to survive a roll: held without rolling instead (#383), the same
       // `roll_no_series_match` degrade evaluate-strategy.ts's own signal-time check already gives
       // the identical situation, rather than a run-wide `invalid_input` naming a path
       // (`openOperations[?]`) a backtest's pending roll never actually has. Checked here, before
       // the close loop below starts moving cash, so a doomed roll never partially executes.
-      const stockLegZeroed = op.legs.some(
-        (leg) =>
-          leg.role === "stock" &&
-          new Decimal(leg.quantity).div(splitFactor).floor().toNumber() <= 0,
+      const anyLegZeroed = op.legs.some(
+        (leg) => new Decimal(leg.quantity).div(splitFactor).floor().toNumber() <= 0,
       );
-      if (stockLegZeroed) {
+      if (anyLegZeroed) {
         Reflect.deleteProperty(state.pendingRolls, oldOpId);
         state.rollNoSeriesMatchNoted = true;
         continue;
@@ -1158,7 +1157,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       // it contributes no realized pnl here — its unrealized position transfers whole into the
       // new operation below, same ticker and side, rebased onto this same session's own scale.
       // Carries each option leg's own closed effective quantity out of this loop, by the same
-      // `op.legs` index `pending.newLegs` was built in (round-2 review C1): the successor's own
+      // `op.legs` index `pending.newLegs` was built in (#383): the successor's own
       // opened quantity is this leg's closed quantity, not a second rebase of the signal-time
       // proposal's own quantity through a different interval, `(signalSession, fillSession]`,
       // which can miss a factor whose `exDate` falls on or before the signal session but whose
@@ -1193,28 +1192,29 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           return unsafeRebasedAmount(leg.ticker);
         }
         const residue = rawEffectiveQuantity.sub(effectiveUnits);
-        let costs = toCentavos(0);
-        if (effectiveUnits > 0) {
-          const q = toQuantity(effectiveUnits);
-          costs = fillCosts(config.costModel, legFill.price, q, "option");
-          const gross = grossCentavos(legFill.price, q).round().toNumber();
-          state.cash += (exitSide === "sell" ? 1 : -1) * gross - costs;
-          state.slippageEntries.push({
-            session: session.date,
-            amount: slippageCentavos(legFill.reference, legFill.price, q),
-          });
-          state.fills.push({
-            ticker: leg.ticker,
-            side: exitSide,
-            quantity: q,
-            price: legFill.price,
-            session: session.date,
-            at: session.open,
-            costs,
-            operationId: op.id,
-            source: legFill.source,
-          });
-        }
+        // Unconditional, not `if (effectiveUnits > 0)`: the pre-check above already held this
+        // operation without rolling, before this loop ever started, for the one case
+        // `effectiveUnits` could be non-positive here — this same leg grouped below one
+        // effective unit by this same `splitFactor` (#383).
+        const q = toQuantity(effectiveUnits);
+        const costs = fillCosts(config.costModel, legFill.price, q, "option");
+        const gross = grossCentavos(legFill.price, q).round().toNumber();
+        state.cash += (exitSide === "sell" ? 1 : -1) * gross - costs;
+        state.slippageEntries.push({
+          session: session.date,
+          amount: slippageCentavos(legFill.reference, legFill.price, q),
+        });
+        state.fills.push({
+          ticker: leg.ticker,
+          side: exitSide,
+          quantity: q,
+          price: legFill.price,
+          session: session.date,
+          at: session.open,
+          costs,
+          operationId: op.id,
+          source: legFill.source,
+        });
         // Unconditional, not `if (residue.isPositive())`: decimal.js's own `isPositive`
         // treats zero as positive, so that guard is always true here regardless of whether
         // there is a residue at all (`residue` is always in `[0, 1)` by construction) — a
@@ -1236,12 +1236,12 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       );
       state.operationSeq += 1;
 
-      // Every carried-forward stock leg (the structure schema allows more than one, #383
-      // round-1 review item 13) keeps its own side, ticker and quantity, rebased onto this roll
+      // Every carried-forward stock leg (the structure schema allows more than one, #383)
+      // keeps its own side, ticker and quantity, rebased onto this roll
       // session's own scale the same way every other held leg this file rebases is (Q51): it
       // never trades, so its entry cost basis is the only thing that moves — carried into the
-      // successor's own `entryCosts` by the same index below, never reset to zero (review item
-      // 4): a later ordinary exit on the successor subtracts this leg's `entryCost` from its own
+      // successor's own `entryCosts` by the same index below, never reset to zero: a later
+      // ordinary exit on the successor subtracts this leg's `entryCost` from its own
       // fill the same way `resolvePendingExitFills` above always has, so dropping it here would
       // silently inflate that stock leg's eventual realized pnl by the premium it was bought for.
       const newStockLegs: OperationLeg[] = [];
@@ -1253,7 +1253,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           effectiveEntryPrice,
           PRICE_SCALE,
         );
-        // Floored, not rounded (review advisory, Q51): a `Math.round` up would carry forward
+        // Floored, not rounded (Q51): a `Math.round` up would carry forward
         // more shares than the effective quantity actually is, same risk every other rebase in
         // this file already floors away from. The residue a grouping leaves below one whole
         // share is cash-settled at this leg's own (rescaled) cost basis, not a market fill —
@@ -1278,7 +1278,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           return unsafeRebasedAmount(leg.ticker);
         }
         /* v8 ignore stop */
-        // Never reached (round-2 review C2): the pre-check above already held this operation
+        // Never reached (#383): the pre-check above already held this operation
         // without rolling, before this loop ever started, for the one case this same
         // `flooredQuantity` could be non-positive here — a stock leg grouped below one
         // effective unit by this same `splitFactor`.
@@ -1306,8 +1306,8 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       }
 
       // The new option legs' own opened quantity is the old operation's own leg, at this same
-      // index, closed just above at this same fill session's own `splitFactor` (round-2 review
-      // C1): the quantity a roll closes and the quantity it opens are the same position moving
+      // index, closed just above at this same fill session's own `splitFactor` (#383): the
+      // quantity a roll closes and the quantity it opens are the same position moving
       // strikes, so they share one rebase, through one interval, `(op.openedAt, session.date]`
       // seen at this session's own close — never two different rebases through two different
       // intervals that a factor listed between them could fall through unseen by either. The
@@ -1327,6 +1327,14 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           closedOptionUnits[legIndex],
           "run-backtest: pending.newLegs and op.legs share one index per leg (checkRollLegConformance)",
         );
+        // `rescaled` is this same leg's own `effectiveUnits` from the close loop above, already
+        // checked there for a safe integer (guarded by the same `anyLegZeroed` pre-check for
+        // positivity, before either loop ever started) at that leg's own closing price;
+        // `isSafeGrossCentavos` here checks the identical quantity against the new leg's own
+        // opening price instead, the same shape an ordinary entry's own fill already checks
+        // (`resolvePendingEntryFills`) — so this can only fail here the same way a fresh entry's
+        // own fill already would, never because this is a roll.
+        /* v8 ignore start */
         if (
           !Number.isSafeInteger(rescaled) ||
           rescaled <= 0 ||
@@ -1337,6 +1345,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
             `split factor produces a non-integer-safe rolled entry quantity or amount for ${leg.ticker}`,
           );
         }
+        /* v8 ignore stop */
         const q = toQuantity(rescaled);
         const costs = fillCosts(config.costModel, legFill.price, q, "option");
         const gross = grossCentavos(legFill.price, q).round().toNumber();
@@ -1443,7 +1452,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       state.entryCosts[newOpId] = newEntryCosts;
       state.entryMaxLoss[newOpId] = pending.maxLoss;
       // Rolled up here, on the actual fill, mirroring `resolvePendingEntryFills`'s own
-      // `pending.limitBreaches` push below (#383 round-1 review item 10): under `enforce` this
+      // `pending.limitBreaches` push below (#383): under `enforce` this
       // is always empty (queueNextSignals refused the roll before it was ever queued), so this
       // only ever records something under `warn`.
       for (const breach of pending.limitBreaches) {
@@ -2374,16 +2383,23 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           };
         }
       } else {
-        // #383 round-1 review item 10: a roll's own successor is priced through the same
-        // `priceLegsAt` call an entry's own proposal already is, against this same session's
-        // risk profile — under `enforce`, a breached proposal is refused the same way a
-        // breached entry already is (`finalizeMissedEntry`'s own `limit_breach` reason above):
-        // the held operation stays open, unrolled, with a note, rather than close into a
-        // successor the risk profile would have rejected outright had it been a fresh entry.
-        // `maxOpenOperations` never breaches here — a roll replaces its own operation one for
-        // one, so `openOperationCountNow` at signal time (evaluate-strategy.ts) already counts
-        // the operation being rolled, same as it did before the roll fired.
-        const breached = signal.proposal.pricing.limitBreaches.length > 0;
+        // #383: a roll's own successor is priced through the same `priceLegsAt` call an entry's
+        // own proposal already is, against this same session's risk profile — under `enforce`, a
+        // breached proposal is refused the same way a breached entry already is
+        // (`finalizeMissedEntry`'s own `limit_breach` reason above): the held operation stays
+        // open, unrolled, with a note, rather than close into a successor the risk profile would
+        // have rejected outright had it been a fresh entry. `maxOpenOperations` is exempt: a roll
+        // replaces its own operation one for one, never changing the count, but `priceLegsAt`
+        // (shared with the entry path, `openOperationCountNow + 1 > maxOpenOperations`) has no
+        // way to know that from the plain count it is handed — `openOperationCountNow` already
+        // includes the operation being rolled, so its own `+ 1` reads as a genuinely new
+        // operation on top of it. Filtered out here, the same way an entry's own fill-time
+        // re-check already drops its stale signal-time `maxOpenOperations` breach, before either
+        // the `enforce` refusal or the checkpointed `PendingRoll.limitBreaches` ever sees it.
+        const rollLimitBreaches = signal.proposal.pricing.limitBreaches.filter(
+          (breach) => breach.limit !== "maxOpenOperations",
+        );
+        const breached = rollLimitBreaches.length > 0;
         if (breached && config.limits === "enforce") {
           state.rollRefusedLimitBreachNoted = true;
           continue;
@@ -2392,7 +2408,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           state.pendingRolls[signal.operationId] = {
             newLegs: signal.proposal.legs,
             maxLoss: signal.proposal.pricing.maxLoss,
-            limitBreaches: signal.proposal.pricing.limitBreaches,
+            limitBreaches: rollLimitBreaches,
             signalSession: session.date,
           };
         }

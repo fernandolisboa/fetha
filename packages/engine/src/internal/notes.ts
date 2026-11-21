@@ -86,7 +86,7 @@ export const ROLL_NO_SERIES_MATCH_NOTE: Note = {
     "a roll rule's when condition fired, but no series matched its expiry/strikes selection at that session; the operation was held without rolling",
 };
 
-// #383 round-1 review item 10: under `limits: "enforce"`, a roll proposal that breaches a
+// #383: under `limits: "enforce"`, a roll proposal that breaches a
 // risk-profile limit (the successor's own exposure or premium, priced the same way an entry's
 // own proposal already is) is refused outright, the same "refused, not silently filled" reading
 // `finalizeMissedEntry`'s own `limit_breach` reason already gives an entry — the held operation

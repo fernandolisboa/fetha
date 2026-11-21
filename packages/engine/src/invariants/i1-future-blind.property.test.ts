@@ -556,7 +556,7 @@ describe("I1 Future-blind — runBacktest", () => {
     );
   }, 30_000);
 
-  // #383 round-1 review item 6: appending rows dated after `period.to` (the test above) never
+  // #383: appending rows dated after `period.to` (the test above) never
   // reaches a roll's own series selection at all, since that selection runs at the roll's own
   // fire session, days before the period ends — a mutation that made a roll read option series
   // by some later instant instead (the period's own end, say) would still pass it. This instead
@@ -586,7 +586,7 @@ describe("I1 Future-blind — runBacktest", () => {
         // before its near call's own expiry, session index 15); this series is listed one
         // session later, strictly after that fill. Its strike sits exactly on the roll rule's
         // own "11.00" target, strictly closer than the fixture's own far series (kept at 11.50,
-        // round-2 review Q2) — a roll that ignored listing dates would pick this one instead.
+        // #383) — a roll that ignored listing dates would pick this one instead.
         const laterSession = assertDefined(
           fixture.calendar[11],
           "test setup: the fixture carries at least 45 sessions",

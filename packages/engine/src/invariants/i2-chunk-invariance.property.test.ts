@@ -67,7 +67,7 @@ describe("I2 Chunk-invariance", () => {
     );
   }, 30_000);
 
-  // #383 round-1 review item 6: `longBacktestFixtureArbitrary` above is stock-only
+  // #383: `longBacktestFixtureArbitrary` above is stock-only
   // (`adjustments: []`), so no I2 draw ever resumes with a `pendingRoll` in flight.
   // `rollBacktestFixtureArbitrary` carries a covered call that rolls once; `maxSessions`'s own
   // range is wide enough to sometimes cut before, exactly on, and after that roll's own fill

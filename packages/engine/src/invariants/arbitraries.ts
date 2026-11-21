@@ -272,7 +272,7 @@ export type RollBacktestFixture = {
 
 // A covered call that rolls once partway through a long-enough calendar for a chunked
 // (I2) or cut-short (I1, I7) run to land before, exactly on, or after the roll's own fill
-// session (#383 round-1 review item 6): unlike `longBacktestFixtureArbitrary` above, this one
+// session (#383): unlike `longBacktestFixtureArbitrary` above, this one
 // carries option legs and a roll rule, so the resumption plumbing those three invariants test is
 // exercised with a `pendingRoll` in flight, not only `pendingExits`/`pendingEntries`. The
 // underlying stays flat (no price-walk arbitrary): a roll's own series/strike selection already
@@ -314,7 +314,7 @@ export const rollBacktestFixtureArbitrary: fc.Arbitrary<RollBacktestFixture> = f
         asOf: firstAsOf,
       },
       {
-        // #383 round-2 review Q2: kept off the roll rule's own "11.00" target (unlike the near
+        // #383: kept off the roll rule's own "11.00" target (unlike the near
         // series) so a late-listed, strictly closer candidate at the same target is a genuine
         // look-ahead temptation for `i1-future-blind.property.test.ts`'s roll case — at an exact
         // tie on distance, both series would otherwise resolve identically regardless of listing

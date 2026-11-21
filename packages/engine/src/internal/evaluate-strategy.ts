@@ -166,8 +166,8 @@ function validateCoherence(
 // operation evaluated against a one-leg stock structure) — so that is not checked here. A
 // strategy that declares a roll rule is narrower: `resolveRollTarget` indexes `op.legs[index]`
 // by the structure's own template index with no check of its own, so `checkRollLegConformance`
-// below guards that assumption once a roll is actually about to run for a given op (#383
-// round-1 review item 14), rather than reject every open operation's shape up front.
+// below guards that assumption once a roll is actually about to run for a given op (#383),
+// rather than reject every open operation's shape up front.
 function validateOpenOperations(input: EvaluateStrategyInput): Result<Evaluation> | null {
   const instrumentSet = new Set(input.instruments);
   const openOperations = input.openOperations ?? [];
@@ -190,8 +190,8 @@ function validateOpenOperations(input: EvaluateStrategyInput): Result<Evaluation
 }
 
 // Guards `resolveRollTarget`'s own assumption that `op.legs[index]` lines up with
-// `structure.legs[index]`, one leg per template leg, same order, same role (#383 round-1 review
-// item 14): a malformed operation (wrong leg count or role order) fails with a typed
+// `structure.legs[index]`, one leg per template leg, same order, same role (#383): a malformed
+// operation (wrong leg count or role order) fails with a typed
 // `invalid_input` here, rather than reach that unchecked index and throw an untyped assertion.
 function checkRollLegConformance(
   op: Operation,
@@ -484,8 +484,8 @@ function zeroBaseReasonFor(kind: "profit_target" | "stop_loss"): EvaluationReaso
   return kind === "profit_target" ? "profit_target_zero_base" : "stop_loss_zero_base";
 }
 
-// Shared by both the exit loop's own switch and evaluateWhenRule below (#383 round-1 review
-// item 8): a fired condition rule's own signal carries the indicator readings its own condition
+// Shared by both the exit loop's own switch and evaluateWhenRule below (#383): a fired
+// condition rule's own signal carries the indicator readings its own condition
 // tree referenced, the same way an entry signal's own `indicators` already does — duplicated
 // before this extraction, and already drifted once (the roll path's own `adjust` signal always
 // carried `indicators: []`, never this).
@@ -515,7 +515,7 @@ type WhenRuleOutcome = {
 // rule never emits an "adjust" one, so the two stay independently testable. Returns the full
 // outcome shape evaluateNumericExitRule already does (zeroBase, notes) plus the condition case's
 // own indicator readings, so the caller can roll every one of them up exactly the way the exit
-// loop's own switch already does, instead of silently dropping them (round-1 review item 8).
+// loop's own switch already does, instead of silently dropping them.
 function evaluateWhenRule(
   rule: ExitRule,
   op: Operation,
@@ -600,7 +600,7 @@ type RollTargetResolution =
 // whose own expiry is at or before the held operation's own expiry: without this, a roll rule
 // whose `expiry` window admits the operation's own series (or one older) rolls an operation into
 // itself, or into the past, every session its `when` keeps firing instead of moving it forward
-// exactly once (round-1 review item 5). Every leg keeps the held operation's own side and ratio
+// exactly once. Every leg keeps the held operation's own side and ratio
 // (ADR-0080): a roll never resizes the position by itself, only moves strikes/expiry — but a
 // corporate-action factor between the operation's own entry and this roll session already moved
 // its nominal quantity off the one the structure's ratio describes (ADR-0014 Q51's convention:
@@ -683,7 +683,7 @@ function resolveRollTarget(
       op.legs[index],
       "evaluateStrategy: resolveLegSelection returns one leg per structure leg, same order op.legs was built in",
     );
-    // Rebased the same way for every role (round-2 review Q1): a stock leg left at its
+    // Rebased the same way for every role (#383): a stock leg left at its
     // nominal quantity here, while the option legs beside it are already rebased, would price
     // this proposal — and so its own maxLoss and limit check — against a mismatched structure,
     // e.g. a covered call that reads as naked once the option leg's own effective count no
@@ -696,7 +696,7 @@ function resolveRollTarget(
     // A genuinely corrupt factor (one large enough to overflow a safe integer here) is still a
     // hard `invalid_input`; a factor that merely groups this leg below one effective unit is not
     // corrupt, only too aggressive a group for this position's own size to survive a roll — held
-    // without rolling instead (round-2 review C2), the same `no_series_match` outcome a roll
+    // without rolling instead, the same `no_series_match` outcome a roll
     // whose own strike/expiry rule finds nothing already degrades to, never a run-wide error, and
     // never a path naming `openOperations[?]`, which a backtest's own pending roll never has.
     if (!Number.isSafeInteger(floored)) {
