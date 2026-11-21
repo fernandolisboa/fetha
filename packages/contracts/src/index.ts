@@ -15,6 +15,8 @@ export {
   PASSING_SCORE_RATIO,
   quizOptionSchema,
   quizQuestionSchema,
+  structureIds,
+  structureIdSchema,
   topicCatalogEntrySchema,
   topicIds,
   topicIdSchema,
@@ -28,6 +30,7 @@ export {
   type LocalizedText,
   type QuizOption,
   type QuizQuestion,
+  type StructureId,
   type TopicCatalogEntry,
   type TopicId,
 } from "./lesson-catalog";
