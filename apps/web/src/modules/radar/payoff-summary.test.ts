@@ -7,7 +7,12 @@ import {
 } from "@fetha/contracts";
 import type { PayoffPoint } from "@fetha/engine";
 
-import { gainToRiskRatio, payoffSummarySentence, summarizePayoff } from "./payoff-summary";
+import {
+  gainToRiskRatio,
+  payoffSummarySentence,
+  premiumChipKind,
+  summarizePayoff,
+} from "./payoff-summary";
 
 function dec(value: string): DecimalString {
   return decimalStringSchema.parse(value);
@@ -194,6 +199,36 @@ describe("summarizePayoff", () => {
 
     expect(summary.zone).toEqual({ kind: "unclassified" });
   });
+
+  it("classifies a zero-premium collar-like shape as neither debit nor credit", () => {
+    const payoff = [point("30.00", -5000), point("35.00", 2000), point("40.00", -3000)];
+    const summary = summarizePayoff({
+      payoff,
+      breakEvens: [dec("32.00"), dec("38.00")],
+      netPremium: cents(0),
+      maxGain: cents(2000),
+      maxLoss: cents(5000),
+    });
+
+    expect(summary.isDebit).toBe(false);
+    expect(summary.isCredit).toBe(false);
+  });
+
+  // Review finding #9: the outermost sample sits exactly on the upper break-even (pnl rounds to
+  // 0 there), which used to read as "not clearly a profit sign" and flip this outside shape into
+  // the unclassified fallback.
+  it("classifies an outside shape even when a break-even is itself the outermost sample", () => {
+    const payoff = [point("58.00", 0), point("62.00", -20000), point("66.00", 0)];
+    const summary = summarizePayoff({
+      payoff,
+      breakEvens: [dec("58.00"), dec("66.00")],
+      netPremium: cents(5000),
+      maxGain: "unbounded",
+      maxLoss: cents(20000),
+    });
+
+    expect(summary.zone).toEqual({ kind: "outside", lower: dec("58.00"), upper: dec("66.00") });
+  });
 });
 
 describe("payoffSummarySentence", () => {
@@ -221,7 +256,7 @@ describe("payoffSummarySentence", () => {
     });
 
     expect(payoffSummarySentence(summary, { ticker: "BOVA11", date: "16/01/2027" })).toBe(
-      "Você recebe R$ 85,00 agora e fica com eles se BOVA11 fechar entre R$ 122,15 e R$ 135,85 em 16/01/2027. Fora dessa faixa, pode perder até R$ 415,00.",
+      "Você recebe R$ 85,00 agora e lucra se BOVA11 fechar entre R$ 122,15 e R$ 135,85 em 16/01/2027, até R$ 85,00. Fora dessa faixa, pode perder até R$ 415,00.",
     );
   });
 
@@ -263,7 +298,7 @@ describe("payoffSummarySentence", () => {
     });
 
     expect(payoffSummarySentence(summary, { ticker: "ITUB4", date: "16/01/2027" })).toBe(
-      "Você recebe R$ 48,00 agora e fica com eles se ITUB4 fechar acima de R$ 33,52 em 16/01/2027. Abaixo disso, pode perder até R$ 152,00.",
+      "Você recebe R$ 48,00 agora e lucra se ITUB4 fechar acima de R$ 33,52 em 16/01/2027, até R$ 48,00. Abaixo disso, pode perder até R$ 152,00.",
     );
   });
 
@@ -291,7 +326,7 @@ describe("payoffSummarySentence", () => {
     });
 
     expect(payoffSummarySentence(summary, { ticker: "ITSA4", date: "16/01/2027" })).toBe(
-      "Você recebe R$ 50,00 agora e fica com eles se ITSA4 fechar abaixo de R$ 32,00 em 16/01/2027. Acima disso, pode perder até R$ 100,00.",
+      "Você recebe R$ 50,00 agora e lucra se ITSA4 fechar abaixo de R$ 32,00 em 16/01/2027, até R$ 50,00. Acima disso, pode perder até R$ 100,00.",
     );
   });
 
@@ -319,7 +354,7 @@ describe("payoffSummarySentence", () => {
     });
 
     expect(payoffSummarySentence(summary, { ticker: "VALE3", date: "16/01/2027" })).toBe(
-      "Você recebe R$ 50,00 agora e fica com eles se VALE3 fechar abaixo de R$ 58,00 ou acima de R$ 66,00 em 16/01/2027. Entre os dois, pode perder até R$ 200,00.",
+      "Você recebe R$ 50,00 agora e lucra se VALE3 fechar abaixo de R$ 58,00 ou acima de R$ 66,00 em 16/01/2027, sem limite de ganho. Entre os dois, pode perder até R$ 200,00.",
     );
   });
 
@@ -353,6 +388,34 @@ describe("payoffSummarySentence", () => {
     );
   });
 
+  it("names the real maxLoss, not the premium, for a broken-wing butterfly (unequal wings)", () => {
+    const summary = summarizePayoff({
+      payoff: [point("10.00", -198), point("15.00", 500), point("20.00", -2698)],
+      breakEvens: [dec("14.25"), dec("16.80")],
+      netPremium: cents(-198),
+      maxGain: cents(500),
+      maxLoss: cents(2698),
+    });
+
+    expect(payoffSummarySentence(summary, { ticker: "VALE3", date: "16/01/2027" })).toBe(
+      "Você paga R$ 1,98 e ganha até R$ 5,00 se VALE3 fechar entre R$ 14,25 e R$ 16,80 em 16/01/2027. Fora dessa faixa, perde até R$ 26,98.",
+    );
+  });
+
+  it("renders a zero-cost opening clause and never names a premium kept", () => {
+    const summary = summarizePayoff({
+      payoff: [point("30.00", -5000), point("35.00", 2000), point("40.00", -3000)],
+      breakEvens: [dec("32.00"), dec("38.00")],
+      netPremium: cents(0),
+      maxGain: cents(2000),
+      maxLoss: cents(5000),
+    });
+
+    const sentence = payoffSummarySentence(summary, { ticker: "VALE3", date: "16/01/2027" });
+    expect(sentence).toContain("Você monta essa posição sem custo");
+    expect(sentence).not.toContain("R$ 0,00");
+  });
+
   it("renders the fallback sentence for a credit with an unbounded loss", () => {
     const summary = summarizePayoff({
       payoff: [point("20.00", 100), point("30.00", -200)],
@@ -365,6 +428,47 @@ describe("payoffSummarySentence", () => {
     expect(payoffSummarySentence(summary, { ticker: "VALE3", date: "16/01/2027" })).toBe(
       "Você recebe R$ 1,00 agora. Ganha até R$ 1,00, pode perder sem limite.",
     );
+  });
+});
+
+describe("premiumChipKind", () => {
+  it("names a debit when net premium is negative", () => {
+    expect(
+      premiumChipKind({
+        zone: { kind: "unclassified" },
+        isDebit: true,
+        isCredit: false,
+        netPremium: cents(-100),
+        maxGain: cents(200),
+        maxLoss: cents(100),
+      }),
+    ).toBe("debit");
+  });
+
+  it("names a credit when net premium is positive", () => {
+    expect(
+      premiumChipKind({
+        zone: { kind: "unclassified" },
+        isDebit: false,
+        isCredit: true,
+        netPremium: cents(100),
+        maxGain: cents(200),
+        maxLoss: cents(100),
+      }),
+    ).toBe("credit");
+  });
+
+  it("names neither for a zero-premium structure, so the card renders no chip", () => {
+    expect(
+      premiumChipKind({
+        zone: { kind: "unclassified" },
+        isDebit: false,
+        isCredit: false,
+        netPremium: cents(0),
+        maxGain: cents(200),
+        maxLoss: cents(100),
+      }),
+    ).toBeNull();
   });
 });
 

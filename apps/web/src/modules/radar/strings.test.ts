@@ -13,10 +13,10 @@ describe("radar strings", () => {
     );
   });
 
-  it("has a bet label for every expected move in both locales", () => {
+  it("has a scenario label for every expected move in both locales", () => {
     for (const locale of [radarStrings.en, radarStrings.ptBR]) {
       for (const move of expectedMoves) {
-        expect(locale.suggestions.bet[move]).toBeTruthy();
+        expect(locale.suggestions.scenario[move]).toBeTruthy();
       }
     }
   });

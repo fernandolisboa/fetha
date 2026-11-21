@@ -38,73 +38,102 @@ const en = {
     title: "Today's suggestions",
     cardTitle: (structure: string, ticker: string) => `${structure} on ${ticker}`,
     eyebrow: (date: string, recipe: string) => `Radar · close of ${date} · recipe ${recipe}`,
-    bet: {
-      up: "Bet: up",
-      down: "Bet: down",
-      sideways: "Bet: price stays put",
-      big_move: "Bet: a strong move",
+    scenario: {
+      up: "Scenario: up",
+      down: "Scenario: down",
+      sideways: "Scenario: price stays put",
+      big_move: "Scenario: a strong move",
     },
     expiresChip: (date: string) => `Expires ${date}`,
-    expiresChipWithSessions: (date: string, sessions: number) =>
-      `Expires ${date} · ${String(sessions)} sessions`,
     debitChip: "Debit",
     creditChip: "Credit",
     sentence: {
       between: (
         pay: string,
-        maxGain: string,
+        gainClause: string,
         ticker: string,
         lower: string,
         upper: string,
         date: string,
+        lossClause: string,
       ) =>
-        `You pay ${pay} and gain up to ${maxGain} if ${ticker} closes between ${lower} and ${upper} on ${date}. Outside that range, you lose up to the ${pay} you paid.`,
-      betweenCredit: (
-        receive: string,
+        `You pay ${pay} and gain ${gainClause} if ${ticker} closes between ${lower} and ${upper} on ${date}. Outside that range, you ${lossClause}.`,
+      outside: (
+        pay: string,
         ticker: string,
         lower: string,
         upper: string,
         date: string,
-        lossPhrase: string,
+        lossClause: string,
       ) =>
-        `You receive ${receive} now and keep it if ${ticker} closes between ${lower} and ${upper} on ${date}. Outside that range, you can lose ${lossPhrase}.`,
-      outside: (pay: string, ticker: string, lower: string, upper: string, date: string) =>
-        `You pay ${pay} and gain if ${ticker} closes below ${lower} or above ${upper} on ${date}. Between the two, you lose up to the ${pay} you paid.`,
-      outsideCredit: (
-        receive: string,
-        ticker: string,
-        lower: string,
-        upper: string,
-        date: string,
-        lossPhrase: string,
-      ) =>
-        `You receive ${receive} now and keep it if ${ticker} closes below ${lower} or above ${upper} on ${date}. Between the two, you can lose ${lossPhrase}.`,
-      above: (pay: string, ticker: string, level: string, date: string, gainPhrase: string) =>
-        `You pay ${pay} and gain if ${ticker} closes above ${level} on ${date}, ${gainPhrase}. Below that, you lose up to the ${pay} you paid.`,
-      aboveCredit: (
-        receive: string,
+        `You pay ${pay} and gain if ${ticker} closes below ${lower} or above ${upper} on ${date}. Between the two, you ${lossClause}.`,
+      above: (
+        pay: string,
         ticker: string,
         level: string,
         date: string,
-        lossPhrase: string,
+        gainClause: string,
+        lossClause: string,
       ) =>
-        `You receive ${receive} now and keep it if ${ticker} closes above ${level} on ${date}. Below that, you can lose ${lossPhrase}.`,
-      below: (pay: string, ticker: string, level: string, date: string, gainPhrase: string) =>
-        `You pay ${pay} and gain if ${ticker} closes below ${level} on ${date}, ${gainPhrase}. Above that, you lose up to the ${pay} you paid.`,
-      belowCredit: (
-        receive: string,
+        `You pay ${pay} and gain if ${ticker} closes above ${level} on ${date}, ${gainClause}. Below that, you ${lossClause}.`,
+      below: (
+        pay: string,
         ticker: string,
         level: string,
         date: string,
+        gainClause: string,
+        lossClause: string,
+      ) =>
+        `You pay ${pay} and gain if ${ticker} closes below ${level} on ${date}, ${gainClause}. Above that, you ${lossClause}.`,
+      betweenGain: (
+        opening: string,
+        ticker: string,
+        lower: string,
+        upper: string,
+        date: string,
+        gainClause: string,
         lossPhrase: string,
       ) =>
-        `You receive ${receive} now and keep it if ${ticker} closes below ${level} on ${date}. Above that, you can lose ${lossPhrase}.`,
+        `${opening} and profit if ${ticker} closes between ${lower} and ${upper} on ${date}, ${gainClause}. Outside that range, you can lose ${lossPhrase}.`,
+      outsideGain: (
+        opening: string,
+        ticker: string,
+        lower: string,
+        upper: string,
+        date: string,
+        gainClause: string,
+        lossPhrase: string,
+      ) =>
+        `${opening} and profit if ${ticker} closes below ${lower} or above ${upper} on ${date}, ${gainClause}. Between the two, you can lose ${lossPhrase}.`,
+      aboveGain: (
+        opening: string,
+        ticker: string,
+        level: string,
+        date: string,
+        gainClause: string,
+        lossPhrase: string,
+      ) =>
+        `${opening} and profit if ${ticker} closes above ${level} on ${date}, ${gainClause}. Below that, you can lose ${lossPhrase}.`,
+      belowGain: (
+        opening: string,
+        ticker: string,
+        level: string,
+        date: string,
+        gainClause: string,
+        lossPhrase: string,
+      ) =>
+        `${opening} and profit if ${ticker} closes below ${level} on ${date}, ${gainClause}. Above that, you can lose ${lossPhrase}.`,
+      openingCredit: (receive: string) => `You receive ${receive} now`,
+      openingNeutral: "You set this up at no cost",
       coveredCall: (pay: string, ticker: string, level: string, date: string, maxGain: string) =>
         `You pay ${pay} for the stock, net of what you receive for the call, and gain up to ${maxGain} if ${ticker} closes above ${level} on ${date}. Below ${level}, you are at a loss.`,
       fallbackDebit: (pay: string, gainPhraseCap: string, lossPhrase: string) =>
         `You pay ${pay}. ${gainPhraseCap}, ${lossPhrase}.`,
       fallbackCredit: (receive: string, gainPhraseCap: string, lossPhrase: string) =>
         `You receive ${receive} now. ${gainPhraseCap}, ${lossPhrase}.`,
+      fallbackNeutral: (gainPhraseCap: string, lossPhrase: string) =>
+        `You set this up at no cost. ${gainPhraseCap}, ${lossPhrase}.`,
+      lossClauseEqual: (pay: string) => `lose up to the ${pay} you paid`,
       lossUpTo: (amount: string) => `up to ${amount}`,
       unboundedLoss: "with no limit",
       gainUpTo: (amount: string) => `up to ${amount}`,
@@ -133,6 +162,7 @@ const en = {
       price: "Price",
       expiry: "Expiry",
       allExpire: (date: string) => `All expire on ${date}.`,
+      optionsExpire: (date: string) => `The options expire on ${date}.`,
     },
     detailsTitle: "Details",
     greeks: {
@@ -141,21 +171,26 @@ const en = {
       delta: { label: "Direction", small: "delta" },
       gamma: { label: "Acceleration", small: "gamma" },
       history: { label: "History", small: "this recipe" },
+      incomplete: "Incomplete greeks: one leg had no volatility to compute them with.",
     },
     greekSentence: {
       thetaPositive: (amount: string) =>
         `Working for you: ${amount} per session, if the price stays put.`,
       thetaNegative: (amount: string) =>
         `Working against you: ${amount} per session, if the price stays put.`,
+      thetaNeutral: "Has no effect if the price stays put.",
       vegaPositive: (amount: string) =>
         `Working for you: ${amount} for every point implied volatility rises.`,
       vegaNegative: (amount: string) =>
         `Working against you: ${amount} for every point implied volatility rises.`,
+      vegaNeutral: "Has no effect from a change in implied volatility.",
       deltaBought: (shares: string) => `The lot behaves like ${shares} shares bought.`,
       deltaSold: (shares: string) => `The lot behaves like ${shares} shares sold.`,
       deltaNeutral: "The lot does not move with the price.",
-      gammaAgainst: (value: string) => `${value}: a strong move, either way, works against you.`,
-      gammaFor: (value: string) => `${value}: a strong move, either way, helps you.`,
+      gammaPositive: (shares: string) =>
+        `For every R$ 1 rise, delta goes up by about ${shares} shares (and down the same on a fall).`,
+      gammaNegative: (shares: string) =>
+        `For every R$ 1 rise, delta goes down by about ${shares} shares (and up the same on a fall).`,
       gammaNeutral: "Does not change with the size of the move.",
       recipeHistory: (held: number, claimed: number) =>
         `Got it right ${String(held)} of ${String(claimed)} suggestions already expired.`,
@@ -326,73 +361,102 @@ const ptBR = {
         : `O radar ainda não leu os ${String(count)} fechamentos seguintes. Os preços de hoje podem ter mudado.`,
     cardTitle: (structure: string, ticker: string) => `${structure} em ${ticker}`,
     eyebrow: (date: string, recipe: string) => `Radar · fechamento de ${date} · receita ${recipe}`,
-    bet: {
-      up: "Aposta: alta",
-      down: "Aposta: queda",
-      sideways: "Aposta: preço parado",
-      big_move: "Aposta: movimento forte",
+    scenario: {
+      up: "Cenário: alta",
+      down: "Cenário: queda",
+      sideways: "Cenário: preço parado",
+      big_move: "Cenário: movimento forte",
     },
     expiresChip: (date: string) => `Vence ${date}`,
-    expiresChipWithSessions: (date: string, sessions: number) =>
-      `Vence ${date} · ${String(sessions)} pregões`,
     debitChip: "Débito",
     creditChip: "Crédito",
     sentence: {
       between: (
         pay: string,
-        maxGain: string,
+        gainClause: string,
         ticker: string,
         lower: string,
         upper: string,
         date: string,
+        lossClause: string,
       ) =>
-        `Você paga ${pay} e ganha até ${maxGain} se ${ticker} fechar entre ${lower} e ${upper} em ${date}. Fora dessa faixa, perde até os ${pay} que pagou.`,
-      betweenCredit: (
-        receive: string,
+        `Você paga ${pay} e ganha ${gainClause} se ${ticker} fechar entre ${lower} e ${upper} em ${date}. Fora dessa faixa, perde ${lossClause}.`,
+      outside: (
+        pay: string,
         ticker: string,
         lower: string,
         upper: string,
         date: string,
-        lossPhrase: string,
+        lossClause: string,
       ) =>
-        `Você recebe ${receive} agora e fica com eles se ${ticker} fechar entre ${lower} e ${upper} em ${date}. Fora dessa faixa, pode perder ${lossPhrase}.`,
-      outside: (pay: string, ticker: string, lower: string, upper: string, date: string) =>
-        `Você paga ${pay} e ganha se ${ticker} fechar abaixo de ${lower} ou acima de ${upper} em ${date}. Entre os dois, perde até os ${pay} que pagou.`,
-      outsideCredit: (
-        receive: string,
-        ticker: string,
-        lower: string,
-        upper: string,
-        date: string,
-        lossPhrase: string,
-      ) =>
-        `Você recebe ${receive} agora e fica com eles se ${ticker} fechar abaixo de ${lower} ou acima de ${upper} em ${date}. Entre os dois, pode perder ${lossPhrase}.`,
-      above: (pay: string, ticker: string, level: string, date: string, gainPhrase: string) =>
-        `Você paga ${pay} e ganha se ${ticker} fechar acima de ${level} em ${date}, ${gainPhrase}. Abaixo disso, perde até os ${pay} que pagou.`,
-      aboveCredit: (
-        receive: string,
+        `Você paga ${pay} e ganha se ${ticker} fechar abaixo de ${lower} ou acima de ${upper} em ${date}. Entre os dois, perde ${lossClause}.`,
+      above: (
+        pay: string,
         ticker: string,
         level: string,
         date: string,
-        lossPhrase: string,
+        gainClause: string,
+        lossClause: string,
       ) =>
-        `Você recebe ${receive} agora e fica com eles se ${ticker} fechar acima de ${level} em ${date}. Abaixo disso, pode perder ${lossPhrase}.`,
-      below: (pay: string, ticker: string, level: string, date: string, gainPhrase: string) =>
-        `Você paga ${pay} e ganha se ${ticker} fechar abaixo de ${level} em ${date}, ${gainPhrase}. Acima disso, perde até os ${pay} que pagou.`,
-      belowCredit: (
-        receive: string,
+        `Você paga ${pay} e ganha se ${ticker} fechar acima de ${level} em ${date}, ${gainClause}. Abaixo disso, perde ${lossClause}.`,
+      below: (
+        pay: string,
         ticker: string,
         level: string,
         date: string,
+        gainClause: string,
+        lossClause: string,
+      ) =>
+        `Você paga ${pay} e ganha se ${ticker} fechar abaixo de ${level} em ${date}, ${gainClause}. Acima disso, perde ${lossClause}.`,
+      betweenGain: (
+        opening: string,
+        ticker: string,
+        lower: string,
+        upper: string,
+        date: string,
+        gainClause: string,
         lossPhrase: string,
       ) =>
-        `Você recebe ${receive} agora e fica com eles se ${ticker} fechar abaixo de ${level} em ${date}. Acima disso, pode perder ${lossPhrase}.`,
+        `${opening} e lucra se ${ticker} fechar entre ${lower} e ${upper} em ${date}, ${gainClause}. Fora dessa faixa, pode perder ${lossPhrase}.`,
+      outsideGain: (
+        opening: string,
+        ticker: string,
+        lower: string,
+        upper: string,
+        date: string,
+        gainClause: string,
+        lossPhrase: string,
+      ) =>
+        `${opening} e lucra se ${ticker} fechar abaixo de ${lower} ou acima de ${upper} em ${date}, ${gainClause}. Entre os dois, pode perder ${lossPhrase}.`,
+      aboveGain: (
+        opening: string,
+        ticker: string,
+        level: string,
+        date: string,
+        gainClause: string,
+        lossPhrase: string,
+      ) =>
+        `${opening} e lucra se ${ticker} fechar acima de ${level} em ${date}, ${gainClause}. Abaixo disso, pode perder ${lossPhrase}.`,
+      belowGain: (
+        opening: string,
+        ticker: string,
+        level: string,
+        date: string,
+        gainClause: string,
+        lossPhrase: string,
+      ) =>
+        `${opening} e lucra se ${ticker} fechar abaixo de ${level} em ${date}, ${gainClause}. Acima disso, pode perder ${lossPhrase}.`,
+      openingCredit: (receive: string) => `Você recebe ${receive} agora`,
+      openingNeutral: "Você monta essa posição sem custo",
       coveredCall: (pay: string, ticker: string, level: string, date: string, maxGain: string) =>
         `Você paga ${pay} pelas ações, já descontado o que recebe pela call, e ganha até ${maxGain} se ${ticker} fechar acima de ${level} em ${date}. Abaixo de ${level}, fica no prejuízo.`,
       fallbackDebit: (pay: string, gainPhraseCap: string, lossPhrase: string) =>
         `Você paga ${pay}. ${gainPhraseCap}, ${lossPhrase}.`,
       fallbackCredit: (receive: string, gainPhraseCap: string, lossPhrase: string) =>
         `Você recebe ${receive} agora. ${gainPhraseCap}, ${lossPhrase}.`,
+      fallbackNeutral: (gainPhraseCap: string, lossPhrase: string) =>
+        `Você monta essa posição sem custo. ${gainPhraseCap}, ${lossPhrase}.`,
+      lossClauseEqual: (pay: string) => `até os ${pay} que pagou`,
       lossUpTo: (amount: string) => `até ${amount}`,
       unboundedLoss: "sem limite",
       gainUpTo: (amount: string) => `até ${amount}`,
@@ -421,6 +485,7 @@ const ptBR = {
       price: "Preço",
       expiry: "Vencimento",
       allExpire: (date: string) => `Todas vencem em ${date}.`,
+      optionsExpire: (date: string) => `As opções vencem em ${date}.`,
     },
     detailsTitle: "Detalhes",
     greeks: {
@@ -429,22 +494,26 @@ const ptBR = {
       delta: { label: "Direção", small: "delta" },
       gamma: { label: "Aceleração", small: "gama" },
       history: { label: "Histórico", small: "esta receita" },
+      incomplete: "Gregas incompletas: uma perna ficou sem volatilidade calculada.",
     },
     greekSentence: {
       thetaPositive: (amount: string) =>
         `Joga a seu favor: ${amount} por pregão, se o preço ficar parado.`,
       thetaNegative: (amount: string) =>
         `Joga contra: ${amount} por pregão, se o preço ficar parado.`,
+      thetaNeutral: "Não faz diferença se o preço ficar parado.",
       vegaPositive: (amount: string) =>
         `Joga a seu favor: ${amount} para cada ponto que a volatilidade implícita subir.`,
       vegaNegative: (amount: string) =>
         `Joga contra: ${amount} para cada ponto que a volatilidade implícita subir.`,
+      vegaNeutral: "Não faz diferença se a volatilidade implícita mudar.",
       deltaBought: (shares: string) => `O lote se comporta como ${shares} ações compradas.`,
       deltaSold: (shares: string) => `O lote se comporta como ${shares} ações vendidas.`,
       deltaNeutral: "O lote não se move com o preço.",
-      gammaAgainst: (value: string) =>
-        `${value}: um movimento forte, para qualquer lado, pesa contra.`,
-      gammaFor: (value: string) => `${value}: um movimento forte, para qualquer lado, ajuda.`,
+      gammaPositive: (shares: string) =>
+        `A cada R$ 1 de alta, o delta sobe cerca de ${shares} ações (e cai o mesmo na baixa).`,
+      gammaNegative: (shares: string) =>
+        `A cada R$ 1 de alta, o delta cai cerca de ${shares} ações (e sobe o mesmo na baixa).`,
       gammaNeutral: "Não muda com o tamanho do movimento.",
       recipeHistory: (held: number, claimed: number) =>
         `Acertou ${String(held)} de ${String(claimed)} sugestões já vencidas.`,
