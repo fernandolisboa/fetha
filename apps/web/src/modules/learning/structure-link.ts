@@ -1,4 +1,4 @@
-import { structureIdSchema } from "@fetha/contracts";
+import { recipeStructureIdSchema } from "@fetha/contracts";
 
 import { lessons } from "./catalog";
 
@@ -10,7 +10,7 @@ const lessonIdByStructure = new Map(
 );
 
 export function lessonHrefForStructure(structureId: string): string | null {
-  const parsed = structureIdSchema.safeParse(structureId);
+  const parsed = recipeStructureIdSchema.safeParse(structureId);
   if (!parsed.success) return null;
   const lessonId = lessonIdByStructure.get(parsed.data);
   return lessonId ? `/aprender/${lessonId}` : null;

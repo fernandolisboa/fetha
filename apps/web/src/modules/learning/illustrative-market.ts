@@ -6,6 +6,7 @@ import {
   tickerSchema,
   type DecimalString,
   type IllustrativeExampleId,
+  type RecipeStructureId,
   type SessionDate,
   type Ticker,
 } from "@fetha/contracts";
@@ -397,26 +398,14 @@ const longStrangleLegs: LegInput[] = [
   },
 ];
 
-// Ids of structures the catalog also defines; `illustrativeLegs`' own test
-// checks these match the catalog's legs exactly (ratio, role, side). Writing
-// a naked call is deliberately absent from the strategy catalog (ADR-0064
-// only lists structures a backtest can size), so `shortCallLegs` below is
-// built directly instead of going through this map.
-export type StructureId =
-  | "long-call"
-  | "long-put"
-  | "bull-call-spread"
-  | "bull-put-spread"
-  | "bear-call-spread"
-  | "bear-put-spread"
-  | "covered-call"
-  | "call-butterfly"
-  | "put-butterfly"
-  | "iron-condor"
-  | "long-straddle"
-  | "long-strangle";
-
-export const illustrativeLegs: Record<StructureId, readonly LegInput[]> = {
+// `illustrativeLegs`' own test checks these match the catalog's legs exactly
+// (ratio, role, side), keyed by the same `RecipeStructureId` the lesson
+// catalog's own `structure` field uses (`@fetha/contracts`) rather than a
+// second, separately maintained union. Writing a naked call is deliberately
+// absent from the strategy catalog (ADR-0064 only lists structures a
+// backtest can size), so `shortCallLegs` below is built directly instead of
+// going through this map.
+export const illustrativeLegs: Record<RecipeStructureId, readonly LegInput[]> = {
   "long-call": longCallLegs,
   "long-put": longPutLegs,
   "bull-call-spread": bullCallSpreadLegs,

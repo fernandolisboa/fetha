@@ -23,7 +23,6 @@ const en = {
     noRiskProfileLink: "Open Settings",
     pickMove: "Choose what you expect to see the recipes.",
     listTitle: "Recipes for this expectation",
-    learnStructure: (name: string) => `Learn: ${name}`,
     ivRegimes: {
       low: "Best when volatility is low",
       high: "Best when volatility is high",
@@ -173,7 +172,6 @@ const ptBR = {
     noRiskProfileLink: "Abrir Configurações",
     pickMove: "Escolha o que você espera para ver as receitas.",
     listTitle: "Receitas para essa expectativa",
-    learnStructure: (name: string) => `Aprender: ${name}`,
     ivRegimes: {
       low: "Melhor com volatilidade baixa",
       high: "Melhor com volatilidade alta",

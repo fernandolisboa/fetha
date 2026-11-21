@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ErrorNotice } from "@/components/error-notice";
+import { StructureLessonLink } from "@/modules/learning/client";
 
 import { startRecipeAction, type StartRecipeResult } from "../actions";
 import type { RecipeCard, RiskOption } from "../cards";
@@ -134,14 +135,7 @@ export function RecipePicker({
                     </div>
                     <p className="text-sm text-pretty">{card.summary}</p>
                     <p className="text-muted-foreground text-xs">{card.maxLoss}</p>
-                    {card.lessonHref && (
-                      <Link
-                        href={card.lessonHref}
-                        className="text-muted-foreground w-fit text-[11px] underline-offset-4 hover:underline"
-                      >
-                        {t.picker.learnStructure(card.name)}
-                      </Link>
-                    )}
+                    <StructureLessonLink href={card.lessonHref} name={card.name} />
                   </div>
                 </div>
                 <Button

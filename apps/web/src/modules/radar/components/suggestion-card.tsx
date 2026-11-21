@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import type { ExpectedMove, ThesisClaim } from "@fetha/contracts";
 import type { LegValuation } from "@fetha/engine";
@@ -8,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { formatPriceBRL } from "@/lib/format/brl";
 import { lessonHrefForStructure } from "@/modules/learning";
+import { StructureLessonLink } from "@/modules/learning/client";
 import { AssetReadingChips } from "@/modules/market-data";
 import { PayoffChart } from "@/modules/portfolio/client";
 import { conditionLines, recipeSummary, type RuleLine } from "@/modules/recipes";
@@ -173,14 +173,7 @@ export function SuggestionCardHeader({
         {t.suggestions.eyebrow(displayDate(suggestion.session), suggestion.recipe.definition.name)}
       </p>
       {headline && <h3 className="text-[15px] font-medium">{suggestionHeadline(suggestion)}</h3>}
-      {lessonHref && (
-        <Link
-          href={lessonHref}
-          className="text-muted-foreground w-fit text-[11px] underline-offset-4 hover:underline"
-        >
-          {t.suggestions.learnStructure(suggestion.structure.name)}
-        </Link>
-      )}
+      <StructureLessonLink href={lessonHref} name={suggestion.structure.name} />
       <ul className="mt-1 flex flex-wrap gap-1.5">
         <li>
           <Badge variant="outline" style={{ color: "var(--accent)", borderColor: "var(--accent)" }}>

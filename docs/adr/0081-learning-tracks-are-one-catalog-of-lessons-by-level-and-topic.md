@@ -115,28 +115,38 @@ catalog.json` lists every level, every topic and every lesson's id with its leve
    place `learning` depends on `strategies`' entry point (`recipes`), a dependency `ARCHITECTURE.md`
    records.
 2. **`structure` on a lesson.** `lessonSchema` gains an optional `structure`, closed to a new
-   `structureIds` enum in `packages/contracts`' `lesson-catalog.ts`: exactly the 12 structure ids
-   `modules/strategies/recipes.json` uses. A content test pins that every structure id in
-   `recipes.json` has exactly one lesson, and that `structureIds` itself matches the set
-   `recipes.json` actually uses — so adding a thirteenth recipe structure without a lesson, or a
-   lesson naming a structure no recipe uses, both fail a test rather than silently drifting.
-   `level` and `topic` stay catalog-only (ADR-0081's original rule); `structure` lives on the
-   lesson file itself because, unlike level and topic, it is a property of the lesson's own
-   content (which structure it teaches), not of its place in a display order.
-3. **One lookup, `lessonHrefForStructure`.** `learning/structure-link.ts` maps a structure id to
-   its one lesson's URL, or `null` for a structure with no lesson (or an invalid id) — the only
-   function any other module calls to link into a lesson; no other module reads `learning/catalog`
-   or `learning/grouping` directly. Exposed from `learning`'s `index.ts`, so every caller is a
-   server component or a server-only module (`modules/recipes/cards.ts` resolves it once per
-   recipe card, since `RecipePicker` itself is a client component and cannot pull in `learning`'s
-   server entry point).
-4. **Contextual links.** A small, secondary-styled "Aprender: `<nome da estrutura>`" link, per
-   `DESIGN.md`, appears in: the suggestion card's header (`radar/components/suggestion-card.tsx`)
-   and the research idea card (`radar/components/research-idea-card.tsx`), both naming the
-   structure from `suggestion.structure` / `idea.structure`; the recipe picker
-   (`recipes/components/recipe-picker.tsx`, via `RecipeCard.lessonHref` resolved server-side); and
-   the plan screen (`plans/components/plan-screen.tsx`, from the plan's own `structureId`). Each
-   renders nothing when `lessonHrefForStructure` returns `null`.
+   `recipeStructureIds` enum in `packages/contracts`' `lesson-catalog.ts` (named for the 12
+   structures `modules/strategies/recipes.json` uses, a subset of the full strategy catalog's own
+   structures). A content test pins that every structure id in `recipes.json` has exactly one
+   lesson, and that `recipeStructureIds` itself matches the set `recipes.json` actually uses — so
+   adding a thirteenth recipe structure without a lesson, or a lesson naming a structure no recipe
+   uses, both fail a test rather than silently drifting. `level` and `topic` stay catalog-only
+   (ADR-0081's original rule); `structure` lives on the lesson file itself because, unlike level
+   and topic, it is a property of the lesson's own content (which structure it teaches), not of
+   its place in a display order.
+3. **One lookup, `lessonHrefForStructure`, always called server-side.** `learning/structure-link.ts`
+   maps a structure id to its one lesson's URL, or `null` for a structure with no lesson (or an
+   invalid id) — the only function any other module calls to link into a lesson; no other module
+   reads `learning/catalog` or `learning/grouping` directly. It is exposed from `learning`'s
+   `index.ts`, `learning`'s server-side entry point: a component reachable from a "use client"
+   ancestor may never import it, since `index.ts` transitively pulls in the DB, auth and every
+   lesson's own quiz answer key, which must never reach the browser bundle. A server component or
+   server-only module (`modules/recipes/cards.ts`, `modules/plans/components/plan-screen.tsx`) may
+   call it directly and pass the resulting `href` down as a prop. Where the consuming component
+   sits behind a "use client" ancestor instead (`radar/components/research-idea-card.tsx`,
+   re-exported from `radar/client.ts` for `decisions/components/research-panel.tsx`), the href is
+   resolved once, server-side, where the idea's own DTO is built (`radar/research.ts`'s
+   `ideaCardOf`, `decisions/research-view.ts`'s `ideaCardOfStored`) and carried as a plain
+   `lessonHref: string | null` field on `IdeaCard`, never recomputed client-side.
+4. **Contextual links, one shared component.** `learning/client.ts` exposes `StructureLessonLink`,
+   a small, secondary-styled "Aprender: `<nome da estrutura>`" link client-safe component (no DB,
+   auth or lesson-content import of its own) that renders nothing when its `href` prop is `null`.
+   It is used in: the suggestion card's header (`radar/components/suggestion-card.tsx`, resolving
+   `lessonHrefForStructure` itself since that file is server-only), the research idea card
+   (`radar/components/research-idea-card.tsx`, reading the already-resolved `idea.lessonHref`), the
+   recipe picker (`recipes/components/recipe-picker.tsx`, via `RecipeCard.lessonHref` resolved
+   server-side in `recipes/cards.ts`), and the plan screen (`plans/components/plan-screen.tsx`,
+   from the plan's own `structureId`, resolved server-side).
 5. **Covered call's stock leg.** `learning/illustrative-market.ts` extends `priceOperation`'s
    known leg roles with `role: "stock"`, which the engine already supports (ADR-0081's own
    `priceOperation` surface, unchanged): the covered-call lesson's payoff example holds the stock

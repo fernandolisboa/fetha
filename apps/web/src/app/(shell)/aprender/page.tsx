@@ -3,11 +3,10 @@ import type { Metadata } from "next";
 import { requireUser } from "@/modules/auth";
 import {
   ContinueCard,
-  EstruturasSection,
   getMyLessonsOverview,
+  LessonGroupSection,
   LevelSection,
   t,
-  TopicSection,
   ViewSwitch,
   type LessonsView,
 } from "@/modules/learning";
@@ -57,7 +56,7 @@ export default async function LearnPage({
           {columns(temasGroups).map((column, index) => (
             <div key={index} className="flex min-w-0 flex-col gap-[14px]">
               {column.map((group) => (
-                <TopicSection key={group.topic} group={group} />
+                <LessonGroupSection key={group.topic} group={group} />
               ))}
             </div>
           ))}
@@ -67,7 +66,7 @@ export default async function LearnPage({
           {columns(estruturasGroups).map((column, index) => (
             <div key={index} className="flex min-w-0 flex-col gap-[14px]">
               {column.map((group) => (
-                <EstruturasSection key={group.view} group={group} />
+                <LessonGroupSection key={group.view} group={group} />
               ))}
             </div>
           ))}

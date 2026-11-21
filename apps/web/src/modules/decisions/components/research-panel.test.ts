@@ -67,6 +67,7 @@ function ideaView(
       alerts: [],
       suggestionId: null,
       chart: { payoff: [], spot: decimal("39.00") },
+      lessonHref: "/aprender/bull-call-spread",
     },
     ...overrides,
   };

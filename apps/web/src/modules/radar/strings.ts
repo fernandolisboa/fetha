@@ -165,7 +165,6 @@ const en = {
       optionsExpire: (date: string) => `The options expire on ${date}.`,
     },
     detailsTitle: "Details",
-    learnStructure: (name: string) => `Learn: ${name}`,
     greeks: {
       theta: { label: "Time", small: "theta" },
       vega: { label: "Volatility", small: "vega" },
@@ -489,7 +488,6 @@ const ptBR = {
       optionsExpire: (date: string) => `As opções vencem em ${date}.`,
     },
     detailsTitle: "Detalhes",
-    learnStructure: (name: string) => `Aprender: ${name}`,
     greeks: {
       theta: { label: "Tempo", small: "theta" },
       vega: { label: "Volatilidade", small: "vega" },

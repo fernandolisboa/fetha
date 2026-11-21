@@ -1,10 +1,8 @@
-import Link from "next/link";
-
 import { lessonHrefForStructure } from "@/modules/learning";
+import { StructureLessonLink } from "@/modules/learning/client";
 import { catalog } from "@/modules/strategies";
 
 import type { BuildPlanActionInput, BuildPlanOutcome } from "../actions";
-import { t } from "../strings";
 import { PlanAdjuster } from "./plan-adjuster";
 
 // The plan screen (ticket #379): summary paragraph, then everything drag-to-adjust (ticket
@@ -27,14 +25,7 @@ export function PlanScreen({
   return (
     <div className="flex flex-col gap-6">
       <p className="text-[15px] text-pretty">{outcome.plan.summary}</p>
-      {lessonHref && (
-        <Link
-          href={lessonHref}
-          className="text-muted-foreground w-fit text-[11px] underline-offset-4 hover:underline"
-        >
-          {t.learnStructure(structureName)}
-        </Link>
-      )}
+      <StructureLessonLink href={lessonHref} name={structureName} />
       <PlanAdjuster outcome={outcome} riskLimitCentavos={riskLimitCentavos} input={input} />
     </div>
   );
