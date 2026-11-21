@@ -57,7 +57,7 @@ const en = {
         date: string,
         lossClause: string,
       ) =>
-        `You pay ${pay} and gain ${gainClause} if ${ticker} closes between ${lower} and ${upper} on ${date}. Outside that range, you ${lossClause}.`,
+        `You pay ${pay} and gain ${gainClause} if ${ticker} closes between ${lower} and ${upper} on ${date}. Outside that range, you lose ${lossClause}.`,
       outside: (
         pay: string,
         ticker: string,
@@ -66,7 +66,7 @@ const en = {
         date: string,
         lossClause: string,
       ) =>
-        `You pay ${pay} and gain if ${ticker} closes below ${lower} or above ${upper} on ${date}. Between the two, you ${lossClause}.`,
+        `You pay ${pay} and gain if ${ticker} closes below ${lower} or above ${upper} on ${date}. Between the two, you lose ${lossClause}.`,
       above: (
         pay: string,
         ticker: string,
@@ -75,7 +75,7 @@ const en = {
         gainClause: string,
         lossClause: string,
       ) =>
-        `You pay ${pay} and gain if ${ticker} closes above ${level} on ${date}, ${gainClause}. Below that, you ${lossClause}.`,
+        `You pay ${pay} and gain if ${ticker} closes above ${level} on ${date}, ${gainClause}. Below that, you lose ${lossClause}.`,
       below: (
         pay: string,
         ticker: string,
@@ -84,7 +84,7 @@ const en = {
         gainClause: string,
         lossClause: string,
       ) =>
-        `You pay ${pay} and gain if ${ticker} closes below ${level} on ${date}, ${gainClause}. Above that, you ${lossClause}.`,
+        `You pay ${pay} and gain if ${ticker} closes below ${level} on ${date}, ${gainClause}. Above that, you lose ${lossClause}.`,
       betweenGain: (
         opening: string,
         ticker: string,
@@ -133,7 +133,7 @@ const en = {
         `You receive ${receive} now. ${gainPhraseCap}, ${lossPhrase}.`,
       fallbackNeutral: (gainPhraseCap: string, lossPhrase: string) =>
         `You set this up at no cost. ${gainPhraseCap}, ${lossPhrase}.`,
-      lossClauseEqual: (pay: string) => `lose up to the ${pay} you paid`,
+      lossClauseEqual: (pay: string) => `up to the ${pay} you paid`,
       lossUpTo: (amount: string) => `up to ${amount}`,
       unboundedLoss: "with no limit",
       gainUpTo: (amount: string) => `up to ${amount}`,
@@ -191,7 +191,7 @@ const en = {
         `For every R$ 1 rise, delta goes up by about ${shares} shares (and down the same on a fall).`,
       gammaNegative: (shares: string) =>
         `For every R$ 1 rise, delta goes down by about ${shares} shares (and up the same on a fall).`,
-      gammaNeutral: "Does not change with the size of the move.",
+      gammaNeutral: "The delta barely changes when the price moves.",
       recipeHistory: (held: number, claimed: number) =>
         `Got it right ${String(held)} of ${String(claimed)} suggestions already expired.`,
     },
@@ -514,7 +514,7 @@ const ptBR = {
         `A cada R$ 1 de alta, o delta sobe cerca de ${shares} ações (e cai o mesmo na baixa).`,
       gammaNegative: (shares: string) =>
         `A cada R$ 1 de alta, o delta cai cerca de ${shares} ações (e sobe o mesmo na baixa).`,
-      gammaNeutral: "Não muda com o tamanho do movimento.",
+      gammaNeutral: "O delta quase não muda quando o preço se move.",
       recipeHistory: (held: number, claimed: number) =>
         `Acertou ${String(held)} de ${String(claimed)} sugestões já vencidas.`,
     },

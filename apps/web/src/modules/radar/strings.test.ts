@@ -20,4 +20,17 @@ describe("radar strings", () => {
       }
     }
   });
+
+  it("keeps the verb in the English debit loss clause (review round 2, finding #4)", () => {
+    const { sentence } = radarStrings.en.suggestions;
+    expect(
+      sentence.between("R$1", "up to R$2", "X", "A", "B", "D", sentence.lossUpTo("R$3")),
+    ).toContain("you lose up to R$3");
+    expect(sentence.outside("R$1", "X", "A", "B", "D", sentence.unboundedLoss)).toContain(
+      "you lose with no limit",
+    );
+    expect(
+      sentence.above("R$1", "X", "A", "D", "up to R$2", sentence.lossClauseEqual("R$1")),
+    ).toContain("you lose up to the R$1 you paid");
+  });
 });
