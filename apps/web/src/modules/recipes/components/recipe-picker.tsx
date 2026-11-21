@@ -134,6 +134,14 @@ export function RecipePicker({
                     </div>
                     <p className="text-sm text-pretty">{card.summary}</p>
                     <p className="text-muted-foreground text-xs">{card.maxLoss}</p>
+                    {card.lessonHref && (
+                      <Link
+                        href={card.lessonHref}
+                        className="text-muted-foreground w-fit text-[11px] underline-offset-4 hover:underline"
+                      >
+                        {t.picker.learnStructure(card.name)}
+                      </Link>
+                    )}
                   </div>
                 </div>
                 <Button

@@ -1,4 +1,5 @@
 const en = {
+  learnStructure: (name: string) => `Learn: ${name}`,
   summary: {
     fromView: {
       up: "Fetha built this {structure} on {ticker} because you expect it to rise and volatility is {ivRegime}.",
@@ -153,6 +154,7 @@ const en = {
 } satisfies Record<string, unknown>;
 
 const ptBR = {
+  learnStructure: (name: string) => `Aprender: ${name}`,
   summary: {
     fromView: {
       up: "A Fetha montou essa {structure} em {ticker} porque você espera alta e a volatilidade está {ivRegime}.",

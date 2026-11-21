@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatPriceBRL } from "@/lib/format/brl";
 import { cn } from "@/lib/utils";
 import { formatSessionDate } from "@/lib/format/date-time";
+import { lessonHrefForStructure } from "@/modules/learning";
 import { AssetReadingChips } from "@/modules/market-data/client";
 import { PayoffChart, RiskNotice } from "@/modules/portfolio/client";
 
@@ -68,6 +69,7 @@ export function ResearchIdeaCard({
   actions?: ReactNode;
 }) {
   const title = voicedTitle ?? t.research.cardTitle(idea.structure.name, idea.underlying);
+  const lessonHref = lessonHrefForStructure(idea.structure.id);
   const hasStockLeg = idea.legs.some((leg) => leg.role === "stock");
   const summary = summarizePayoff({
     payoff: idea.chart.payoff,
@@ -96,6 +98,14 @@ export function ResearchIdeaCard({
       <Badge variant="secondary" className="w-fit font-mono tabular-nums">
         {t.research.expires(formatSessionDate(idea.expiry), idea.sessionsToExpiry)}
       </Badge>
+      {lessonHref && (
+        <Link
+          href={lessonHref}
+          className="text-muted-foreground w-fit text-[11px] underline-offset-4 hover:underline"
+        >
+          {t.suggestions.learnStructure(idea.structure.name)}
+        </Link>
+      )}
       {opinion}
       <div className="flex flex-col gap-1.5">
         <p className="text-muted-foreground text-xs">
