@@ -136,4 +136,6 @@ behavior and tests are unchanged by the extraction.
   "em breve" until #306 ships. The copy says a strategy is optional and what an active one adds.
 - A three-step contextual tour runs on the first asset page visit (ADR-0046 addendum), and
   `/como-usar` gains "Opções em 10 minutos" with engine payoffs of `long-call`, `long-put` and
-  `bull-call-spread` on a fictitious, illustrative chain.
+  `bull-call-spread` on a fictitious, illustrative chain. ADR-0081 retires this section: its
+  fixed illustrative market and payoffs move to the new `learning` module, and `/como-usar` keeps
+  only a pointer card to `/aprender`.

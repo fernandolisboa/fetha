@@ -3,7 +3,7 @@ status: accepted
 date: 2026-11-21
 ---
 
-# Learning tracks are one catalog of lessons, grouped by level and topic
+# Learning tracks are one catalog of lessons, grouped by level and topic (amends ADR-0059)
 
 ## Context
 
@@ -27,8 +27,10 @@ catalog.json` lists every level, every topic and every lesson's id with its leve
    `fundamentals`, `beginner`, `intermediate`, `advanced`); "Temas" groups the same lessons by
    topic (`options-basics`, `pricing`, `structures`, `risk`, `b3-rules`, `using-fetha`). Code
    always says `topic`, never `theme` — `theme` already names the per-user visual theme
-   (ADR-0015, ADR-0069). A lesson carries an optional `structures` field (unused in v1) so the
-   Estruturas view does not need a format change to arrive in PR 2.
+   (ADR-0015, ADR-0069). Level and topic live only in `catalog.json`'s `lessons` entry, never
+   duplicated on the lesson file itself; a lesson carries no `structures` field in v1 — PR 2's
+   Estruturas view, when it arrives, extends the schema then, rather than reserving an unused
+   field now.
 2. **Zod at the edge, data not code.** `packages/contracts`' `lesson-catalog.ts` is the schema
    (CLAUDE.md principle 2: strategies, and now lessons, are data). Each lesson's text carries both
    locales (`{ en, pt }`, the i18n rule); blocks are a closed union (`paragraph`, `list`,
@@ -46,17 +48,22 @@ catalog.json` lists every level, every topic and every lesson's id with its leve
    content-check test instead of shipping a wrong number. A content-check test pins every
    lesson's resolved pt-BR text and quiz in a snapshot, so drift in wording or in engine output
    both fail loudly.
-4. **Grading is server-side, always.** `submitLessonQuizAction` is the only place that ever reads
-   a question's correct option or its explanation before the client asks for them; the client
-   renders `publicQuiz()`'s shape (question and option text only) and posts back
-   `{ questionId, optionId }` pairs. Passing is ≥ 75% correct (`PASSING_SCORE_RATIO`); retry is
-   always allowed and the stored row keeps the best score reached on the lesson's current
-   version, plus the timestamp of the first pass, which a retry can never move. The action is
-   rate-limited like other user actions (`enforceAccountRateLimit`).
+4. **Grading is server-side, always.** `grading.ts`'s `gradeQuiz` is the only code that ever
+   compares a submitted answer against a question's `correctOptionId`, and `submitLessonQuizAction`
+   is the only place that result (and the resolved `explanation`) ever reaches the client, after
+   it has submitted its own answers. Before that, the client only ever sees `publicQuiz()`'s shape
+   (question and option text, every `{{placeholder}}` already resolved server-side) and posts
+   back `{ questionId, optionId }` pairs, checked against the lesson's own question ids
+   (`answersMatchLessonQuestions`) before grading. Passing is ≥ 75% correct
+   (`PASSING_SCORE_RATIO`); retry is always allowed and the stored row keeps the best score
+   reached on the lesson's current version, plus the timestamp of the first pass, which a retry
+   can never move — computed atomically in the upsert's own SQL, not read-then-written, so two
+   concurrent attempts can never clobber each other. The action is rate-limited like other user
+   actions (`enforceAccountRateLimit`).
 5. **Progress is a small user-scoped table, not audit data.** `lesson_progress` (migration
    `0052_lesson_progress.sql`): `(user_id, lesson_id)` primary key, `lesson_version`,
    `best_correct`, `total`, `first_passed_at`, `updated_at`; `user_id` cascades on delete. A
-   lesson passed or retried is not portfolio or decision data (CONTEXT.md principle 5's
+   lesson passed or retried is not portfolio or decision data (CLAUDE.md principle 5's
    exceptions), so it is deliberately outside the access-log's scope (ADR-0027); it still ships
    in the account data export (`LessonProgressDataExport`) and is deleted with the account
    through the existing FK cascade, with no extra deletion code. `LessonProgressRepository` is
