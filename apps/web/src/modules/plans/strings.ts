@@ -81,6 +81,31 @@ const en = {
     },
     backToSuggestion: "Back to the suggestion",
   },
+  adjust: {
+    title: "Adjust the plan",
+    roleNames: { call: "call", put: "put", stock: "stock" },
+    strikeLabel: (side: string, role: string) => `${side} ${role}, strike`,
+    decreaseStrike: "Lower strike",
+    increaseStrike: "Raise strike",
+    lotsLabel: "Lots",
+    decreaseLots: "One fewer lot",
+    increaseLots: "One more lot",
+    expiryLabel: "Expiry",
+    overRiskLimit: "This size is over your risk limit.",
+    preview: "Previewing, not yet official.",
+    whatChanged: {
+      title: "What changed from Fetha's plan",
+      none: "Nothing changed yet.",
+      lots: (from: number, to: number) => `Lots: ${String(from)} → ${String(to)}`,
+      leg: (side: string, role: string, from: string, to: string) =>
+        `${side} ${role}: ${from} → ${to}`,
+    },
+    reset: "Back to Fetha's plan",
+    adjusting: "Repricing...",
+    errors: {
+      adjust_failed: "Fetha could not reprice this edit; try again.",
+    },
+  },
 } satisfies Record<string, unknown>;
 
 const ptBR = {
@@ -163,6 +188,31 @@ const ptBR = {
       rate_limited: "Muitos planos montados em pouco tempo; tente novamente em breve.",
     },
     backToSuggestion: "Voltar para a sugestão",
+  },
+  adjust: {
+    title: "Ajustar o plano",
+    roleNames: { call: "call", put: "put", stock: "ação" },
+    strikeLabel: (side: string, role: string) => `${side} de ${role}, strike`,
+    decreaseStrike: "Diminuir o strike",
+    increaseStrike: "Aumentar o strike",
+    lotsLabel: "Lotes",
+    decreaseLots: "Um lote a menos",
+    increaseLots: "Um lote a mais",
+    expiryLabel: "Vencimento",
+    overRiskLimit: "Esse tamanho está acima do seu limite de risco.",
+    preview: "Pré-visualização, ainda não é o valor oficial.",
+    whatChanged: {
+      title: "O que mudou em relação ao plano da Fetha",
+      none: "Nada mudou ainda.",
+      lots: (from: number, to: number) => `Lotes: ${String(from)} → ${String(to)}`,
+      leg: (side: string, role: string, from: string, to: string) =>
+        `${side} de ${role}: ${from} → ${to}`,
+    },
+    reset: "Voltar ao plano da Fetha",
+    adjusting: "Reprecificando...",
+    errors: {
+      adjust_failed: "A Fetha não conseguiu reprecificar esse ajuste; tente de novo.",
+    },
   },
 } satisfies typeof en;
 

@@ -68,6 +68,13 @@ function fixtureRules(): PlanRules {
     summary: "A Fetha montou essa trava de alta em PETR4.",
     exitRules: [{ rule: { kind: "days_before_expiry", businessDays: 5 }, session: "2027-01-09" }],
     roll: { applies: false, session: null },
+    original: {
+      legs: [
+        { role: "call", side: "buy", ticker: "PETRC100", quantity: 100 as never },
+        { role: "call", side: "sell", ticker: "PETRC110", quantity: 100 as never },
+      ],
+      lots: 1,
+    },
   };
 }
 

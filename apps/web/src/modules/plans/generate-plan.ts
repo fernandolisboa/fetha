@@ -89,7 +89,9 @@ function maxLossOf(pricing: OperationPricing): number {
   return pricing.maxLoss === "unbounded" ? Number.MAX_SAFE_INTEGER : pricing.maxLoss;
 }
 
-function summaryFor(
+// Exported for the drag-to-adjust path (ticket #380, `adjust-plan.ts`): a user's edited plan
+// still owes the same one-sentence reason as Fetha's own, computed from the same inputs.
+export function summaryFor(
   input: Pick<
     GeneratePlanInput,
     "structureName" | "underlying" | "view" | "ivDisplay" | "priceSessionDate"
@@ -122,7 +124,8 @@ function summaryFor(
 
 // Legs at their final, given limit price (the `final` rung already echoes back the exact price
 // it was told to use), not the last price generatePlan once converted to a limit price itself.
-function legsFromFinal(pricing: OperationPricing): GeneratedPlanLeg[] {
+// Exported for the drag-to-adjust path (ticket #380), the same reason `summaryFor` is.
+export function legsFromFinal(pricing: OperationPricing): GeneratedPlanLeg[] {
   return pricing.legs.map((valuation) => ({
     leg: valuation.leg,
     // `final` is only ever built from a leg whose own limit price is known (the caller

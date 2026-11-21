@@ -1,0 +1,94 @@
+import { describe, expect, it } from "vitest";
+import { tickerSchema, type DecimalString, type SessionDate } from "@fetha/contracts";
+
+import type { PlanChainEntry } from "./chain-view";
+import { indexOfTicker, remapToExpiry, selectableStrikes, stepStrike } from "./leg-strikes";
+
+function entry(
+  ticker: string,
+  strike: string,
+  expiry: SessionDate,
+  right: "call" | "put" = "call",
+  traded = true,
+): PlanChainEntry {
+  return {
+    ticker: tickerSchema.parse(ticker),
+    right,
+    strike: strike as DecimalString,
+    expiry,
+    traded,
+  };
+}
+
+const EXPIRY_A = "2027-01-15" as SessionDate;
+const EXPIRY_B = "2027-02-19" as SessionDate;
+
+const CHAIN: PlanChainEntry[] = [
+  entry("PETRC034", "34.000000", EXPIRY_A),
+  entry("PETRC036", "36.000000", EXPIRY_A),
+  entry("PETRC038", "38.000000", EXPIRY_A, "call", false),
+  entry("PETRC040", "40.000000", EXPIRY_A),
+  entry("PETRP036", "36.000000", EXPIRY_A, "put"),
+  entry("PETRC037", "37.000000", EXPIRY_B),
+  entry("PETRC041", "41.000000", EXPIRY_B),
+];
+
+describe("selectableStrikes", () => {
+  it("keeps only traded strikes of the right right and expiry, sorted ascending", () => {
+    const strikes = selectableStrikes(CHAIN, "call", EXPIRY_A);
+    expect(strikes.map((entry) => entry.ticker)).toEqual(["PETRC034", "PETRC036", "PETRC040"]);
+  });
+
+  it("excludes the other option right", () => {
+    const strikes = selectableStrikes(CHAIN, "put", EXPIRY_A);
+    expect(strikes.map((entry) => entry.ticker)).toEqual(["PETRP036"]);
+  });
+});
+
+describe("indexOfTicker", () => {
+  it("finds a listed ticker's position", () => {
+    const strikes = selectableStrikes(CHAIN, "call", EXPIRY_A);
+    expect(indexOfTicker(strikes, tickerSchema.parse("PETRC036"))).toBe(1);
+  });
+
+  it("returns -1 for a ticker not in the list", () => {
+    const strikes = selectableStrikes(CHAIN, "call", EXPIRY_A);
+    expect(indexOfTicker(strikes, tickerSchema.parse("PETRC999"))).toBe(-1);
+  });
+});
+
+describe("stepStrike", () => {
+  const strikes = selectableStrikes(CHAIN, "call", EXPIRY_A);
+
+  it("moves to the next higher traded strike", () => {
+    expect(stepStrike(strikes, tickerSchema.parse("PETRC034"), 1)).toBe("PETRC036");
+  });
+
+  it("moves to the next lower traded strike", () => {
+    expect(stepStrike(strikes, tickerSchema.parse("PETRC040"), -1)).toBe("PETRC036");
+  });
+
+  it("clamps at the highest strike", () => {
+    expect(stepStrike(strikes, tickerSchema.parse("PETRC040"), 1)).toBe("PETRC040");
+  });
+
+  it("clamps at the lowest strike", () => {
+    expect(stepStrike(strikes, tickerSchema.parse("PETRC034"), -1)).toBe("PETRC034");
+  });
+
+  it("returns null when there is nothing selectable", () => {
+    expect(stepStrike([], tickerSchema.parse("PETRC034"), 1)).toBeNull();
+  });
+});
+
+describe("remapToExpiry", () => {
+  it("snaps to the nearest traded strike of the new expiry", () => {
+    const next = remapToExpiry(CHAIN, "call", "36.000000" as DecimalString, EXPIRY_B);
+    expect(next).toBe("PETRC037");
+  });
+
+  it("returns null when the new expiry has nothing traded for that right", () => {
+    const next = remapToExpiry(CHAIN, "put", "36.000000" as DecimalString, EXPIRY_B);
+    expect(next).toBeNull();
+  });
+});

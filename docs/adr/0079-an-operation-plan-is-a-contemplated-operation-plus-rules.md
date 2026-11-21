@@ -213,6 +213,50 @@ one nothing traded at that close. `generate-plan.ts`'s `stale`/`price === null` 
 now as a guard against something structurally unlikely rather than the only thing standing between
 a thin chain and a bad plan.
 
+## Addendum (round 4, ticket #380): drag-to-adjust stores both sides in `rules`, no new table
+
+Ticket #380 lets the user move a plan's strikes, lots and expiry on its own payoff chart before
+saving. `contemplated_operations.legs` already carries whatever the user last saw — Fetha's own
+plan, unedited, when they touched nothing, or the edited legs when they did — since a plan is
+still exactly one contemplated operation (the body above). Scoring "Fetha's plan vs. the user's
+edits" (deferred from #379, still deferred past this ticket to whichever ticket actually computes
+it) needs Fetha's own side kept somewhere once it is no longer the saved side, which is the one
+new fact this ticket adds: `PlanRules.original` (`legs`, `lots`), always populated — with the
+exact same legs and lot count the save already wrote to `contemplated_operations`
+when the user changed nothing, and with Fetha's freshly-recomputed, never-trusted-from-the-client
+plan (`buildPlan`, the same auto-sizing path #379 already had) when they did. No migration: the
+plan's own rules were already a jsonb column (`operation_plan_rules.rules`), and a new key on an
+existing jsonb shape is schema-free the same way `signals`/`suggestions`' own jsonb payloads
+already are (ADR-0064).
+
+- **A new column or table for "Fetha's original legs".** `PlanRules` is already the one-to-one
+  side table a plan's own half lives in (the body above); a second column there, or a second
+  table, would duplicate the shape `contemplated_operations.legs` already has for the saved side.
+  Rejected.
+- **Only ever persist the edited plan, re-deriving "Fetha's plan" at scoring time by rebuilding
+  it from the recipe again.** The market has moved on by the time scoring runs (ADR-0079's own
+  `buildPlan` always prices "now," never a past instant) — rebuilding then would price a
+  different plan than what the user actually saw and chose to diverge from. Rejected.
+
+### Server reprices every edit; the client only ever previews
+
+Every number drag-to-adjust shows while the user is still touching a handle comes from
+`previewPlan` (`apps/web/src/modules/plans/preview-plan.ts`), a direct, client-side call into
+`engine.priceOperation` — the engine is pure TypeScript with no I/O (ADR-0013), so it runs
+identically in the browser, against the same `MarketView`, pricing instant, risk profile and
+open-operation count the server already resolved and handed back in `BuildPlanOutcome.preview`.
+This preview is never saved and never shown as official: on release (a lot step, a strike step or
+an expiry chip, not on every pixel of a drag — the range input's own discrete, per-strike steps
+already bound how often this fires), `adjustPlanAction` reprices the exact same edit through the
+server's own two-rung, limit-price pricing (`priceExactLegs`, factored out of the existing
+`priceLot` so the auto-sized and the user-edited paths share one implementation), and only that
+reply ever becomes the plan's official numbers. `LatestRequestWins`
+(`apps/web/src/modules/plans/latest-wins.ts`) guards the one race this introduces: a slow reply to
+an earlier edit landing after a faster reply to a later one can never un-apply the newer edit.
+`savePlanAction` still re-derives and re-verifies the saved plan's own fingerprint from scratch
+before writing anything (CLAUDE.md principle 1): an edited save reprices the user's exact legs and
+lots again, server-side, rather than trusting the last `adjustPlanAction` reply either.
+
 ## Alternatives considered
 
 - **One new table carrying the full operation (structure, legs, pricing) plus the rules.** Forks

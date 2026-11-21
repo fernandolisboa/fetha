@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import {
   confidenceSchema,
-  decimalStringSchema,
   tickerSchema,
   type Confidence,
   type ContemplatedLeg,
@@ -13,18 +12,13 @@ import {
   type Instant,
   type PlanRules,
   type Recipe,
+  type RiskProfile,
   type SessionDate,
   type Structure,
   type ThesisClaim,
   type Ticker,
 } from "@fetha/contracts";
-import {
-  engine,
-  type LegInput,
-  type MarketView,
-  type OperationPricing,
-  type OptionRight,
-} from "@fetha/engine";
+import { engine, type LegInput, type MarketView, type OptionRight } from "@fetha/engine";
 
 import { getDb } from "@/db/client";
 import {
@@ -61,18 +55,19 @@ import {
   type GeneratePlanResult,
   type LotPricing,
 } from "./generate-plan";
+import { buildAdjustedPlan, type AdjustedLegInput } from "./adjust-plan";
+import { chainFromMonthlyView, expiryOptionsFrom, type PlanChainEntry } from "./chain-view";
 import { ivDisplayFromLabel, ivRegimeFromReading, type IvDisplay } from "./iv-regime";
 import { planFingerprint } from "./fingerprint";
 import { filterToMonthlyExpiries } from "./monthly-expiry";
 import { filterToTradedSeries } from "./traded-series";
 import { legSelectionFor } from "./plan-selection";
 import { PlanRulesRepository } from "./plan-rules-repository";
-import { limitPriceForLeg } from "./limit-price";
+import { priceExactLegs } from "./reprice-legs";
 import { riskLimitCentavos } from "./risk-limit";
 import { recipeForView } from "./select-recipe";
 import { planViewSchema, type PlanView } from "./view";
 
-const DEFAULT_TOLERANCE: DecimalString = decimalStringSchema.parse("0.010000");
 const DEFAULT_ROLL_SESSIONS_BEFORE_EXPIRY = 5;
 // A decision auto-recorded alongside a saved plan states no conviction of its own (ADR-0079):
 // the decision form itself starts with no confidence filled in, so there is no existing default
@@ -101,6 +96,19 @@ export interface PlanLegSeries {
   expiry: SessionDate;
 }
 
+// What the drag-to-adjust screen needs to preview an edit client-side (ticket #380), without a
+// round trip for every pixel of a drag: the same, already-scoped-to-this-underlying market
+// view, pricing instant, risk profile and open-operation count every number on the read-only
+// screen already came from. `engine.priceOperation` is pure (ADR-0013), so the client calls it
+// directly on this; only the number shown as official, after a release or a button press, comes
+// from the server (`adjustPlanAction`).
+export interface PlanPreviewContext {
+  marketView: MarketView;
+  at: Instant;
+  riskProfile: RiskProfile;
+  openOperationCount: number;
+}
+
 export type BuildPlanOutcome =
   | {
       status: "ok";
@@ -108,6 +116,9 @@ export type BuildPlanOutcome =
       seriesByTicker: Record<string, PlanLegSeries>;
       fingerprint: string;
       riskLimitCentavos: number;
+      chain: PlanChainEntry[];
+      expiryOptions: SessionDate[];
+      preview: PlanPreviewContext;
     }
   | { status: "error"; error: PlanActionError; oneLotMaxLossCentavos?: number };
 
@@ -248,12 +259,12 @@ function daysBeforeExpiryValues(recipe: Recipe): number[] {
 // latest option series record as of `at` for that ticker. Decodes the orders table's "Call de
 // PETR4, strike R$ 36,00, vence 16/01/2027" (ticket #379) without reaching into engine internals.
 function seriesFactsOf(
-  pricing: OperationPricing,
+  legs: readonly { leg: { role: string; ticker: Ticker } }[],
   optionSeries: Awaited<ReturnType<typeof buildOperationMarketView>>["optionSeries"],
   at: string,
 ): Map<string, PlanLegSeries> {
   const facts = new Map<string, PlanLegSeries>();
-  for (const valuation of pricing.legs) {
+  for (const valuation of legs) {
     if (valuation.leg.role === "stock" || facts.has(valuation.leg.ticker)) continue;
     const series = optionSeries
       .filter((candidate) => candidate.ticker === valuation.leg.ticker && candidate.asOf <= at)
@@ -282,12 +293,16 @@ interface BuiltPlan {
   result: GeneratePlanResult;
   seriesByTicker: Map<string, PlanLegSeries>;
   riskLimitCentavos: number;
+  marketView: MarketView;
+  riskProfile: RiskProfile;
+  openOperationCount: number;
+  chain: PlanChainEntry[];
+  expiryOptions: SessionDate[];
 }
 
-// One lot's two-rung pricing (generate-plan.ts's `LotPricing`): the probe at the market's own
-// last price (also where a stale or untraded leg is caught), then a second call pricing the
-// same legs with each leg's own limit price given explicitly, so the numbers this plan reports
-// can never be beaten by a limit fill (ticket #379, round 1 review item 3).
+// One lot's two-rung pricing (generate-plan.ts's `LotPricing`), via the structure's own engine
+// selection — `priceExactLegs` (reprice-legs.ts) does the actual two-rung work, shared with the
+// drag-to-adjust path (ticket #380), which prices the user's own chosen legs instead.
 async function priceLot(
   view: Awaited<ReturnType<typeof buildOperationMarketView>>,
   at: Instant,
@@ -295,7 +310,7 @@ async function priceLot(
   structure: Structure,
   underlying: Ticker,
   lots: number,
-  riskProfile: Parameters<typeof engine.priceOperation>[0]["riskProfile"],
+  riskProfile: RiskProfile,
   openOperationCount: number,
 ): Promise<LotPricing | null> {
   const probed = await engine.priceOperation({
@@ -306,28 +321,13 @@ async function priceLot(
     openOperationCount,
   });
   if (!probed.ok) return null;
-  const probe = probed.value;
-
-  const finalLegs: LegInput[] = probe.legs.map((valuation) => ({
+  const resolvedLegs: LegInput[] = probed.value.legs.map((valuation) => ({
     role: valuation.leg.role,
     side: valuation.leg.side,
     ticker: valuation.leg.ticker,
     quantity: valuation.leg.quantity,
-    price: limitPriceForLeg(
-      valuation.leg.side,
-      valuation.price ?? decimalStringSchema.parse("0.000000"),
-      DEFAULT_TOLERANCE,
-    ),
   }));
-  const priced = await engine.priceOperation({
-    view,
-    at,
-    legs: finalLegs,
-    riskProfile,
-    openOperationCount,
-  });
-  if (!priced.ok) return null;
-  return { probe, final: priced.value };
+  return priceExactLegs(view, at, resolvedLegs, riskProfile, openOperationCount);
 }
 
 // Builds the deterministic plan for a resolved target (ticket #379): every number is priced by
@@ -345,12 +345,12 @@ async function priceLot(
 // unlikely rather than something caught only after the fact.
 async function buildPlan(target: ResolvedTarget): Promise<BuiltPlan> {
   const { at, date } = target.session;
-  const marketView = filterToTradedSeries(
-    filterToMonthlyExpiries(
-      target.marketView ?? (await buildOperationMarketView(getDb(), target.underlying, at)),
-    ),
-    date,
+  const monthlyView = filterToMonthlyExpiries(
+    target.marketView ?? (await buildOperationMarketView(getDb(), target.underlying, at)),
   );
+  const marketView = filterToTradedSeries(monthlyView, date);
+  const chain = chainFromMonthlyView(monthlyView, date, at);
+  const expiryOptions = expiryOptionsFrom(chain, date);
 
   const riskProfile = (await getCurrentRiskProfile()) ?? DEFAULT_RISK_PROFILE;
   const user = await requireUser();
@@ -380,7 +380,7 @@ async function buildPlan(target: ResolvedTarget): Promise<BuiltPlan> {
 
   const onePricing = await pricingForLots(1);
   const seriesByTicker = onePricing
-    ? seriesFactsOf(onePricing.probe, marketView.optionSeries, at)
+    ? seriesFactsOf(onePricing.probe.legs, marketView.optionSeries, at)
     : new Map<string, PlanLegSeries>();
   const expiry = expiryOf(seriesByTicker);
   const sessionsByDays = new Map<number, SessionDate | null>();
@@ -407,7 +407,17 @@ async function buildPlan(target: ResolvedTarget): Promise<BuiltPlan> {
     pricingForLots,
     sessionsBeforeExpiry: (businessDays) => sessionsByDays.get(businessDays) ?? null,
   });
-  return { target, result, seriesByTicker, riskLimitCentavos: limitCentavos };
+  return {
+    target,
+    result,
+    seriesByTicker,
+    riskLimitCentavos: limitCentavos,
+    marketView,
+    riskProfile,
+    openOperationCount,
+    chain,
+    expiryOptions,
+  };
 }
 
 function toOutcome(built: BuiltPlan): BuildPlanOutcome {
@@ -419,6 +429,14 @@ function toOutcome(built: BuiltPlan): BuildPlanOutcome {
       seriesByTicker: Object.fromEntries(built.seriesByTicker),
       fingerprint: planFingerprint(result.plan),
       riskLimitCentavos: built.riskLimitCentavos,
+      chain: built.chain,
+      expiryOptions: built.expiryOptions,
+      preview: {
+        marketView: built.marketView,
+        at: built.target.session.at,
+        riskProfile: built.riskProfile,
+        openOperationCount: built.openOperationCount,
+      },
     };
   }
   if (result.reason === "does_not_fit") {
@@ -443,9 +461,36 @@ const fromSuggestionInputSchema = z.strictObject({
 const buildInputSchema = z.union([fromViewInputSchema, fromSuggestionInputSchema]);
 export type BuildPlanActionInput = z.infer<typeof buildInputSchema>;
 
+const adjustLegInputSchema = z.strictObject({
+  role: z.enum(["stock", "call", "put"]),
+  side: z.enum(["buy", "sell"]),
+  ticker: tickerSchema,
+});
+// The drag-to-adjust screen's own edit of a plan (ticket #380): the user's chosen legs and lot
+// count, optional on both `adjustPlanAction` (the live repricing round trip) and
+// `savePlanAction` (absent: the user never touched a handle, saves Fetha's own plan exactly as
+// `buildPlanAction` showed it, unchanged from before this ticket).
+const adjustmentFieldsSchema = z.strictObject({
+  legs: z.array(adjustLegInputSchema).min(1),
+  lots: z.int().positive(),
+});
+export type AdjustmentFields = z.infer<typeof adjustmentFieldsSchema>;
+
+const adjustInputSchema = z.union([
+  fromViewInputSchema.extend(adjustmentFieldsSchema.shape),
+  fromSuggestionInputSchema.extend(adjustmentFieldsSchema.shape),
+]);
+export type AdjustPlanActionInput = z.infer<typeof adjustInputSchema>;
+
 const saveInputSchema = z.union([
-  fromViewInputSchema.extend({ fingerprint: z.string().min(1) }),
-  fromSuggestionInputSchema.extend({ fingerprint: z.string().min(1) }),
+  fromViewInputSchema.extend({
+    fingerprint: z.string().min(1),
+    adjustment: adjustmentFieldsSchema.optional(),
+  }),
+  fromSuggestionInputSchema.extend({
+    fingerprint: z.string().min(1),
+    adjustment: adjustmentFieldsSchema.optional(),
+  }),
 ]);
 export type SavePlanActionInput = z.infer<typeof saveInputSchema>;
 
@@ -475,6 +520,116 @@ export async function buildPlanAction(input: unknown): Promise<BuildPlanOutcome>
     const resolved = await resolveTarget(parsed.data);
     if (!resolved.ok) return { status: "error", error: resolved.reason };
     const built = await buildPlan(resolved.target);
+    return toOutcome(built);
+  });
+}
+
+function expiryOfLegs(
+  chain: PlanChainEntry[],
+  legs: readonly { ticker: Ticker }[],
+): SessionDate | null {
+  const byTicker = new Map(chain.map((entry) => [entry.ticker, entry.expiry]));
+  for (const leg of legs) {
+    const expiry = byTicker.get(leg.ticker);
+    if (expiry) return expiry;
+  }
+  return null;
+}
+
+const ADJUST_RATE_LIMIT = { windowSeconds: 60, max: 120 };
+
+// The drag-to-adjust screen's own repricing (ticket #380), shared by `adjustPlanAction` (the
+// live round trip on drag release, a lot +/- press or an expiry chip) and `savePlanAction`'s own
+// edited branch (the save-time re-verification, same as `buildPlan` is for the unedited path):
+// resolves the target exactly like `buildPlanAction` (never trusts a client-sent structure or
+// recipe), then reprices the user's own chosen legs through `buildAdjustedPlan` instead of
+// `generatePlan`'s auto-sizing.
+async function buildEdited(
+  target: ResolvedTarget,
+  legs: readonly AdjustedLegInput[],
+  lots: number,
+): Promise<BuiltPlan> {
+  const { at, date } = target.session;
+  const monthlyView = filterToMonthlyExpiries(
+    target.marketView ?? (await buildOperationMarketView(getDb(), target.underlying, at)),
+  );
+  const marketView = filterToTradedSeries(monthlyView, date);
+  const chain = chainFromMonthlyView(monthlyView, date, at);
+  const expiryOptions = expiryOptionsFrom(chain, date);
+
+  const riskProfile = (await getCurrentRiskProfile()) ?? DEFAULT_RISK_PROFILE;
+  const user = await requireUser();
+  const openOperationCount = await countLiveOpenOperations(getDb(), user, at);
+  const limitCentavos = riskLimitCentavos(riskProfile);
+
+  const expiry = expiryOfLegs(chain, legs);
+  const sessionsByDays = new Map<number, SessionDate | null>();
+  for (const days of new Set(daysBeforeExpiryValues(target.recipe))) {
+    if (days === 0) {
+      sessionsByDays.set(0, expiry);
+      continue;
+    }
+    if (!expiry) continue;
+    const beforeExpiry = await nthSessionBefore(getDb(), expiry, days);
+    sessionsByDays.set(days, beforeExpiry ? beforeExpiry.date : null);
+  }
+
+  const result = await buildAdjustedPlan({
+    recipe: target.recipe,
+    structureId: target.structureId,
+    structureName: target.structureName,
+    underlying: target.underlying,
+    view: target.view,
+    ivDisplay: target.ivDisplay,
+    priceSessionDate: date,
+    marketView,
+    at,
+    riskProfile,
+    openOperationCount,
+    legs,
+    lots,
+    sessionsBeforeExpiry: (businessDays) => sessionsByDays.get(businessDays) ?? null,
+  });
+
+  const seriesByTicker = result.ok
+    ? seriesFactsOf(result.plan.legs, marketView.optionSeries, at)
+    : new Map<string, PlanLegSeries>();
+
+  return {
+    target,
+    result,
+    seriesByTicker,
+    riskLimitCentavos: limitCentavos,
+    marketView,
+    riskProfile,
+    openOperationCount,
+    chain,
+    expiryOptions,
+  };
+}
+
+// The drag-to-adjust screen's own server round trip (ticket #380): called on drag release, a
+// lot +/- press or an expiry chip, never on every pixel of a drag — the client already shows a
+// `priceOperation`-backed preview for that. The official numbers that replace the preview once
+// this resolves.
+export async function adjustPlanAction(input: unknown): Promise<BuildPlanOutcome> {
+  const parsed = adjustInputSchema.safeParse(input);
+  if (!parsed.success) return { status: "error", error: "invalid" };
+
+  return withAuthenticatedAction(async () => {
+    const user = await requireUser();
+    try {
+      await enforceAccountRateLimit(getDb(), user.email, "plans/adjust", ADJUST_RATE_LIMIT);
+    } catch (error) {
+      if (error instanceof AccountRateLimitExceededError) {
+        return { status: "error", error: "rate_limited" };
+      }
+      throw error;
+    }
+
+    const resolved = await resolveTarget(parsed.data);
+    if (!resolved.ok) return { status: "error", error: resolved.reason };
+    const built = await buildEdited(resolved.target, parsed.data.legs, parsed.data.lots);
     return toOutcome(built);
   });
 }
@@ -544,12 +699,23 @@ export async function savePlanAction(input: unknown): Promise<SavePlanResult> {
     const resolved = await resolveTarget(parsed.data);
     if (!resolved.ok) return { status: "error", error: resolved.reason };
     const target = resolved.target;
-    const built = await buildPlan(target);
-    if (!built.result.ok) {
-      const outcome = toOutcome(built);
+
+    // Fetha's own plan, always recomputed, never trusted from the client (CLAUDE.md) — the
+    // source of `rules.original` (ADR-0079 addendum, ticket #380) regardless of whether the user
+    // ever touched a handle. A plan the user edited away from a Fetha plan that itself did not
+    // fit the risk limit has no real "original" to diff against; `originalFields` below falls
+    // back to echoing the edited plan rather than inventing one.
+    const autoBuilt = await buildPlan(target);
+    const adjustment = parsed.data.adjustment;
+    const activeBuilt = adjustment
+      ? await buildEdited(target, adjustment.legs, adjustment.lots)
+      : autoBuilt;
+
+    if (!activeBuilt.result.ok) {
+      const outcome = toOutcome(activeBuilt);
       return outcome.status === "error" ? outcome : { status: "error", error: "unpriceable" };
     }
-    const { plan } = built.result;
+    const { plan } = activeBuilt.result;
 
     if (planFingerprint(plan) !== parsed.data.fingerprint) {
       return { status: "error", error: "plan_changed" };
@@ -563,17 +729,31 @@ export async function savePlanAction(input: unknown): Promise<SavePlanResult> {
     }));
     const breachedLimits = plan.limitBreaches.map((breach) => breach.limit);
 
+    const originalFields =
+      autoBuilt.result.ok && autoBuilt !== activeBuilt
+        ? {
+            legs: autoBuilt.result.plan.legs.map(({ leg }) => ({
+              role: leg.role,
+              side: leg.side,
+              ticker: leg.ticker,
+              quantity: leg.quantity,
+            })),
+            lots: autoBuilt.result.plan.lots,
+          }
+        : { legs, lots: plan.lots };
+
     const rules: PlanRules = {
       recipeId: target.recipe.id,
       summary: plan.summary,
       exitRules: plan.exitRules,
       roll: plan.roll,
+      original: originalFields,
     };
 
     const operationsRepo = new OperationsRepository(getDb(), user);
     const planRulesRepo = new PlanRulesRepository(getDb(), user);
     const decisionsRepo = new DecisionsRepository(getDb(), user);
-    const expiry = expiryOf(built.seriesByTicker);
+    const expiry = expiryOf(activeBuilt.seriesByTicker);
     const horizon = planHorizon(plan, expiry);
 
     const operationId = await getDb().transaction(async (tx) => {

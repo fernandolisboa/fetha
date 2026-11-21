@@ -7,15 +7,22 @@ import { Button } from "@/components/ui/button";
 import { AnalysisDialog } from "@/modules/decisions/client";
 import { ErrorNotice } from "@/components/error-notice";
 
-import { savePlanAction, type BuildPlanActionInput, type SavePlanResult } from "../actions";
+import {
+  savePlanAction,
+  type AdjustmentFields,
+  type BuildPlanActionInput,
+  type SavePlanResult,
+} from "../actions";
 import { t } from "../strings";
 
 export function SavePlanButton({
   input,
   fingerprint,
+  adjustment,
 }: {
   input: BuildPlanActionInput;
   fingerprint: string;
+  adjustment?: AdjustmentFields;
 }) {
   const [pending, setPending] = useState(false);
   const [result, setResult] = useState<SavePlanResult | null>(null);
@@ -48,7 +55,7 @@ export function SavePlanButton({
         onClick={() => {
           setPending(true);
           startTransition(async () => {
-            const next = await savePlanAction({ ...input, fingerprint });
+            const next = await savePlanAction({ ...input, fingerprint, adjustment });
             setResult(next);
             setPending(false);
           });
