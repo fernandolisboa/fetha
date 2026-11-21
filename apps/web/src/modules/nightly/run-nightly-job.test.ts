@@ -12,6 +12,7 @@ const runSentimentJobMock = vi.hoisted(() => vi.fn());
 const scanRadarMock = vi.hoisted(() => vi.fn());
 const scoreDueSuggestionsMock = vi.hoisted(() => vi.fn());
 const scoreDueResearchMock = vi.hoisted(() => vi.fn());
+const evaluatePlanSignalsMock = vi.hoisted(() => vi.fn());
 const readE2EInstrumentsRecordingsDirectoryMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/modules/market-data", () => ({ ingest: ingestMock }));
@@ -22,6 +23,7 @@ vi.mock("@/modules/decisions", () => ({
   scoreDueResearch: scoreDueResearchMock,
 }));
 vi.mock("@/modules/sentiment", () => ({ runSentimentJob: runSentimentJobMock }));
+vi.mock("@/modules/plans", () => ({ evaluatePlanSignals: evaluatePlanSignalsMock }));
 vi.mock("@/modules/radar", () => ({
   scanRadar: scanRadarMock,
   scoreDueSuggestions: scoreDueSuggestionsMock,
@@ -74,6 +76,11 @@ describe("runNightlyJob", () => {
       .mockReset()
       .mockImplementation((_db: unknown, asOfSession: string) =>
         Promise.resolve({ asOfSession, scored: 0, skipped: 0, errors: 0 }),
+      );
+    evaluatePlanSignalsMock
+      .mockReset()
+      .mockImplementation(() =>
+        Promise.resolve({ usersEvaluated: 0, usersSkipped: 0, signalsWritten: 0, errors: 0 }),
       );
     scoreDueResearchMock
       .mockReset()
@@ -312,6 +319,30 @@ describe("runNightlyJob", () => {
     expect(asOfSession).toBe("2026-09-08");
     expect(typeof options.deadlineAt).toBe("number");
     expect(outcome.researchScoring).toMatchObject({ scored: 2, skipped: 1 });
+  });
+
+  it("evaluates plan signals right after research, on the same session and deadline", async () => {
+    const order: string[] = [];
+    scoreDueResearchMock.mockImplementationOnce((_db: unknown, asOfSession: string) => {
+      order.push("research");
+      return Promise.resolve({ asOfSession, scored: 0, skipped: 0, errors: 0 });
+    });
+    evaluatePlanSignalsMock.mockImplementationOnce(() => {
+      order.push("planSignals");
+      return Promise.resolve({ usersEvaluated: 1, usersSkipped: 0, signalsWritten: 2, errors: 0 });
+    });
+    const { runNightlyJob } = await import("./run-nightly-job");
+    const outcome = await runNightlyJob(fakeDb);
+    expect(order).toEqual(["research", "planSignals"]);
+    const [db, asOfSession, options] = evaluatePlanSignalsMock.mock.calls[0] as [
+      unknown,
+      string,
+      { deadlineAt?: unknown },
+    ];
+    expect(db).toBe(fakeDb);
+    expect(asOfSession).toBe("2026-09-08");
+    expect(typeof options.deadlineAt).toBe("number");
+    expect(outcome.planSignalScoring).toMatchObject({ usersEvaluated: 1, signalsWritten: 2 });
   });
 
   it("passes an empty okSessions to scoring when this run drains nothing new, letting it resolve its own fallback", async () => {

@@ -360,6 +360,96 @@ that rank is offered), and resolves a rank's own new strike to every one of its 
 at once (`tickersForRank` in `plan-adjuster.tsx`) before previewing or committing — always
 all-or-nothing, the same shape `onExpirySelect`'s own remap already used for a whole plan.
 
+## Addendum (round 5, ticket #381): "Executei" links a plan to the real operation; nightly rule alerts
+
+Ticket #381 closes the loop: "Executei" turns a saved plan into a real, held operation, and the
+nightly job alerts the user when the plan's own rules fire against it. No order is ever sent
+(CLAUDE.md, the issue's own wording); the user still acts from the Carteira.
+
+- **Link direction and shape.** `operation_plan_rules` grows a nullable `operation_id` column,
+  bound by a composite `(operation_id, user_id)` foreign key against `operations(id, user_id)` —
+  the same pattern `fills` and the plan's own `contemplated_operation_id` already use — with a
+  unique index on `operation_id` so a plan links to at most one operation, and an operation can be
+  the target of at most one plan. The plan points at the operation, not the reverse: the operation
+  is still an ordinary `operations` row (grouped from fills exactly like any other), and asking it
+  "which plan, if any, made you" is the rarer read (the nightly job's own loop, and the Carteira
+  showing a plan as executed), so the pointer lives on the rarer-written, already-plan-specific
+  side rather than widening every operation with a column only some of them ever use. Migration
+  `0051_operation_plan_execution.sql`, additive only.
+- **"Executei" prefills from the plan's own legs, never a per-leg stored price.** A saved plan's
+  `contemplated_operations.legs` already carries the exact ticker/role/side/quantity per order
+  (ADR-0079's own body); `executePlanAction` reads those, never trusts a client-sent leg. What the
+  plan does **not** carry is a per-leg limit price — only the totals (`netPremiumCentavos`,
+  `maxLossCentavos`) are stored, by design (the body above: "every number... is stored as they
+  were computed at save time"). `planExecutionPrefillAction` therefore prefills each row's price
+  from a fresh, live `priceOperationNow` read (the same call the builder's own price button
+  makes) rather than "the plan's limit price" literally — a deviation from the orchestrator's
+  stated shape, justified because there is no stored per-leg price to read back, and a live price
+  is a better starting point for "what did this actually fill at" than a stale build-time number
+  would be anyway. The user corrects every price (and the execution session, defaulting to today
+  in São Paulo, validated the same way `recordFillAction` validates one) before saving; nothing
+  from the prefill is trusted again once the user submits.
+- **One transaction, three writes.** `executePlanAction` inserts one fill per plan leg
+  (`PortfolioRepository.insertFills`), groups them into one new operation
+  (`PortfolioRepository.group`, the same `planOperation` the Carteira's own "Agrupar" already
+  uses) and links the plan to that operation (`PlanRulesRepository.linkOperation`), all inside one
+  `db.transaction`. Both `PortfolioRepository.insertFills` and `.group` gained an optional
+  `executor` parameter (`Executor = Database | Transaction`, defaulting to the repository's own
+  `db`), the same seam `OperationsRepository.save`/`PlanRulesRepository.save` already had, so a
+  caller already inside its own transaction can hand it through instead of opening a nested one.
+  `linkOperation`'s own `where` clause requires the plan's `operation_id` to still be null, so a
+  second, concurrent "Executei" submit on the same plan loses the race rather than double-linking;
+  the unique index on `operation_id` is the second, database-level guarantee behind it.
+- **An executed plan cannot execute again.** `planExecutionPrefillAction` and `executePlanAction`
+  both refuse with `already_executed` once `operation_plan_rules.operation_id` is set — checked
+  up front (a fast, friendly refusal) and enforced again by `linkOperation`'s own conditional
+  update (the actual race guard).
+- **The journal gains no new decision.** The plan's own "enter" decision was already recorded
+  when it was saved (ADR-0079's round-1 addendum); "Executei" is the user acting on a decision
+  already in the journal, not a new one — the existing `held_operation` origin (ADR-0022) already
+  covers whatever the user records next about the position it became.
+- **Nightly alerts: a new `plan_signals` table, not the strategy signal inbox.** `signals`
+  (the strategy catalog's own inbox, `docs/agents` "Signal") is keyed to a `strategy_version_id`
+  with a `NOT NULL` foreign key, and its idempotency key is `(user, strategy_version, ticker,
+session, kind, operation)` — a plan has no strategy version at all, and nulling that column
+  would defeat the unique index's own dedup (Postgres never treats two NULLs as equal), reopening
+  exactly the "don't re-alert every night" requirement this ticket states. `plan_signals` is a
+  small, dedicated table instead: `user_id`, `operation_plan_rules_id` and `operation_id` (both
+  composite-FK'd the same way, cascading on delete), `kind` (`target_hit` | `stop_hit` |
+  `roll_due`), `session`, `at`. Its own unique index is `(user_id, operation_id, kind)` with no
+  `supersededBy` column at all: once a condition has fired, it stays fired — there is no re-
+  evaluation pass here (unlike `signals`' own ADR-0047 machinery), so "don't re-alert every night"
+  is simply "never insert the same `(operation, kind)` twice," `onConflictDoNothing` doing the
+  whole job. The `/sinais` page reads both sources and renders the plan ones in their own panel
+  (`PlanSignalsPanel`), read-only, no decision bar — `firedPlanSignalKinds`'s own kinds are an
+  alert to act on, not a journal entry to score the way a strategy's `entry`/`exit`/`adjust`
+  signal is.
+- **The rule-firing math mirrors the engine's own exit-rule evaluation, without depending on its
+  internals.** `evaluateNumericExitRule` (`packages/engine/src/internal/evaluate-strategy.ts`) is
+  not part of the frozen public interface (ADR-0013); `plan-signal-rules.ts`'s
+  `firedPlanSignalKinds` reimplements only the comparison (premium base = `|netPremium|` at entry
+  prices, max-loss base falls back to the premium base when unbounded, a profit target fires once
+  the unrealized P&L clears a fraction of the premium, a stop fires once it falls below a negative
+  multiple of the max loss) over numbers the engine already computed and handed back
+  (`OperationValuation.pricing.netPremium`/`.maxLoss`, `.unrealizedPnl`, from `loadPortfolio`,
+  itself backed by `markToMarket`). CLAUDE.md principle 1 ("AI never produces numbers") is
+  satisfied the same way `modules/portfolio/bookkeeping.ts`'s own ledger arithmetic already is
+  (ADR-0021 item 3): this module invents no number of its own, it only compares two the engine
+  already produced. Roll due is simpler still: it reads the plan's own already-resolved
+  `rules.roll.session` (computed once, at save time, against the series the plan actually
+  listed) and fires once today's session reaches it — no second resolution of "N sessions before
+  expiry" against a possibly-different live expiry, since the executed operation's own expiry is,
+  by construction, the series the plan priced.
+- **The nightly step's own loop.** `evaluatePlanSignals` is chained right after decision scoring
+  (the same `asOfSession` every other scoring step reads), looping over
+  `executedPlanUserIds` (every user with at least one `operation_plan_rules.operation_id is not
+null` row) and, per user, one `loadPortfolio` call shared across every one of that user's
+  linked plans — not one `loadPortfolio` per plan. It honours the shared `deadlineAt` budget the
+  same way `evaluateSignalsForSession`/`scoreDueDecisions` do (a user not yet reached when the
+  deadline passes is `usersSkipped`, picked up again the next run) and is reported in
+  `nightly_runs`' own redacted report (`planSignalScoring { usersEvaluated, usersSkipped,
+signalsWritten, errorCount }`, ADR-0045's addendum pattern) and in `NightlyJobOutcome`.
+
 ## Alternatives considered
 
 - **One new table carrying the full operation (structure, legs, pricing) plus the rules.** Forks

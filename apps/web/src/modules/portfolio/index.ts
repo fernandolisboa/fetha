@@ -18,8 +18,17 @@ export {
 } from "./operations-repository";
 export { getMyOperation, getMyOperations } from "./operations-queries";
 export { getMyPortfolio } from "./portfolio-queries";
-export type { PortfolioReadModel } from "./portfolio-service";
+export { loadPortfolio, seriesByHolding, corporateActionsByUnderlying } from "./portfolio-service";
+export type { PortfolioReadModel, OperationRow } from "./portfolio-service";
 export { countLiveOpenOperations } from "./portfolio-service";
+export { planOperation } from "./operation-plan";
+export type { GroupRefusal } from "./operation-plan";
+export {
+  PortfolioRepository,
+  type NewFill,
+  type FillRecord,
+  type GroupResult,
+} from "./portfolio-repository";
 export { PortfolioDashboard, type OperationDecisionSlot } from "./components/portfolio-dashboard";
 export {
   getMyHeldOperation,
@@ -33,3 +42,4 @@ export { getCurrentRiskProfile, getMyDeclaredCapital } from "./risk-profile-quer
 export { RiskProfileRepository } from "./risk-profile-repository";
 export { portfolioStrings, t } from "./strings";
 export { PortfolioDataExport } from "./data-export";
+export { parsePriceInput } from "./parse-price";

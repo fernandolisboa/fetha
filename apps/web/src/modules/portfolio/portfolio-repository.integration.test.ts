@@ -88,9 +88,15 @@ describe("PortfolioRepository", () => {
       stockFill({ source: "b3_import", importKey: "key-2" }),
     ];
 
-    expect(await new PortfolioRepository(db, a).insertFills(imported)).toEqual({ inserted: 2 });
-    expect(await new PortfolioRepository(db, a).insertFills(imported)).toEqual({ inserted: 0 });
-    expect(await new PortfolioRepository(db, b).insertFills(imported)).toEqual({ inserted: 2 });
+    expect(await new PortfolioRepository(db, a).insertFills(imported)).toMatchObject({
+      inserted: 2,
+    });
+    expect(await new PortfolioRepository(db, a).insertFills(imported)).toMatchObject({
+      inserted: 0,
+    });
+    expect(await new PortfolioRepository(db, b).insertFills(imported)).toMatchObject({
+      inserted: 2,
+    });
     expect(await new PortfolioRepository(db, a).listFills()).toHaveLength(2);
   });
 
