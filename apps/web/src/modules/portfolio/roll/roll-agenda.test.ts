@@ -7,7 +7,10 @@ const base = {
   operationId: "op-1",
   underlying: "PETR4" as Ticker,
   expiry: "2027-01-15",
+  hasShortLeg: true,
   anyShortLegInTheMoney: false,
+  anyLongLegInTheMoney: false,
+  moneynessKnown: true,
   rollTriggerSessions: 5,
 };
 
@@ -69,6 +72,51 @@ describe("suggestRollAction", () => {
         anyShortLegInTheMoney: false,
       })?.action,
     ).toBe("let_expire");
+  });
+
+  it("watches rather than lets expire when a long leg is in the money, even with every short leg out of the money", () => {
+    expect(
+      suggestRollAction({
+        ...base,
+        rollTriggerSessions: null,
+        sessionsToExpiry: 8,
+        anyLongLegInTheMoney: true,
+      })?.action,
+    ).toBe("watch");
+  });
+
+  it("watches rather than lets expire a long-only operation, since it has no short leg", () => {
+    expect(
+      suggestRollAction({
+        ...base,
+        hasShortLeg: false,
+        rollTriggerSessions: null,
+        sessionsToExpiry: 8,
+      })?.action,
+    ).toBe("watch");
+  });
+
+  it("watches rather than lets expire when moneyness could not be computed", () => {
+    expect(
+      suggestRollAction({
+        ...base,
+        rollTriggerSessions: null,
+        sessionsToExpiry: 8,
+        moneynessKnown: false,
+      })?.action,
+    ).toBe("watch");
+  });
+
+  it("never flags assignment risk when moneyness could not be computed, even with a tight window", () => {
+    expect(
+      suggestRollAction({
+        ...base,
+        rollTriggerSessions: null,
+        anyShortLegInTheMoney: true,
+        sessionsToExpiry: 1,
+        moneynessKnown: false,
+      })?.action,
+    ).toBe("watch");
   });
 });
 

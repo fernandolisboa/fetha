@@ -47,6 +47,9 @@ export interface RollChainEntry {
   operationId: string;
   month: string;
   netCentavos: Centavos;
+  // True for the chain's still-open last link: its own premium ("em aberto" on screen) is not
+  // yet realized the way a closed link's net is, since nothing has rolled or settled it (#382).
+  open: boolean;
 }
 
 export interface RollChainRow {
@@ -54,22 +57,30 @@ export interface RollChainRow {
   operationIds: string[];
   netCentavos: Centavos;
   runningTotalCentavos: Centavos;
+  // The still-open link's own id, when this row's month is the one it opened in; null otherwise.
+  // At most one operation in a chain is ever open at once.
+  openOperationId: string | null;
 }
 
 // Groups the chain's entries by month (more than one in the same month sums, rather than one
 // row silently shadowing another) and carries a running total forward across months in
 // chronological order; integer centavos addition throughout, so no rounding ever creeps in.
 export function aggregateRollChainByMonth(entries: readonly RollChainEntry[]): RollChainRow[] {
-  const byMonth = new Map<string, { operationIds: string[]; netCentavos: number }>();
+  const byMonth = new Map<
+    string,
+    { operationIds: string[]; netCentavos: number; openOperationId: string | null }
+  >();
   for (const entry of entries) {
     const existing = byMonth.get(entry.month);
     if (existing) {
       existing.operationIds.push(entry.operationId);
       existing.netCentavos += entry.netCentavos;
+      if (entry.open) existing.openOperationId = entry.operationId;
     } else {
       byMonth.set(entry.month, {
         operationIds: [entry.operationId],
         netCentavos: entry.netCentavos,
+        openOperationId: entry.open ? entry.operationId : null,
       });
     }
   }
@@ -84,6 +95,7 @@ export function aggregateRollChainByMonth(entries: readonly RollChainEntry[]): R
       operationIds: group.operationIds,
       netCentavos: group.netCentavos as Centavos,
       runningTotalCentavos: runningTotal as Centavos,
+      openOperationId: group.openOperationId,
     };
   });
 }

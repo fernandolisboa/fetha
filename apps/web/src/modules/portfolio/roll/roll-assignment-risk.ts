@@ -2,16 +2,23 @@ import { Decimal } from "decimal.js";
 import type { DecimalString } from "@fetha/contracts";
 import type { OptionRight } from "@fetha/engine";
 
-// ITM-or-ATM by strike vs spot alone, never the builder's own series-picker `moneyness` with its
-// +/-1% "at" band (#382): that band exists only so two adjacent rows in a picker
-// never flip labels on a rounding difference. A short leg one session from expiry needs the
-// literal comparison instead, since a broker's automatic exercise does not care whether a
-// strike reads as "near" the money — a call struck fractionally below spot is still assignable.
+// A short leg one session from expiry is assignment risk when it is already in the money, or
+// close enough to the money that a session's own move could put it there (#382): a strike within
+// 1% of spot either way, the same width the builder's own series-picker `moneyness` uses for its
+// "at" band, so a call struck fractionally above spot (a 30,25 strike against a 30,00 close)
+// still counts.
+const ASSIGNMENT_RISK_BAND = new Decimal("0.01");
+
 export function isShortLegAssignmentRisk(
   right: OptionRight,
   strike: DecimalString,
   spot: DecimalString,
 ): boolean {
-  const comparison = new Decimal(spot).comparedTo(strike);
-  return right === "call" ? comparison >= 0 : comparison <= 0;
+  const spotValue = new Decimal(spot);
+  const strikeValue = new Decimal(strike);
+  const inTheMoney = right === "call" ? spotValue.gte(strikeValue) : spotValue.lte(strikeValue);
+  if (inTheMoney) {
+    return true;
+  }
+  return strikeValue.minus(spotValue).abs().lte(spotValue.times(ASSIGNMENT_RISK_BAND));
 }

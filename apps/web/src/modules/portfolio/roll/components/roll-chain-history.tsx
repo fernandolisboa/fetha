@@ -53,6 +53,11 @@ export async function RollChainHistory({ operationId }: { operationId: string })
                 className="text-right font-mono tabular-nums"
                 style={{ color: row.netCentavos >= 0 ? "var(--up)" : "var(--down)" }}
               >
+                {row.openOperationId !== null && (
+                  <span className="text-muted-foreground mr-1 text-[11px] normal-case">
+                    {labels.open}
+                  </span>
+                )}
                 {signedBRL(row.netCentavos)}
               </TableCell>
               <TableCell

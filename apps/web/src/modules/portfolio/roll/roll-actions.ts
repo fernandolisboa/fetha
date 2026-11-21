@@ -151,7 +151,7 @@ function orderKey(order: { ticker: Ticker; side: Side; quantity: number }): stri
 }
 
 // Compared as a sorted multiset of ticker+side+quantity, not a ticker map: a map would collapse
-// two orders on the same ticker into one (#382 review advisory).
+// two orders on the same ticker into one (#382).
 function sameOrders(
   input: readonly { ticker: Ticker; side: Side; quantity: number }[],
   expected: readonly LegInput[],
@@ -254,6 +254,16 @@ export async function recordRollAction(input: unknown): Promise<RecordRollResult
     const operationFills = (await repository.listFills()).filter(
       (fill) => fill.operationId === resolved.operationId,
     );
+    // The execution session can never be earlier than the source operation's own last fill
+    // (#382): closing it before it was last touched would store `closedAt < openedAt` on the new
+    // operation, or close the source before a fill that opened it further.
+    const lastFillSession = operationFills.reduce<SessionDate | null>(
+      (latest, fill) => (!latest || fill.session > latest ? fill.session : latest),
+      null,
+    );
+    if (lastFillSession && parsed.data.session < lastFillSession) {
+      return { status: "error" as const, error: "invalid" as const };
+    }
     // The whole fill history, not only the legs rolling today: the repository replans the
     // source operation from its complete fill set, so a ticker that was closed earlier in the
     // operation's life needs its own series facts too, or the replan refuses as `unknown_series`

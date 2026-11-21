@@ -12,32 +12,32 @@ import {
 } from "@/modules/market-data";
 import { todaySaoPauloDate } from "@/lib/today-sao-paulo";
 
-import { holdingKey } from "../bookkeeping";
 import { openOperationPlansFor } from "../held-operations";
-import { seriesByHolding } from "../portfolio-service";
 
 import { buildRollAgenda, type RollAgendaInput, type RollAgendaItem } from "./roll-agenda";
 import { isShortLegAssignmentRisk } from "./roll-assignment-risk";
 
-// The agenda's own trigger when an operation cannot be linked to a saved plan (ADR-0080
-// addendum "agenda trigger without a plan link"): nothing in the `operations` table names which
-// structure, if any, it was planned from, so every operation with an open option leg uses this
-// one documented default, the same five-session default `plans/exit-rules.ts`'s own
-// `DEFAULT_ROLL_SESSIONS_BEFORE_EXPIRY` names for a plan's own roll rule. Duplicated here rather
-// than imported: `plans` does not export it, and `portfolio` reading it would couple a frozen
-// module boundary (ADR-0079) to a number that is a coincidence of today's catalog, not a shared
-// invariant.
+// The agenda's own trigger when an operation cannot be linked to a saved plan (ADR-0080):
+// nothing in the `operations` table names which structure, if any, it was planned from, so every
+// operation with an open option leg uses this one documented default, the same five-session
+// default `plans/exit-rules.ts`'s own `DEFAULT_ROLL_SESSIONS_BEFORE_EXPIRY` names for a plan's
+// own roll rule. Duplicated here rather than imported: `plans` does not export it, and
+// `portfolio` reading it would couple a frozen module boundary (ADR-0079) to a number that is a
+// coincidence of today's catalog, not a shared invariant.
 const DEFAULT_ROLL_SESSIONS_BEFORE_EXPIRY = 5;
 
 // Each open operation's own `RollAgendaInput`, read from the already-loaded plan
-// (`openOperationPlansFor`, narrow and markToMarket-free, #382 review advisory: Início and
-// Carteira never need the full engine-valued portfolio just to show the agenda) plus the
-// underlying's last close and the calendar's own session count to expiry — never a number this
-// module computes itself (CLAUDE.md principle 1): strike and spot are the engine's own series
-// facts and the latest ingested candle, compared by `isShortLegAssignmentRisk`. Parameterized by
-// `db`/`user` so an integration test can exercise it for two different users without a request
-// context.
-export async function rollAgendaFor(db: Database, user: ScopedUser): Promise<RollAgendaItem[]> {
+// (`openOperationPlansFor`, narrow and markToMarket-free: Início and Carteira never need the
+// full engine-valued portfolio just to show the agenda) plus the underlying's last close and the
+// calendar's own session count to expiry — never a number this module computes itself (CLAUDE.md
+// principle 1): strike and spot come from `market-data`, compared by `isShortLegAssignmentRisk`.
+// Parameterized by `db`/`user`/`today` so an integration test can exercise it for two different
+// users, and a fixed calendar date, without a request context.
+export async function rollAgendaFor(
+  db: Database,
+  user: ScopedUser,
+  today: SessionDate = todaySaoPauloDate(),
+): Promise<RollAgendaItem[]> {
   const plans = await openOperationPlansFor(db, user);
   const candidates = plans.filter(
     ({ pendingSettlement, heldExpiry, legs }) =>
@@ -49,46 +49,55 @@ export async function rollAgendaFor(db: Database, user: ScopedUser): Promise<Rol
 
   const inputs: RollAgendaInput[] = [];
   const candleByUnderlying = new Map<Ticker, { session: SessionDate; close: string } | null>();
-  for (const { operationId, underlying, legs, heldExpiry, fills } of candidates) {
+  for (const { operationId, underlying, legs, heldExpiry } of candidates) {
     if (!heldExpiry) continue;
+    // Missing from the calendar entirely, never just missing a price (#382): without the expiry
+    // date's own session row there is no `sessionsToExpiry` to anchor any suggestion on, and no
+    // "watch, we don't know" is possible either.
+    const expirySession = await tradingSessionForDate(db, heldExpiry);
+    if (!expirySession) continue;
+    const sessionsToExpiry = await countSessionsClosedAfter(
+      db,
+      today,
+      new Date(expirySession.close),
+    );
+
     if (!candleByUnderlying.has(underlying)) {
       candleByUnderlying.set(underlying, (await latestCandle(db, underlying)) ?? null);
     }
     const candle = candleByUnderlying.get(underlying) ?? null;
+    const optionLegs = legs.filter((leg) => leg.role !== "stock");
+    const hasShortLeg = optionLegs.some((leg) => leg.side === "sell");
 
-    const series = await seriesByHolding(db, fills);
-    const anyShortLegInTheMoney =
-      candle !== null &&
-      legs
-        .filter((leg) => leg.role !== "stock" && leg.side === "sell")
+    // Unknown, not "out of the money", when a candle or a leg's own strike and right (already
+    // read by `openOperationPlansFor`, never a second `seriesByHolding` call here) are missing
+    // (#382): the agenda still lists the operation, it just cannot tell `let_expire` from
+    // `watch` without a spot price and a strike for every leg.
+    const spotClose = candle?.close ?? null;
+    const moneynessKnown =
+      spotClose !== null && optionLegs.every((leg) => leg.strike !== null && leg.right !== null);
+    const inTheMoney = (side: "buy" | "sell") =>
+      moneynessKnown &&
+      optionLegs
+        .filter((leg) => leg.side === side)
         .some((leg) => {
-          const facts = series.get(holdingKey(leg.ticker, heldExpiry));
-          if (!facts) return false;
+          if (leg.strike === null || leg.right === null) return false;
           return isShortLegAssignmentRisk(
-            facts.right,
-            decimalStringSchema.parse(facts.strike),
-            decimalStringSchema.parse(candle.close),
+            leg.right,
+            decimalStringSchema.parse(leg.strike),
+            decimalStringSchema.parse(spotClose),
           );
         });
-
-    const expirySession = await tradingSessionForDate(db, heldExpiry);
-    if (!expirySession || !candle) continue;
-    // Anchored on today, not on the latest ingested candle's own session (#382 review
-    // advisory "session count anchor"): a candle that lags by one session (ingestion has not
-    // run yet today) would overcount every expiry by one session and the "vence hoje" branch
-    // (count === 0) could never fire on the expiry day itself.
-    const sessionsToExpiry = await countSessionsClosedAfter(
-      db,
-      todaySaoPauloDate(),
-      new Date(expirySession.close),
-    );
 
     inputs.push({
       operationId,
       underlying,
       expiry: heldExpiry,
       sessionsToExpiry,
-      anyShortLegInTheMoney,
+      hasShortLeg,
+      anyShortLegInTheMoney: inTheMoney("sell"),
+      anyLongLegInTheMoney: inTheMoney("buy"),
+      moneynessKnown,
       rollTriggerSessions: DEFAULT_ROLL_SESSIONS_BEFORE_EXPIRY,
     });
   }

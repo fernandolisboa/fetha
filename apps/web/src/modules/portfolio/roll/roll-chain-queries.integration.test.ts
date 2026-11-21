@@ -69,6 +69,22 @@ function shortCallFill(overrides: Partial<NewFill> = {}): NewFill {
   };
 }
 
+function stockFill(overrides: Partial<NewFill> = {}): NewFill {
+  return {
+    ticker: UNDERLYING,
+    assetClass: "stock",
+    side: "buy",
+    quantity: 100,
+    price: decimalStringSchema.parse("30.00"),
+    session: OPENED_AT,
+    costsCentavos: 0,
+    expiry: null,
+    source: "manual",
+    importKey: null,
+    ...overrides,
+  };
+}
+
 const series: SeriesByHolding = new Map([
   [
     holdingKey(CURRENT_TICKER, CURRENT_EXPIRY),
@@ -119,13 +135,66 @@ describe("rollChainFor", () => {
     const rows = await rollChainFor(db, owner, result.newOperationId);
     // The closed root link nets its own opened premium (+200.00) against its own closing cost
     // (-120.00): +80.00. The still-open new link carries only its own opening premium (+450.00),
-    // since nothing has closed it yet. Both land in the roll's own month (#382 review advisory).
+    // since nothing has closed it yet. Both land in the roll's own month (#382).
     expect(rows).toEqual([
       {
         month: "2026-10",
         operationIds: [grouped.operationId, result.newOperationId],
         netCentavos: 8000 + 45000,
         runningTotalCentavos: 8000 + 45000,
+        openOperationId: result.newOperationId,
+      },
+    ]);
+  });
+
+  it("nets a covered call's roll from its option fills only, never the stock leg's own purchase", async () => {
+    const db = getDb();
+    const owner = await insertUser("chain-covered-call");
+    const repository = new PortfolioRepository(db, owner);
+    await repository.insertFills([stockFill(), shortCallFill()]);
+    const inserted = await repository.listFills();
+    const grouped = await repository.group(
+      null,
+      inserted.map((fill) => fill.id),
+      plan,
+    );
+    if (!grouped.ok) throw new Error(grouped.reason);
+
+    const result = await repository.roll(
+      grouped.operationId,
+      inserted.map((fill) => fill.id),
+      [
+        shortCallFill({
+          side: "buy",
+          price: decimalStringSchema.parse("1.20"),
+          session: ROLLED_AT,
+        }),
+      ],
+      [
+        shortCallFill({
+          ticker: NEXT_TICKER,
+          expiry: NEXT_EXPIRY,
+          price: decimalStringSchema.parse("4.50"),
+          session: ROLLED_AT,
+        }),
+      ],
+      ROLLED_AT,
+      plan,
+    );
+    if (!result.ok) throw new Error(result.reason);
+
+    const rows = await rollChainFor(db, owner, result.newOperationId);
+    // The stock purchase (-300000, on 2026-09-15) never counts as roll cash, and never pins the
+    // row to its own month (#382): both links' nets come from their option fills only, and the
+    // still-open link's own month is the roll date that opened it, not its stock leg's much
+    // older purchase session.
+    expect(rows).toEqual([
+      {
+        month: "2026-10",
+        operationIds: [grouped.operationId, result.newOperationId],
+        netCentavos: 8000 + 45000,
+        runningTotalCentavos: 8000 + 45000,
+        openOperationId: result.newOperationId,
       },
     ]);
   });

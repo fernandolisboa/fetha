@@ -18,7 +18,7 @@ export type RollExpirySelection =
 // Picks the shared next monthly expiry from the full monthly chain (`monthlySeries`, expected
 // already narrowed by market-data/monthly-expiry.ts's `filterToMonthlyExpiries` but not yet by
 // `filterToTradedSeries`), so an expiry with no traded series yet still counts as "next" and
-// `no_traded_series` stays reachable as its own, later refusal (#382 review advisory).
+// `no_traded_series` stays reachable as its own, later refusal (#382).
 export function selectNextMonthlyExpiry(
   monthlySeries: readonly OptionSeries[],
   target: RollExpiryTarget,

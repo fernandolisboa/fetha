@@ -63,7 +63,7 @@ describe("selectNextMonthlyExpiry", () => {
   });
 
   it("picks the next expiry even when no series there has traded yet", () => {
-    // Regression for #382 review advisory: a chain narrowed to traded series before the next
+    // Regression for #382: a chain narrowed to traded series before the next
     // expiry is chosen would skip this expiry entirely and jump past it.
     const result = selectNextMonthlyExpiry(
       [

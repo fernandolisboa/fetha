@@ -21,7 +21,7 @@ export type DownloadRollChainCsvResult =
 // The roll chain's CSV, built from the same rows the page itself renders (#382): recomputed per
 // request rather than cached as a file, since the chain's last link's own result can still
 // change (a pending settlement not yet confirmed). Rate-limited like every other roll endpoint
-// (#382 review advisory): a CSV export recomputes the whole chain, so it is not free to spam.
+// (#382): a CSV export recomputes the whole chain, so it is not free to spam.
 export async function downloadRollChainCsvAction(
   operationId: unknown,
 ): Promise<DownloadRollChainCsvResult> {

@@ -325,6 +325,7 @@ const en = {
       net: "Net credit/debit",
       runningTotal: "Running total",
       download: "Download CSV",
+      open: "Open",
     },
   },
   list: {
@@ -686,6 +687,7 @@ const ptBR = {
       net: "Crédito/débito líquido",
       runningTotal: "Total acumulado",
       download: "Baixar CSV",
+      open: "Em aberto",
     },
   },
   list: {

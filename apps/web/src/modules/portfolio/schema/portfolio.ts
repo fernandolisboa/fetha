@@ -57,8 +57,8 @@ export const operations = pgTable(
     // Target of the fills' composite foreign key below: a fill's user_id is
     // bound to its operation's user_id by the database, not by discipline.
     uniqueIndex("operations_id_user_id_idx").on(table.id, table.userId),
-    // Unique, not a plain index (#382 review advisory): a source operation can be the parent of
-    // at most one roll, so the chain stays a linked list rather than a tree.
+    // Unique, not a plain index (#382): a source operation can be the parent of at most one
+    // roll, so the chain stays a linked list rather than a tree.
     uniqueIndex("operations_rolled_from_operation_id_idx").on(table.rolledFromOperationId),
     foreignKey({
       columns: [table.rolledFromOperationId, table.userId],

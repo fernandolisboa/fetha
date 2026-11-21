@@ -119,7 +119,7 @@ export async function resolveRoll(operationId: string): Promise<RollResolveOutco
   }
 
   // The next monthly expiry is chosen from the full monthly chain first, before narrowing to
-  // traded series (#382 review advisory), so `no_traded_series` stays reachable on its own and a
+  // traded series (#382), so `no_traded_series` stays reachable on its own and a
   // multi-leg structure is never split across two expiries.
   const monthlyView = filterToMonthlyExpiries(rawView);
   const tradedView = filterToTradedSeries(monthlyView, session.date);

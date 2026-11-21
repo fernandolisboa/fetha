@@ -24,10 +24,23 @@ export interface RollAgendaInput {
   underlying: Ticker;
   expiry: SessionDate;
   sessionsToExpiry: number;
+  // Whether the operation carries a short leg at all (a stock-only or long-only position never
+  // gets `let_expire`: B3 auto-exercises an in-the-money long on the holder's behalf, so a
+  // long-only position always needs a human look, never a computed "nothing to do" (#382)).
+  hasShortLeg: boolean;
   // True once any short leg (the one a buyer could exercise) is in the money at the last close:
-  // the literal strike-vs-spot comparison (`roll/roll-assignment-risk.ts`), never the display
-  // moneyness a series picker shows with its own at-the-money band.
+  // the literal strike-vs-spot comparison plus its assignment-risk band
+  // (`roll/roll-assignment-risk.ts`), never the display moneyness a series picker shows with its
+  // own at-the-money band.
   anyShortLegInTheMoney: boolean;
+  // True once any long leg (the one the holder could exercise, or B3 auto-exercises) is in the
+  // money at the last close: `let_expire` is wrong advice while a long leg would actually settle
+  // in cash or stock rather than expire worthless.
+  anyLongLegInTheMoney: boolean;
+  // False when the last close or a leg's series facts were not available to compute the two
+  // moneyness flags above: the agenda still lists the operation, but can only ever watch it, not
+  // claim it is safe to let expire.
+  moneynessKnown: boolean;
   // `rollTriggerSessionsBeforeExpiry` (plans/exit-rules.ts): the business-day count the held
   // structure's own roll rule fires at, or null when the structure does not roll.
   rollTriggerSessions: number | null;
@@ -39,10 +52,12 @@ export interface RollAgendaInput {
 //    operation: closing before expiry beats waiting, whether or not the structure normally rolls.
 // 2. Otherwise, a structure that rolls at all, once today's `sessionsToExpiry` reaches its own
 //    trigger, is a roll.
-// 3. Otherwise, a short leg already in the money (but not yet at the assignment-risk window)
-//    is only watched: "let it expire" would be wrong advice for a leg a buyer could still
-//    exercise before the trigger fires (#382).
-// 4. Otherwise every short leg is out of the money, so the position is left to expire worthless.
+// 3. Otherwise, "let it expire" applies only when the operation has a short leg, every short leg
+//    is out of the money and no long leg is in the money: a short leg still in the money (but
+//    short of the assignment-risk window), a long-only position, or a long leg B3 would
+//    auto-exercise, are all only watched instead.
+// 4. Moneyness the agenda could not compute (a missing candle or missing series facts) is never
+//    treated as "out of the money": it is watched, the same as an unresolved short leg.
 //
 // Returns null when the operation is outside the agenda window (CLAUDE.md: the engine computes,
 // nothing here guesses a number) or carries no expiry to plan around.
@@ -51,13 +66,18 @@ export function suggestRollAction(input: RollAgendaInput): RollAgendaItem | null
     return null;
   }
   const action: RollAgendaAction =
-    input.anyShortLegInTheMoney && input.sessionsToExpiry <= ASSIGNMENT_RISK_SESSIONS
+    input.moneynessKnown &&
+    input.anyShortLegInTheMoney &&
+    input.sessionsToExpiry <= ASSIGNMENT_RISK_SESSIONS
       ? "close_early_assignment_risk"
       : input.rollTriggerSessions !== null && input.sessionsToExpiry <= input.rollTriggerSessions
         ? "roll"
-        : input.anyShortLegInTheMoney
-          ? "watch"
-          : "let_expire";
+        : input.moneynessKnown &&
+            input.hasShortLeg &&
+            !input.anyShortLegInTheMoney &&
+            !input.anyLongLegInTheMoney
+          ? "let_expire"
+          : "watch";
   return {
     operationId: input.operationId,
     underlying: input.underlying,

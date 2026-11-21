@@ -35,8 +35,8 @@ describe("chainIdsFrom", () => {
 describe("aggregateRollChainByMonth", () => {
   it("carries a running total forward across months in chronological order", () => {
     const rows = aggregateRollChainByMonth([
-      { operationId: "op-2", month: "2027-02", netCentavos: -200 as Centavos },
-      { operationId: "op-1", month: "2027-01", netCentavos: 500 as Centavos },
+      { operationId: "op-2", month: "2027-02", netCentavos: -200 as Centavos, open: false },
+      { operationId: "op-1", month: "2027-01", netCentavos: 500 as Centavos, open: false },
     ]);
 
     expect(rows).toEqual([
@@ -45,20 +45,22 @@ describe("aggregateRollChainByMonth", () => {
         operationIds: ["op-1"],
         netCentavos: 500,
         runningTotalCentavos: 500,
+        openOperationId: null,
       },
       {
         month: "2027-02",
         operationIds: ["op-2"],
         netCentavos: -200,
         runningTotalCentavos: 300,
+        openOperationId: null,
       },
     ]);
   });
 
   it("sums more than one roll that landed in the same month", () => {
     const rows = aggregateRollChainByMonth([
-      { operationId: "op-1", month: "2027-01", netCentavos: 100 as Centavos },
-      { operationId: "op-2", month: "2027-01", netCentavos: 50 as Centavos },
+      { operationId: "op-1", month: "2027-01", netCentavos: 100 as Centavos, open: false },
+      { operationId: "op-2", month: "2027-01", netCentavos: 50 as Centavos, open: false },
     ]);
 
     expect(rows).toEqual([
@@ -67,8 +69,19 @@ describe("aggregateRollChainByMonth", () => {
         operationIds: ["op-1", "op-2"],
         netCentavos: 150,
         runningTotalCentavos: 150,
+        openOperationId: null,
       },
     ]);
+  });
+
+  it("names the still-open link's own id on its own row", () => {
+    const rows = aggregateRollChainByMonth([
+      { operationId: "op-1", month: "2027-01", netCentavos: 100 as Centavos, open: false },
+      { operationId: "op-2", month: "2027-02", netCentavos: 50 as Centavos, open: true },
+    ]);
+
+    expect(rows[0]?.openOperationId).toBeNull();
+    expect(rows[1]?.openOperationId).toBe("op-2");
   });
 
   it("is empty for an empty chain", () => {
@@ -84,12 +97,14 @@ describe("rollChainToCsv", () => {
         operationIds: ["op-1"],
         netCentavos: 500 as Centavos,
         runningTotalCentavos: 500 as Centavos,
+        openOperationId: null,
       },
       {
         month: "2027-02",
         operationIds: ["op-2"],
         netCentavos: -230 as Centavos,
         runningTotalCentavos: 270 as Centavos,
+        openOperationId: "op-2",
       },
     ]);
 
@@ -107,6 +122,7 @@ describe("rollChainToCsv", () => {
         operationIds: ["op-1", "op-2"],
         netCentavos: 0 as Centavos,
         runningTotalCentavos: 0 as Centavos,
+        openOperationId: null,
       },
     ]);
 

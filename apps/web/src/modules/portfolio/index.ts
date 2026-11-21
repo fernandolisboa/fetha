@@ -24,10 +24,10 @@ export { PortfolioDashboard, type OperationDecisionSlot } from "./components/por
 export {
   getMyHeldOperation,
   getMyOpenOperationExpiries,
-  getMyOpenOperationPlans,
   heldOperationForScoring,
   HeldOperationNotFoundError,
   type HeldOperation,
+  type OpenOperationPlanLeg,
   type OpenOperationPlanRow,
 } from "./held-operations";
 export { declareRiskProfileAction, type RiskProfileActionResult } from "./risk-profile-actions";
@@ -42,3 +42,13 @@ export {
   type RollPairCandidate,
   type SeedE2ERollPairResult,
 } from "./roll/roll-pair-e2e";
+export {
+  buildRollProposalAction,
+  recordRollAction,
+  type BuildRollProposalResult,
+  type RecordRollResult,
+  type RollActionError,
+} from "./roll/roll-actions";
+export { getMyRollAgenda } from "./roll/roll-agenda-queries";
+export { getMyRollChain } from "./roll/roll-chain-queries";
+export { downloadRollChainCsvAction } from "./roll/roll-chain-actions";

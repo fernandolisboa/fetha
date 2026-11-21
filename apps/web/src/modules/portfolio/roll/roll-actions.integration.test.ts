@@ -68,6 +68,10 @@ const ANCHOR_SESSION = SESSIONS[2] ?? "";
 const EXECUTION_SESSION = SESSIONS[3] ?? "";
 const CURRENT_EXPIRY = SESSIONS[24] ?? "";
 const NEXT_EXPIRY = SESSIONS[44] ?? "";
+// A real trading session earlier than every session `seedMarket` seeds, so recording a roll
+// against it is refused for being earlier than the source operation's own last fill, never for
+// being an unseeded date (#382).
+const EARLY_SESSION = businessDays("2026-11-09", 1)[0] ?? "";
 
 interface Market {
   underlying: string;
@@ -76,7 +80,7 @@ interface Market {
   closedTicker: string;
 }
 
-async function seedMarket(): Promise<Market> {
+async function seedMarket(options: { skipCurrentPrice?: boolean } = {}): Promise<Market> {
   const db = getDb();
   const underlying = uniqueTicker("U");
   const currentTicker = `${underlying}F30`;
@@ -146,18 +150,22 @@ async function seedMarket(): Promise<Market> {
 
   await ensureMonthlyPartition(db, "option_daily_prices", ANCHOR_SESSION);
   await db.insert(optionDailyPrices).values([
-    {
-      ticker: currentTicker,
-      session: ANCHOR_SESSION,
-      asOf: new Date(`${ANCHOR_SESSION}T20:00:00.000Z`),
-      right: "call",
-      strike: "30.00000000",
-      expiry: CURRENT_EXPIRY,
-      average: "1.500000",
-      close: "1.500000",
-      trades: 10,
-      tradedQuantity: 1000,
-    },
+    ...(options.skipCurrentPrice
+      ? []
+      : [
+          {
+            ticker: currentTicker,
+            session: ANCHOR_SESSION,
+            asOf: new Date(`${ANCHOR_SESSION}T20:00:00.000Z`),
+            right: "call" as const,
+            strike: "30.00000000",
+            expiry: CURRENT_EXPIRY,
+            average: "1.500000",
+            close: "1.500000",
+            trades: 10,
+            tradedQuantity: 1000,
+          },
+        ]),
     {
       ticker: nextTicker,
       session: ANCHOR_SESSION,
@@ -285,15 +293,29 @@ describe("buildRollProposalAction", () => {
         ticker: market.currentTicker,
         side: "buy",
         quantity: 100,
+        price: "1.500000",
       }),
       expect.objectContaining({
         action: "open",
         ticker: market.nextTicker,
         side: "sell",
         quantity: 100,
+        price: "1.000000",
       }),
     ]);
-    expect(typeof result.proposal.netCreditDebitCentavos).toBe("number");
+    // Closing (buying back) the short call at its own market close costs 100 * R$ 1,50 =
+    // R$ 150,00; opening the next one at its own close brings in 100 * R$ 1,00 = R$ 100,00: a
+    // net debit of R$ 50,00 (#382).
+    expect(result.proposal.netCreditDebitCentavos).toBe(-5000);
+  });
+
+  it("refuses as unpriceable when the held ticker has no market price", async () => {
+    const market = await seedMarket({ skipCurrentPrice: true });
+    await signIn("build-unpriceable");
+    const operationId = await openShortCall(market);
+
+    const result = await buildRollProposalAction({ operationId });
+    expect(result).toEqual({ status: "error", error: "unpriceable" });
   });
 
   it("refuses an operation with no option leg", async () => {
@@ -398,6 +420,39 @@ describe("recordRollAction", () => {
     const newFills = fills.filter((fill) => fill.operationId === result.newOperationId);
     expect(newFills.length).toBeGreaterThan(0);
     expect(newFills.every((fill) => fill.session === EXECUTION_SESSION)).toBe(true);
+  });
+
+  it("refuses an execution session earlier than the source operation's own last fill", async () => {
+    const market = await seedMarket();
+    await signIn("record-early-session");
+    const operationId = await openShortCall(market);
+    await getDb()
+      .insert(tradingSessions)
+      .values({
+        date: EARLY_SESSION,
+        open: new Date(`${EARLY_SESSION}T13:00:00.000Z`),
+        close: new Date(`${EARLY_SESSION}T20:00:00.000Z`),
+      })
+      .onConflictDoNothing();
+
+    const proposal = await buildRollProposalAction({ operationId });
+    expect(proposal.status).toBe("ok");
+    if (proposal.status !== "ok") return;
+
+    const toInput = (order: (typeof proposal.proposal.orders)[number]) => ({
+      ticker: order.ticker,
+      side: order.side,
+      quantity: order.quantity,
+      price: "1,00",
+      costs: "",
+    });
+    const result = await recordRollAction({
+      operationId,
+      session: EARLY_SESSION,
+      closingFills: proposal.proposal.orders.filter((o) => o.action === "close").map(toInput),
+      openingFills: proposal.proposal.orders.filter((o) => o.action === "open").map(toInput),
+    });
+    expect(result).toEqual({ status: "error", error: "invalid" });
   });
 
   it("rolls an operation whose history has a now-closed option ticker (#382)", async () => {

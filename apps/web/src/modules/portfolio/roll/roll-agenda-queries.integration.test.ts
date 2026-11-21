@@ -3,7 +3,6 @@ import { decimalStringSchema, sessionDateSchema, tickerSchema } from "@fetha/con
 
 import { getDb } from "@/db/client";
 import { deleteTestUser } from "@/db/test/cleanup";
-import { todaySaoPauloDate } from "@/lib/today-sao-paulo";
 import { user } from "@/modules/auth/schema";
 import { cotahistStockRowSchema } from "@/modules/market-data/adapters/cotahist/schema";
 import { upsertDailyCandles } from "@/modules/market-data/repositories/candle-repository";
@@ -49,7 +48,12 @@ function uniqueTicker(label: string): string {
   return `Z${label}${crypto.randomUUID().replace(/-/g, "").slice(0, 3).toUpperCase()}`;
 }
 
-const TODAY = todaySaoPauloDate();
+// A fixed, far-future calendar window (#382), never the real wall-clock `todaySaoPauloDate()`:
+// `trading_sessions` is shared reference data no test ever cleans up, so anchoring on the real
+// date let another test's own seeded sessions in the same near-term range inflate
+// `countSessionsClosedAfter`'s count (the CI failure this file's own fixture used to produce).
+// `rollAgendaFor`'s own `today` parameter is exercised directly with this fixed date instead.
+const TODAY = sessionDateSchema.parse("2063-04-09");
 const LATEST_SESSION = lastBusinessDayOnOrBefore(TODAY);
 const OPENED_SESSION = nthBusinessDayFrom(
   new Date(new Date(`${LATEST_SESSION}T00:00:00.000Z`).getTime() - 60 * 86_400_000)
@@ -174,7 +178,7 @@ describe("rollAgendaFor", () => {
     const grouped = await repository.group(null, [opened.id], plan);
     if (!grouped.ok) throw new Error(grouped.reason);
 
-    const items = await rollAgendaFor(db, owner);
+    const items = await rollAgendaFor(db, owner, TODAY);
     expect(items).toEqual([
       expect.objectContaining({
         operationId: grouped.operationId,
@@ -207,9 +211,9 @@ describe("rollAgendaFor isolation", () => {
     const grouped = await repositoryA.group(null, [opened.id], plan);
     if (!grouped.ok) throw new Error(grouped.reason);
 
-    const itemsForB = await rollAgendaFor(db, b);
+    const itemsForB = await rollAgendaFor(db, b, TODAY);
     expect(itemsForB).toEqual([]);
-    const itemsForA = await rollAgendaFor(db, a);
+    const itemsForA = await rollAgendaFor(db, a, TODAY);
     expect(itemsForA.length).toBeGreaterThan(0);
   });
 });
