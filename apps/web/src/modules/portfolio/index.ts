@@ -17,7 +17,7 @@ export {
   type SaveContemplatedOperationInput,
 } from "./operations-repository";
 export { getMyOperation, getMyOperations } from "./operations-queries";
-export { getMyPortfolio } from "./portfolio-queries";
+export { getMyOperationSummary, getMyPortfolio, type OperationSummary } from "./portfolio-queries";
 export type { PortfolioReadModel } from "./portfolio-service";
 export { countLiveOpenOperations } from "./portfolio-service";
 export { PortfolioDashboard, type OperationDecisionSlot } from "./components/portfolio-dashboard";
@@ -33,3 +33,11 @@ export { getCurrentRiskProfile, getMyDeclaredCapital } from "./risk-profile-quer
 export { RiskProfileRepository } from "./risk-profile-repository";
 export { portfolioStrings, t } from "./strings";
 export { PortfolioDataExport } from "./data-export";
+export { RollAgendaPanel } from "./roll/components/roll-agenda-panel";
+export { RollChainHistory } from "./roll/components/roll-chain-history";
+export {
+  seedE2ERollPair,
+  type RollPairCandidate,
+  type SeedE2ERollPairResult,
+} from "./roll/roll-pair-e2e";
+export { resolveRollSessionDefault } from "./roll/roll-session-default";

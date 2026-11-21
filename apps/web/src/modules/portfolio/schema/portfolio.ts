@@ -45,6 +45,11 @@ export const operations = pgTable(
     expiry: date("expiry", { mode: "string" }),
     openedAt: date("opened_at", { mode: "string" }).notNull(),
     closedAt: date("closed_at", { mode: "string" }),
+    // #382: the operation this one rolled from, same user, set once at the roll that created it
+    // and never after. A self-referencing composite foreign key, the same pattern
+    // `operation_plan_rules` uses against `contemplated_operations` (docs/adr/0080): the
+    // database, not the repository, keeps a roll from ever pointing at another user's operation.
+    rolledFromOperationId: text("rolled_from_operation_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
@@ -52,6 +57,13 @@ export const operations = pgTable(
     // Target of the fills' composite foreign key below: a fill's user_id is
     // bound to its operation's user_id by the database, not by discipline.
     uniqueIndex("operations_id_user_id_idx").on(table.id, table.userId),
+    // Unique, not a plain index (#382): a source operation can be the parent of at most one
+    // roll, so the chain stays a linked list rather than a tree.
+    uniqueIndex("operations_rolled_from_operation_id_idx").on(table.rolledFromOperationId),
+    foreignKey({
+      columns: [table.rolledFromOperationId, table.userId],
+      foreignColumns: [table.id, table.userId],
+    }),
     check("operations_status_check", sql`${table.status} in (${inList(operationStatuses)})`),
     check(
       "operations_closed_at_check",

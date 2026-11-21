@@ -6,6 +6,7 @@ import { formatDecimal } from "@/lib/format/decimal";
 import { formatPriceBRL } from "@/lib/format/brl";
 import { requireUser } from "@/modules/auth";
 import { AssetReadingChips, isMarketIndex } from "@/modules/market-data";
+import { RollAgendaPanel } from "@/modules/portfolio";
 import { RadarPanel } from "@/modules/radar";
 import { EmptyState, PageHeader, Panel, t as shellStrings } from "@/modules/shell";
 import { hasMyActiveDailyStrategy } from "@/modules/strategies";
@@ -46,6 +47,7 @@ export default async function WatchlistPage({
         headline={t.page.title}
         actions={<AddInstrumentCombobox />}
       />
+      <RollAgendaPanel />
       <TodaySuggestions limit={tab === "radar" ? undefined : WATCHLIST_SUGGESTIONS} />
       <WatchlistTabs tab={tab} />
       {tab === "radar" ? <RadarPanel /> : <WatchlistTable />}

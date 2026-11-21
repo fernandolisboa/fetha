@@ -66,6 +66,10 @@ below on 2026-09-25; they are pending the owner's review on the PR.
    - _Refusals._ A position empty at the decision, an option series unknown to the reference data
      or a later fill on a date missing from the calendar make the decision unscorable with that
      reason (`build_failed:…`), never a silent zero.
+     **Amended by #382 (ADR-0080):** scoring now runs from the operation's own fills plus every
+     fill in the decision's recorded `heldFillIds` (item 3's snapshot), whichever operation owns
+     them now: a roll carries a covered call's stock leg forward by reassigning its `operationId`,
+     and the score must not lose that leg's own fills the moment the roll moves them.
 5. **Horizon default.** The expiry of the operation's live option legs, when the decision action
    would still accept it (not past and, when it is today, today's session still open; #259); a
    stock-only operation, including the stock left after every option leg closed, has none and

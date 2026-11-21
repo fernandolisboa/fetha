@@ -48,7 +48,7 @@ describe("isB3MonthlyExpiry", () => {
     expect(isB3MonthlyExpiry(sessionDateSchema.parse("2027-01-15"), calendar)).toBe(false);
   });
 
-  // Pinned to real B3 instrument data (round 2 review): `apps/web/e2e/fixtures/b3-instruments/
+  // Pinned to real B3 instrument data: `apps/web/e2e/fixtures/b3-instruments/
   // 2026-09-18.csv` lists PETR4 monthly series expiring 2026-11-19 and 2028-04-20 — the third
   // Friday of each month (2026-11-20, 2028-04-21) is a B3 holiday (Consciência Negra, Tiradentes),
   // so the real expiry falls on the trading session immediately before it, confirming the

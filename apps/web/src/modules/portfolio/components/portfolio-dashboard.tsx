@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import type { Centavos, DecimalString, SessionDate } from "@fetha/contracts";
 
 import {
@@ -23,6 +24,7 @@ import { t } from "../strings";
 import { FillsPanel, type FillRow } from "./fills-panel";
 import { OpenOperationPayoffsPanel } from "./open-operation-payoffs";
 import { GroupExpiredButton, UngroupButton } from "./operation-buttons";
+import { RollDialog } from "../roll/components/roll-dialog";
 import { SettlementDialog, type SettlementLegView } from "./settlement-dialog";
 
 const labels = t.dashboard;
@@ -161,7 +163,7 @@ function PositionsTable({ rows }: { rows: PositionRow[] }) {
   );
 }
 
-// #271 review round 1 item 5: the dialog defaults its price from the engine's own rebased fill,
+// #271: the dialog defaults its price from the engine's own rebased fill,
 // not the leg's strike. #282: an option leg shows the count it closes at
 // (`closingQuantities`), the same one the ledger stores and the confirm action checks; a kept
 // stock leg shows the engine's fill or its nominal quantity.
@@ -252,14 +254,23 @@ function OperationsTable({
   model,
   decisionSlot,
   analysisSlot,
+  today,
+  rollSessionDefault,
 }: {
   model: PortfolioReadModel;
   decisionSlot?: OperationDecisionSlot;
   analysisSlot?: OperationDecisionSlot;
+  today: SessionDate;
+  rollSessionDefault: SessionDate;
 }) {
   if (model.operations.length === 0) {
     return <p className="text-muted-foreground text-[13px]">{labels.operations.empty}</p>;
   }
+  const rolledFromIds = new Set(
+    model.operations.flatMap(({ operation }) =>
+      operation.rolledFromOperationId ? [operation.rolledFromOperationId] : [],
+    ),
+  );
   return (
     <Table stacked>
       <TableHeader>
@@ -280,6 +291,14 @@ function OperationsTable({
             <TableRow key={operation.id}>
               <TableCell data-stack="title" className="font-mono uppercase">
                 {operation.underlying}
+                {(operation.rolledFromOperationId !== null || rolledFromIds.has(operation.id)) && (
+                  <Link
+                    href={`/carteira/operacoes/${operation.id}`}
+                    className="text-muted-foreground mt-1 block font-sans text-[11px] normal-case underline-offset-4 hover:underline"
+                  >
+                    {t.roll.chain.title}
+                  </Link>
+                )}
                 {notice && (
                   <span className="text-muted-foreground mt-1 block max-w-[220px] font-sans text-[11px] whitespace-normal normal-case">
                     {notice}
@@ -327,6 +346,14 @@ function OperationsTable({
                   <span className="inline-flex flex-wrap items-start justify-end gap-2">
                     {analysisSlot?.(operation.id)}
                     {decisionSlot?.(operation.id)}
+                    {state?.legs.some((leg) => leg.role !== "stock") && (
+                      <RollDialog
+                        operationId={operation.id}
+                        underlying={operation.underlying}
+                        today={today}
+                        defaultSession={rollSessionDefault}
+                      />
+                    )}
                     <UngroupButton operationId={operation.id} />
                   </span>
                 )}
@@ -412,10 +439,14 @@ export function PortfolioDashboard({
   model,
   decisionSlot,
   analysisSlot,
+  today,
+  rollSessionDefault,
 }: {
   model: PortfolioReadModel;
   decisionSlot?: OperationDecisionSlot;
   analysisSlot?: OperationDecisionSlot;
+  today: SessionDate;
+  rollSessionDefault: SessionDate;
 }) {
   const labelOf = new Map(
     model.operations.map(({ operation }) => [
@@ -462,6 +493,8 @@ export function PortfolioDashboard({
               model={model}
               decisionSlot={decisionSlot}
               analysisSlot={analysisSlot}
+              today={today}
+              rollSessionDefault={rollSessionDefault}
             />
           </Panel>
           <OpenOperationPayoffsPanel operations={model.operations} />

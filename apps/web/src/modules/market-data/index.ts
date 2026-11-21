@@ -59,7 +59,10 @@ export {
   countSessionsClosedAfter,
   latestSessionOnOrBefore,
   nthSessionBefore,
+  sessionBefore,
 } from "./repositories/calendar-repository";
+export { filterToMonthlyExpiries, isB3MonthlyExpiry } from "./monthly-expiry";
+export { filterToTradedSeries, tradedTickersAt } from "./traded-series";
 export { searchOptionSeriesAction, type SearchOptionSeriesResult } from "./actions";
 export { OptionSeriesPricesTable } from "./components/option-series-prices-table";
 export { OptionSeriesHistoryCharts } from "./components/option-series-history-charts";

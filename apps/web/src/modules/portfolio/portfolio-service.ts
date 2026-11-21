@@ -60,7 +60,7 @@ export interface PositionRow {
   series: SeriesFacts | null;
   valuation: PortfolioValuation["positions"][number] | null;
   fairValue: LegValuation["fairValue"];
-  // #271 review round 1 item 3: this holding's forward rebase to today's basis was refused (a
+  // #271: this holding's forward rebase to today's basis was refused (a
   // non-integer or non-positive factor); the figures above are shown exactly as recorded.
   corporateActionNormalizationSkipped: boolean;
 }
@@ -207,6 +207,7 @@ export async function proposeSettlementFor(
   id: string,
   state: OperationState,
   expiry: SessionDate,
+  rolledFromOperationId: string | null = null,
 ): Promise<SettlementProposal | null> {
   const session = await tradingSessionForDate(db, expiry);
   if (!session) {
@@ -215,7 +216,7 @@ export async function proposeSettlementFor(
   const view = await buildOperationMarketView(db, state.underlying, session.close);
   const proposal = await engine.proposeSettlement({
     view,
-    operation: toEngineOperation(id, state),
+    operation: toEngineOperation(id, state, rolledFromOperationId),
   });
   return proposal.ok ? proposal.value : null;
 }
@@ -284,7 +285,7 @@ export async function loadPortfolio(
     ...operations.map((operation) => operation.underlying),
     ...fills.map(underlyingOfFill),
   ]);
-  // #271 review round 1 item 3: a bare position (never grouped into an operation) has no
+  // #271: a bare position (never grouped into an operation) has no
   // Operation for the engine to forward-rebase at mark time, so each (ticker, expiry) holding is
   // rebased forward to today's basis here instead (`normalizeFillsForHoldingsBasis`) — a pre-split
   // holding combines with a post-split fill of the same series at the real, current quantity.
@@ -348,7 +349,13 @@ export async function loadPortfolio(
     }
     const openOption = state.legs.some((leg) => leg.role !== "stock");
     if (openOption && state.expiry && expired.has(state.expiry)) {
-      const proposal = await proposeSettlementFor(db, operation.id, state, state.expiry);
+      const proposal = await proposeSettlementFor(
+        db,
+        operation.id,
+        state,
+        state.expiry,
+        operation.rolledFromOperationId,
+      );
       const closing = proposal
         ? closingQuantities(
             operation.openedAt,
@@ -400,7 +407,9 @@ export async function loadPortfolio(
       view,
       at,
       positions: liveHoldings.map((holding) => holding.position),
-      operations: liveOperations.map(({ record, state }) => toEngineOperation(record.id, state)),
+      operations: liveOperations.map(({ record, state }) =>
+        toEngineOperation(record.id, state, record.rolledFromOperationId),
+      ),
       cash,
       ...(riskProfile ? { riskProfile } : {}),
     });
@@ -412,7 +421,12 @@ export async function loadPortfolio(
         liveOperations.map(async ({ record, state }) => {
           entryPayoffs.set(
             record.id,
-            await entryPayoff(view, at, toEngineOperation(record.id, state), asOf),
+            await entryPayoff(
+              view,
+              at,
+              toEngineOperation(record.id, state, record.rolledFromOperationId),
+              asOf,
+            ),
           );
         }),
       ),

@@ -113,8 +113,14 @@ export function heldExpiry(state: OperationState): SessionDate | null {
 }
 
 // The engine's `Operation` for an open operation: its non-zero legs and its
-// `heldExpiry`.
-export function toEngineOperation(id: string, state: OperationState): Operation {
+// `heldExpiry`. `rolledFromOperationId` is the app's own column (#382); it maps straight onto
+// the engine's `rolledFrom`, the one seam `Operation` already carried for this (packages/engine
+// `Operation.rolledFrom`) but that every caller here used to pass as a hardcoded null.
+export function toEngineOperation(
+  id: string,
+  state: OperationState,
+  rolledFromOperationId: string | null = null,
+): Operation {
   return {
     id,
     underlying: state.underlying,
@@ -122,6 +128,6 @@ export function toEngineOperation(id: string, state: OperationState): Operation 
     expiry: heldExpiry(state),
     openedAt: state.openedAt,
     strategyVersionId: null,
-    rolledFrom: null,
+    rolledFrom: rolledFromOperationId,
   };
 }

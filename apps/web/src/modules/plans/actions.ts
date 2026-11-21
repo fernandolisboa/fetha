@@ -36,6 +36,8 @@ import {
 } from "@/modules/decisions";
 import {
   buildOperationMarketView,
+  filterToMonthlyExpiries,
+  filterToTradedSeries,
   latestCandle,
   nthSessionBefore,
   tradingSessionForDate,
@@ -57,10 +59,9 @@ import {
 } from "./generate-plan";
 import { buildAdjustedPlan, type AdjustedLegInput } from "./adjust-plan";
 import { chainFromMonthlyView, expiryOptionsFrom, type PlanChainEntry } from "./chain-view";
+import { DEFAULT_ROLL_SESSIONS_BEFORE_EXPIRY } from "./exit-rules";
 import { ivDisplayFromLabel, ivRegimeFromReading, type IvDisplay } from "./iv-regime";
 import { planFingerprint } from "./fingerprint";
-import { filterToMonthlyExpiries } from "./monthly-expiry";
-import { filterToTradedSeries } from "./traded-series";
 import { legSelectionFor } from "./plan-selection";
 import { isWithinPlanWindow } from "./plan-window";
 import { PlanRulesRepository } from "./plan-rules-repository";
@@ -70,7 +71,6 @@ import { recipeForView } from "./select-recipe";
 import { validateStructuralAdjustment } from "./validate-adjustment";
 import { planViewSchema, type PlanView } from "./view";
 
-const DEFAULT_ROLL_SESSIONS_BEFORE_EXPIRY = 5;
 // A decision auto-recorded alongside a saved plan states no conviction of its own (ADR-0079):
 // the decision form itself starts with no confidence filled in, so there is no existing default
 // to copy; 50% (0.5, the schema's own fraction of 1) is the most neutral value that is still a
