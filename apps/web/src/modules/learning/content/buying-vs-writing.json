@@ -1,8 +1,6 @@
 {
   "id": "buying-vs-writing",
-  "version": 1,
-  "level": "first-steps",
-  "topic": "options-basics",
+  "version": 2,
   "minutes": 5,
   "title": {
     "en": "Buying vs. writing",
@@ -60,8 +58,20 @@
         "pt": "A perda máxima possível de quem compra a opção é:"
       },
       "options": [
-        { "id": "a", "text": { "en": "The premium paid", "pt": "O prêmio pago" } },
-        { "id": "b", "text": { "en": "Unbounded", "pt": "Sem limite" } },
+        {
+          "id": "a",
+          "text": {
+            "en": "The premium paid",
+            "pt": "O prêmio pago"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "Unbounded",
+            "pt": "Sem limite"
+          }
+        },
         {
           "id": "c",
           "text": {
@@ -84,6 +94,13 @@
       },
       "options": [
         {
+          "id": "b",
+          "text": {
+            "en": "A loss capped at the premium received",
+            "pt": "Uma perda travada no prêmio recebido"
+          }
+        },
+        {
           "id": "a",
           "text": {
             "en": "A loss that grows with the stock's rise, with no built-in ceiling",
@@ -91,13 +108,12 @@
           }
         },
         {
-          "id": "b",
+          "id": "c",
           "text": {
-            "en": "A loss capped at the premium received",
-            "pt": "Uma perda travada no prêmio recebido"
+            "en": "No risk at all",
+            "pt": "Nenhum risco"
           }
-        },
-        { "id": "c", "text": { "en": "No risk at all", "pt": "Nenhum risco" } }
+        }
       ],
       "correctOptionId": "a",
       "explanation": {
@@ -113,17 +129,26 @@
       },
       "options": [
         {
+          "id": "b",
+          "text": {
+            "en": "An amount with no upper bound",
+            "pt": "Um valor sem limite superior"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "The strike price",
+            "pt": "O preço do strike"
+          }
+        },
+        {
           "id": "a",
           "text": {
             "en": "{{short-call.maxGainAbs}}, the premium received",
             "pt": "{{short-call.maxGainAbs}}, o prêmio recebido"
           }
-        },
-        {
-          "id": "b",
-          "text": { "en": "An amount with no upper bound", "pt": "Um valor sem limite superior" }
-        },
-        { "id": "c", "text": { "en": "The strike price", "pt": "O preço do strike" } }
+        }
       ],
       "correctOptionId": "a",
       "explanation": {
@@ -154,7 +179,10 @@
         },
         {
           "id": "c",
-          "text": { "en": "Doubles the premium received", "pt": "Dobra o prêmio recebido" }
+          "text": {
+            "en": "Doubles the premium received",
+            "pt": "Dobra o prêmio recebido"
+          }
         }
       ],
       "correctOptionId": "a",

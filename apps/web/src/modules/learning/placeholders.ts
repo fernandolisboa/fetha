@@ -3,6 +3,7 @@ import { centavosSchema } from "@fetha/contracts";
 import { formatBRL, formatPriceBRL } from "@/lib/format/brl";
 
 import type { IllustrativeExampleId, IllustrativeExamples } from "./illustrative-market";
+import { seriesLetterOf } from "./series-code";
 
 const PLACEHOLDER_PATTERN = /\{\{([a-zA-Z0-9-]+(?:\.[a-zA-Z0-9]+)?)\}\}/g;
 
@@ -55,6 +56,13 @@ export function resolvePlaceholder(token: string, examples: IllustrativeExamples
       throw new Error(`placeholder "${token}" has no break-even to resolve`);
     }
     return formatPriceBRL(breakEven);
+  }
+  if (field === "ticker" || field === "tickerLetter") {
+    if (pricing.legs.length !== 1) {
+      throw new Error(`placeholder "${token}" needs a single-leg example to name one ticker`);
+    }
+    const ticker = pricing.legs[0]?.leg.ticker ?? "";
+    return field === "ticker" ? ticker : seriesLetterOf(ticker);
   }
 
   throw new Error(`unknown placeholder token "${token}"`);

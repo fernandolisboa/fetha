@@ -1,8 +1,6 @@
 {
   "id": "what-is-an-option",
-  "version": 1,
-  "level": "first-steps",
-  "topic": "options-basics",
+  "version": 2,
   "minutes": 4,
   "title": {
     "en": "What is an option",
@@ -52,8 +50,8 @@
       "type": "callout",
       "tone": "info",
       "text": {
-        "en": "Every number above comes from Fetha's own pricing engine, run over a fictitious market made up for this lesson — never from a real quote.",
-        "pt": "Todo número acima vem do motor de cálculo da própria Fetha, rodado sobre um mercado fictício inventado para esta lição — nunca de uma cotação real."
+        "en": "The premium above is a made-up price, from a fictitious market invented for this lesson, never a real quote. The break-even, the max loss and the chart, though, are not made up: Fetha's own pricing engine computes them from that premium.",
+        "pt": "O prêmio acima é um preço inventado, de um mercado fictício criado para esta lição, nunca uma cotação real. Já o ponto de equilíbrio, a perda máxima e o gráfico não são inventados: o motor de cálculo da própria Fetha os calcula a partir desse prêmio."
       }
     }
   ],
@@ -81,7 +79,10 @@
         },
         {
           "id": "c",
-          "text": { "en": "Ownership of the underlying stock", "pt": "A posse da ação-objeto" }
+          "text": {
+            "en": "Ownership of the underlying stock",
+            "pt": "A posse da ação-objeto"
+          }
         }
       ],
       "correctOptionId": "a",
@@ -97,9 +98,27 @@
         "pt": "Quem recebe o prêmio?"
       },
       "options": [
-        { "id": "a", "text": { "en": "The buyer (holder)", "pt": "Quem compra (titular)" } },
-        { "id": "b", "text": { "en": "The seller (writer)", "pt": "Quem vende (lançador)" } },
-        { "id": "c", "text": { "en": "B3, as a fee", "pt": "A B3, como uma taxa" } }
+        {
+          "id": "a",
+          "text": {
+            "en": "The buyer (holder)",
+            "pt": "Quem compra (titular)"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "The seller (writer)",
+            "pt": "Quem vende (lançador)"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "B3, as a fee",
+            "pt": "A B3, como uma taxa"
+          }
+        }
       ],
       "correctOptionId": "b",
       "explanation": {
@@ -114,16 +133,25 @@
         "pt": "Na comparação com seguro, o que acontece com o prêmio se o evento segurado nunca ocorre?"
       },
       "options": [
-        { "id": "a", "text": { "en": "It is refunded", "pt": "Ele é devolvido" } },
         {
-          "id": "b",
-          "text": { "en": "It is kept by whoever received it", "pt": "Ele fica com quem o recebeu" }
+          "id": "a",
+          "text": {
+            "en": "It is refunded",
+            "pt": "Ele é devolvido"
+          }
         },
         {
           "id": "c",
           "text": {
             "en": "It is carried over to the next contract",
             "pt": "Ele é transferido para o próximo contrato"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "It is kept by whoever received it",
+            "pt": "Ele fica com quem o recebeu"
           }
         }
       ],
@@ -149,7 +177,10 @@
         },
         {
           "id": "b",
-          "text": { "en": "An amount with no upper bound", "pt": "Um valor sem limite superior" }
+          "text": {
+            "en": "An amount with no upper bound",
+            "pt": "Um valor sem limite superior"
+          }
         },
         {
           "id": "c",

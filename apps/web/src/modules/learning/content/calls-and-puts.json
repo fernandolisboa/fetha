@@ -1,8 +1,6 @@
 {
   "id": "calls-and-puts",
-  "version": 1,
-  "level": "first-steps",
-  "topic": "options-basics",
+  "version": 2,
   "minutes": 5,
   "title": {
     "en": "Calls and puts",
@@ -109,9 +107,27 @@
         "pt": "Nos exemplos desta lição, a call comprada precisa da ação acima de {{long-call.breakEven0}} para dar lucro. Como esse valor é chamado?"
       },
       "options": [
-        { "id": "a", "text": { "en": "Break-even", "pt": "Ponto de equilíbrio" } },
-        { "id": "b", "text": { "en": "Strike", "pt": "Strike" } },
-        { "id": "c", "text": { "en": "Premium", "pt": "Prêmio" } }
+        {
+          "id": "b",
+          "text": {
+            "en": "Strike",
+            "pt": "Strike"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "Premium",
+            "pt": "Prêmio"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Break-even",
+            "pt": "Ponto de equilíbrio"
+          }
+        }
       ],
       "correctOptionId": "a",
       "explanation": {
@@ -126,11 +142,26 @@
         "pt": "Comprar uma call em vez de uma put é uma aposta de que a ação vai, de forma geral:"
       },
       "options": [
-        { "id": "a", "text": { "en": "Rise", "pt": "Subir" } },
-        { "id": "b", "text": { "en": "Fall", "pt": "Cair" } },
+        {
+          "id": "a",
+          "text": {
+            "en": "Rise",
+            "pt": "Subir"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "Fall",
+            "pt": "Cair"
+          }
+        },
         {
           "id": "c",
-          "text": { "en": "Stay exactly at the strike", "pt": "Ficar exatamente no strike" }
+          "text": {
+            "en": "Stay exactly at the strike",
+            "pt": "Ficar exatamente no strike"
+          }
         }
       ],
       "correctOptionId": "a",

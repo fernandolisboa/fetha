@@ -1,8 +1,6 @@
 {
   "id": "exercise-on-b3",
-  "version": 1,
-  "level": "first-steps",
-  "topic": "b3-rules",
+  "version": 2,
   "minutes": 4,
   "title": {
     "en": "Exercise on B3",
@@ -31,8 +29,8 @@
     {
       "type": "paragraph",
       "text": {
-        "en": "At expiry, B3 exercises in-the-money options automatically under its own rules, so a holder does not need to submit an exercise request by hand for that to happen; a European-style option can only ever be exercised this way, at expiry.",
-        "pt": "No vencimento, a B3 exerce automaticamente as opções que estão dentro do dinheiro, seguindo as próprias regras da bolsa, então quem detém a opção não precisa pedir o exercício manualmente para isso acontecer; uma opção de estilo europeu só pode ser exercida assim, no vencimento."
+        "en": "A European-style option can only ever be exercised on its expiry date, never before. At expiry, B3 exercises an in-the-money option automatically once it clears a minimum in-the-money margin that B3 itself sets; below that margin, the holder has to request exercise by hand. Either way, the holder can choose to opt out of being exercised.",
+        "pt": "Uma opção de estilo europeu só pode ser exercida na própria data de vencimento, nunca antes. No vencimento, a B3 exerce automaticamente uma opção que está dentro do dinheiro depois que ela passa de uma margem mínima que a própria B3 define; abaixo dessa margem, quem detém a opção precisa pedir o exercício manualmente. Nos dois casos, quem detém a opção pode optar por não ser exercido."
       }
     },
     {
@@ -46,7 +44,10 @@
   "quiz": [
     {
       "id": "q1",
-      "prompt": { "en": "Exercising a call means:", "pt": "Exercer uma call significa:" },
+      "prompt": {
+        "en": "Exercising a call means:",
+        "pt": "Exercer uma call significa:"
+      },
       "options": [
         {
           "id": "a",
@@ -62,7 +63,13 @@
             "pt": "Vender a ação-objeto pelo strike"
           }
         },
-        { "id": "c", "text": { "en": "Canceling the contract", "pt": "Cancelar o contrato" } }
+        {
+          "id": "c",
+          "text": {
+            "en": "Canceling the contract",
+            "pt": "Cancelar o contrato"
+          }
+        }
       ],
       "correctOptionId": "a",
       "explanation": {
@@ -78,15 +85,18 @@
       },
       "options": [
         {
+          "id": "b",
+          "text": {
+            "en": "European (only at expiry)",
+            "pt": "Europeu (só no vencimento)"
+          }
+        },
+        {
           "id": "a",
           "text": {
             "en": "American (any time up to expiry)",
             "pt": "Americano (em qualquer momento até o vencimento)"
           }
-        },
-        {
-          "id": "b",
-          "text": { "en": "European (only at expiry)", "pt": "Europeu (só no vencimento)" }
         }
       ],
       "correctOptionId": "a",
@@ -111,7 +121,10 @@
         },
         {
           "id": "b",
-          "text": { "en": "European (only at expiry)", "pt": "Europeu (só no vencimento)" }
+          "text": {
+            "en": "European (only at expiry)",
+            "pt": "Europeu (só no vencimento)"
+          }
         }
       ],
       "correctOptionId": "b",
@@ -128,20 +141,26 @@
       },
       "options": [
         {
-          "id": "a",
-          "text": {
-            "en": "A writer of that same series, assigned by B3",
-            "pt": "Um lançador daquela mesma série, atribuído pela B3"
-          }
-        },
-        {
           "id": "b",
           "text": {
             "en": "Every writer of every series on that underlying",
             "pt": "Todo lançador de toda série daquele ativo"
           }
         },
-        { "id": "c", "text": { "en": "B3 itself", "pt": "A própria B3" } }
+        {
+          "id": "c",
+          "text": {
+            "en": "B3 itself",
+            "pt": "A própria B3"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "A writer of that same series, assigned by B3",
+            "pt": "Um lançador daquela mesma série, atribuído pela B3"
+          }
+        }
       ],
       "correctOptionId": "a",
       "explanation": {

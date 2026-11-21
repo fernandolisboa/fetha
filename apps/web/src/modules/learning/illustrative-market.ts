@@ -5,6 +5,7 @@ import {
   sessionDateSchema,
   tickerSchema,
   type DecimalString,
+  type IllustrativeExampleId,
   type SessionDate,
   type Ticker,
 } from "@fetha/contracts";
@@ -37,9 +38,13 @@ const AT = instantSchema.parse("2026-01-02T13:00:00.000Z");
 const CALENDAR_START = "2026-01-02";
 const CALENDAR_SESSIONS = 60;
 
-const CALL_LOWER_TICKER: Ticker = tickerSchema.parse("EXMPC20");
-const CALL_HIGHER_TICKER: Ticker = tickerSchema.parse("EXMPC22");
-const PUT_LOWER_TICKER: Ticker = tickerSchema.parse("EXMPP20");
+// February's call letter is B, its put letter N (series-code.ts); the
+// trailing number is a made-up sequence number, deliberately not the
+// strike (20.00/22.00), the mistake the reading-the-series-code lesson
+// warns against.
+const CALL_LOWER_TICKER: Ticker = tickerSchema.parse("EXMPB105");
+const CALL_HIGHER_TICKER: Ticker = tickerSchema.parse("EXMPB112");
+const PUT_LOWER_TICKER: Ticker = tickerSchema.parse("EXMPN105");
 
 function dailySessions(startDate: string, count: number): TradingSession[] {
   const sessions: TradingSession[] = [];
@@ -166,7 +171,7 @@ async function priceIllustrative(legs: LegInput[]): Promise<OperationPricing> {
   return result.value;
 }
 
-export type IllustrativeExampleId = "long-call" | "long-put" | "short-call" | "bull-call-spread";
+export type { IllustrativeExampleId };
 
 export interface IllustrativeExamples {
   underlying: Ticker;
