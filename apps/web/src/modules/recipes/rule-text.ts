@@ -19,12 +19,24 @@ function operandText(operand: Operand): string {
   }
 }
 
-export type RuleLine = { text: string; depth: number; observed?: string | null };
+export type RuleLine = { text: string; depth: number };
+
+// An operand's own name, plus what it actually read today right next to it (review round 2,
+// finding #2): a constant already prints its value as its name, so it is never observed.
+function operandWithValue(
+  operand: Operand,
+  observe: ((operand: Operand) => string | null) | undefined,
+): string {
+  const text = operandText(operand);
+  if (!observe || operand.kind === "constant") return text;
+  const value = observe(operand);
+  return value ? `${text} ${value}` : text;
+}
 
 // A recipe's entry condition as nested lines (docs/adr/0067's suggestion page): a top-level
 // "and" reads as the list itself, anything nested names its connective. `observe`, when given,
-// reads the left operand of each comparison against today's facts so the caller can pair the
-// condition with what actually matched it, without a second tree walk of its own.
+// reads an operand against today's facts so each side of a comparison can show what matched it,
+// without a second tree walk of its own.
 export function conditionLines(
   condition: Condition,
   depth = 0,
@@ -32,12 +44,9 @@ export function conditionLines(
 ): RuleLine[] {
   switch (condition.kind) {
     case "compare": {
-      const line: RuleLine = {
-        text: `${operandText(condition.left)} ${t.rule.comparators[condition.comparator]} ${operandText(condition.right)}`,
-        depth,
-      };
-      if (observe) line.observed = observe(condition.left);
-      return [line];
+      const left = operandWithValue(condition.left, observe);
+      const right = operandWithValue(condition.right, observe);
+      return [{ text: `${left} ${t.rule.comparators[condition.comparator]} ${right}`, depth }];
     }
     case "and":
       return depth === 0

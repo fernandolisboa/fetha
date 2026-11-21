@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { conditionSchema, exitRuleSchema } from "@fetha/contracts";
 
@@ -40,14 +40,45 @@ describe("conditionLines", () => {
       { text: "Fechamento ≥ Média exponencial de 9 sessões", depth: 2 },
     ]);
   });
-  it("pairs each comparison with what its left operand observed, when asked to", () => {
+  it("shows each operand's own observed value right next to it, when asked to", () => {
     const recipe = recipes.find((entry) => entry.id === "bull-call-spread-low-iv");
     const lines =
       recipe &&
-      conditionLines(recipe.definition.entry, 0, (operand) =>
-        operand.kind === "price" ? "R$ 45,70" : null,
-      );
-    expect(lines?.map((line) => line.observed)).toEqual(["R$ 45,70", null, null]);
+      conditionLines(recipe.definition.entry, 0, (operand) => {
+        if (operand.kind === "price") return "R$ 43,17";
+        if (operand.kind === "indicator" && operand.indicator.kind === "sma") return "R$ 41,90";
+        return null;
+      });
+    expect(lines).toEqual([
+      { text: "Fechamento R$ 43,17 > Média de 50 sessões R$ 41,90", depth: 0 },
+      { text: "RSI 14 < 70", depth: 0 },
+      { text: "Ranking de IV (63 sessões) < 50", depth: 0 },
+    ]);
+  });
+
+  it("never asks for a constant operand's observed value: a constant already prints as itself", () => {
+    const observe = vi.fn(() => "should never be used");
+    conditionLines(
+      conditionSchema.parse({
+        kind: "compare",
+        left: { kind: "indicator", indicator: { kind: "rsi", length: 14 } },
+        comparator: "<",
+        right: { kind: "constant", value: "70" },
+      }),
+      0,
+      observe,
+    );
+    expect(observe).toHaveBeenCalledTimes(1);
+    expect(observe).toHaveBeenCalledWith({
+      kind: "indicator",
+      indicator: { kind: "rsi", length: 14 },
+    });
+  });
+
+  it("prints a comparison plainly when the facts have no reading for either side", () => {
+    const recipe = recipes.find((entry) => entry.id === "bull-call-spread-low-iv");
+    const lines = recipe && conditionLines(recipe.definition.entry, 0, () => null);
+    expect(lines?.[0]?.text).toBe("Fechamento > Média de 50 sessões");
   });
 });
 
