@@ -617,24 +617,48 @@ test("Como usar lays its sections in two columns on a wide monitor", async ({
   await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
   await page.goto("/como-usar");
   const main = page.getByRole("main");
-  const watchlist = main.getByRole("heading", { level: 2, name: "Watchlist" });
-  const portfolio = main.getByRole("heading", { level: 2, name: "Carteira" });
+
+  // Same split rule as `how-to-use-guide.tsx`'s `sectionColumns`: the first
+  // `ceil(n/2)` sections form the first column, so the first heading of the
+  // second column moves whenever a destination is added or removed, rather
+  // than naming one by hand.
+  const guideSectionNames = [
+    "Watchlist",
+    "Sinais",
+    "Estratégias",
+    "Carteira",
+    "Diário",
+    "Aprender",
+    "Configurações",
+  ];
+  const firstColumnSize = Math.ceil(guideSectionNames.length / 2);
+  const firstOfFirstColumn = guideSectionNames[0];
+  const firstOfSecondColumn = guideSectionNames[firstColumnSize];
+  if (!firstOfFirstColumn || !firstOfSecondColumn) {
+    throw new Error("fixture destination list is too short for a two-column check");
+  }
+
+  const firstColumnHeading = main.getByRole("heading", { level: 2, name: firstOfFirstColumn });
+  const secondColumnHeading = main.getByRole("heading", { level: 2, name: firstOfSecondColumn });
 
   await page.setViewportSize({ width: 1920, height: 1080 });
   await expect
     .poll(async () => {
-      const watchlistBox = await watchlist.boundingBox();
-      const portfolioBox = await portfolio.boundingBox();
-      return (portfolioBox?.x ?? 0) > (watchlistBox?.x ?? 0) && portfolioBox?.y === watchlistBox?.y;
+      const firstColumnBox = await firstColumnHeading.boundingBox();
+      const secondColumnBox = await secondColumnHeading.boundingBox();
+      return (
+        (secondColumnBox?.x ?? 0) > (firstColumnBox?.x ?? 0) &&
+        secondColumnBox?.y === firstColumnBox?.y
+      );
     })
     .toBe(true);
 
   await page.setViewportSize({ width: 390, height: 844 });
   await expect
     .poll(async () => {
-      const watchlistBox = await watchlist.boundingBox();
-      const portfolioBox = await portfolio.boundingBox();
-      return (portfolioBox?.y ?? 0) > (watchlistBox?.y ?? 0);
+      const firstColumnBox = await firstColumnHeading.boundingBox();
+      const secondColumnBox = await secondColumnHeading.boundingBox();
+      return (secondColumnBox?.y ?? 0) > (firstColumnBox?.y ?? 0);
     })
     .toBe(true);
 });
