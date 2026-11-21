@@ -129,9 +129,11 @@ export function summarizePayoff(input: {
   return { zone, isDebit, isCredit, netPremium, maxGain, maxLoss };
 }
 
+export type PremiumChipKind = "debit" | "credit" | null;
+
 // Review finding #6: a zero-premium structure is neither a debit nor a credit, so the card's
 // chip row must render neither label rather than default to "Crédito" on a premium of R$ 0,00.
-export function premiumChipKind(summary: PayoffSummary): "debit" | "credit" | null {
+export function premiumChipKind(summary: PayoffSummary): PremiumChipKind {
   if (summary.isDebit) return "debit";
   if (summary.isCredit) return "credit";
   return null;
