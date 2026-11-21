@@ -22,7 +22,10 @@ function operandText(operand: Operand): string {
 export type RuleLine = { text: string; depth: number };
 
 // An operand's own name, plus what it actually read today right next to it (review round 2,
-// finding #2): a constant already prints its value as its name, so it is never observed.
+// finding #2): a constant already prints its value as its name, so it is never observed. Joined
+// through a localized "at" reading (round 3's last advisory), not a bare space: several operand
+// names end in a digit ("RSI 14", "Ranking de IV (63 sessões)") or a closing paren, so a bare
+// space read as if the reading were still part of the name ("RSI 14 45,7").
 function operandWithValue(
   operand: Operand,
   observe: ((operand: Operand) => string | null) | undefined,
@@ -30,7 +33,7 @@ function operandWithValue(
   const text = operandText(operand);
   if (!observe || operand.kind === "constant") return text;
   const value = observe(operand);
-  return value ? `${text} ${value}` : text;
+  return value ? t.rule.reading(text, value) : text;
 }
 
 // A recipe's entry condition as nested lines (docs/adr/0067's suggestion page): a top-level
