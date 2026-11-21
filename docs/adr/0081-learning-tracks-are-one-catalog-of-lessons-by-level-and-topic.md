@@ -34,9 +34,11 @@ catalog.json` lists every level, every topic and every lesson's id with its leve
 2. **Zod at the edge, data not code.** `packages/contracts`' `lesson-catalog.ts` is the schema
    (CLAUDE.md principle 2: strategies, and now lessons, are data). Each lesson's text carries both
    locales (`{ en, pt }`, the i18n rule); blocks are a closed union (`paragraph`, `list`,
-   `callout`, `payoff-example`); a quiz has 3 to 5 questions, each with exactly one correct option
-   and an explanation shown after answering. A lesson has a `version`, bumped when its quiz
-   changes, so a stored best score can tell a current attempt from a stale one.
+   `callout`, `payoff-example`); a quiz has 4 to 5 questions, each with exactly one correct option
+   and an explanation shown after answering — 4 is the floor because a 3-question quiz needs a
+   perfect run to clear the 75% passing bar, which defeats having a bar at all. A lesson has a
+   `version`, bumped when its quiz changes, so a stored best score can tell a current attempt from
+   a stale one.
 3. **No hand-written numbers.** Any price, break-even or max gain/loss in a lesson is a
    `{{placeholder}}` resolved from the engine's own `priceOperation`, run over one fixed,
    fictitious market (`learning/illustrative-market.ts`, generalized from `help/options-101.ts`,
@@ -59,7 +61,11 @@ catalog.json` lists every level, every topic and every lesson's id with its leve
    reached on the lesson's current version, plus the timestamp of the first pass, which a retry
    can never move — computed atomically in the upsert's own SQL, not read-then-written, so two
    concurrent attempts can never clobber each other. The action is rate-limited like other user
-   actions (`enforceAccountRateLimit`).
+   actions (`enforceAccountRateLimit`). The one exception to "the client never sees the answer key
+   before submitting" is `/api/e2e/lesson-quiz-answers`, an E2E-only route guarded the same way as
+   `/api/e2e/verification-link` (404 outside a non-production deployment, 404 without a matching
+   `x-e2e-secret`): `learning.spec.ts` drives the quiz form through the UI without hardcoding
+   answers in the spec, where a content edit would silently break the test.
 5. **Progress is a small user-scoped table, not audit data.** `lesson_progress` (migration
    `0052_lesson_progress.sql`): `(user_id, lesson_id)` primary key, `lesson_version`,
    `best_correct`, `total`, `first_passed_at`, `updated_at`; `user_id` cascades on delete. A
