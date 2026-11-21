@@ -1,8 +1,9 @@
 import type { DecimalString, SessionDate, Ticker } from "@fetha/contracts";
 import type { MarketView, OptionRight, TradingSession } from "@fetha/engine";
 
+import { tradedTickersAt } from "@/modules/market-data";
+
 import { isWithinPlanWindow } from "./plan-window";
-import { tradedTickersAt } from "./traded-series";
 
 // A listed series the drag-to-adjust chart can offer as a strike handle position (ticket
 // #380): `traded` mirrors `filterToTradedSeries`'s own rule (at least one trade recorded at the

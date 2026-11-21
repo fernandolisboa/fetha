@@ -28,9 +28,17 @@ import { AnalysisDialog, DecisionBar } from "@/modules/decisions/client";
 import { formatBRL } from "@/lib/format/brl";
 import { formatDate, formatDateTime } from "@/lib/format/date-time";
 import { todaySaoPauloDate } from "@/lib/today-sao-paulo";
-import { getMyOperations, getMyPortfolio, PortfolioDashboard, t } from "@/modules/portfolio";
+import {
+  getMyOperations,
+  getMyPortfolio,
+  PortfolioDashboard,
+  resolveRollSessionDefault,
+  RollAgendaPanel,
+  t,
+} from "@/modules/portfolio";
 import { ImportFillsDialog, RecordFillDialog } from "@/modules/portfolio/client";
 import { ExecutePlanDialog, getMyPlanRulesByOperation, t as plansT } from "@/modules/plans";
+import { sessionBefore, tradingSessionForDate } from "@/modules/market-data";
 import { PageHeader, Panel, t as shellStrings } from "@/modules/shell";
 
 function LatestDecision({ decision }: { decision: DecisionListItem }) {
@@ -51,6 +59,18 @@ export default async function PortfolioPage() {
     getMyOperations(),
     getMyPlanRulesByOperation(),
   ]);
+  const today = todaySaoPauloDate();
+  const db = getDb();
+  const [todaySession, latestOpenedSession] = await Promise.all([
+    tradingSessionForDate(db, today),
+    sessionBefore(db, today),
+  ]);
+  const rollSessionDefault = resolveRollSessionDefault(
+    today,
+    todaySession ? { open: new Date(todaySession.open) } : null,
+    new Date(),
+    latestOpenedSession?.date ?? null,
+  );
 
   const operationIds = operations.map((operation) => operation.id);
   const heldOperations = new Map(
@@ -123,16 +143,20 @@ export default async function PortfolioPage() {
             <Link href="/carteira/nova-operacao" className={buttonVariants({ variant: "ghost" })}>
               {t.list.newOperation}
             </Link>
-            <RecordFillDialog today={todaySaoPauloDate()} />
+            <RecordFillDialog today={today} />
             <ImportFillsDialog />
           </div>
         }
       />
 
+      <RollAgendaPanel />
+
       <PortfolioDashboard
         model={portfolio}
         decisionSlot={heldOperationDecision}
         analysisSlot={heldOperationAnalysis}
+        today={today}
+        rollSessionDefault={rollSessionDefault}
       />
 
       <Panel title={t.list.title}>
@@ -193,11 +217,8 @@ export default async function PortfolioPage() {
                           const planRules = planRulesByOperation.get(operation.id);
                           if (!planRules) return null;
                           return planRules.operationId ? (
-                            // PR #388's own operation page (`/carteira/operacoes/[id]`) is not
-                            // on `main` yet (review round 2, #381): this links to the portfolio
-                            // itself until it ships, the same fallback `PlanSignalsPanel` uses.
                             <Link
-                              href="/carteira"
+                              href={`/carteira/operacoes/${planRules.operationId}`}
                               className="text-muted-foreground text-xs underline"
                             >
                               {plansT.execute.executed}

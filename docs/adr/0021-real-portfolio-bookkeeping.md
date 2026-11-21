@@ -56,6 +56,9 @@ picked the defaults below on 2026-09-25; they are pending the owner's review on 
    to zero, and becomes `expired` only through a confirmed settlement. An open operation can be
    ungrouped (its fills go back to unassigned); a closed or expired one cannot. Adjusted and
    rolled lifecycles stay out of v1.
+   **Amended by #382 (ADR-0080):** a rolled lifecycle shipped after all: `operations` gained a
+   nullable, self-referencing `rolled_from_operation_id`, and the Carteira's own "Rolar" action
+   records one. Adjusted lifecycles are still out of v1.
 5. **Mark to market.** The dashboard calls `markToMarket` at the current instant with the current
    risk profile, the open operations, and the positions whose series has not expired. An option
    position whose expiry session has closed is not passed in (the engine would resolve its reused
@@ -185,7 +188,7 @@ contracts`); a factor that does not evenly divide a particular fill's quantity (
    legs (which the engine itself rebases forward from `openedAt` on every read). Rebasing a bare
    holding's fills backward to their own earliest session, the way an operation's fills are
    rebased backward to its `openedAt`, would therefore leave the holding on a stale, pre-split
-   basis forever — fabricating a loss (review round 1 caught this with a concrete case: 100 @ 30
+   basis forever — fabricating a loss (a concrete case makes this precise: 100 @ 30
    pre-split plus 100 @ 15 post-split under a 2-for-1 split must read 300 shares at an average of
    15, the real position today, not 150 @ 30). `normalizeFillsForHoldingsBasis` instead rebases
    each `(ticker, expiry)` group's fills forward, straight to the mark date: quantity ÷ factor,
@@ -201,13 +204,13 @@ internal/propose-settlement.ts`), used by both `proposeSettlement` and `runBackt
 5. **The confirmed settlement's fills are sized at the engine's own rebased quantity.**
    `settlement-plan.ts`'s `planSettlement` now reads the real delivery quantity from
    `LegSettlement.fills[0].quantity` (the engine's already-rebased count) for both the stock
-   delivery and the option-closing fill (review round 1: the closing fill at the nominal
+   delivery and the option-closing fill (the closing fill at the nominal
    `leg.quantity` was itself a latent bug — every stored fill is read back on the assumption that
    it is "recorded as the broker showed it on its own date" [item 1], so a closing fill written at
    the nominal count rather than the broker-basis count at expiry would be inverse-rebased a
    second time the next time normalization reads it back, whenever a split fell between
    `openedAt` and expiry). A leg with no fill (expired worthless, or dissolved below one effective
-   unit) closes at its own broker-basis quantity instead (review round 2: `leg.quantity ÷ F` over
+   unit) closes at its own broker-basis quantity instead (`leg.quantity ÷ F` over
    `(openedAt, expiry]`), with the nominal `leg.quantity` as a fallback only once that rebase
    itself dissolves the leg below one effective unit.
 6. **Every path that nets fills into legs shares one basis.** `groupFillsAction` (forming a new
@@ -223,7 +226,7 @@ internal/propose-settlement.ts`), used by both `proposeSettlement` and `runBackt
    never a silently wrong score. Closes the gap this ADR previously disclosed as a known
    follow-up.
 
-### Review round 1
+### Addendum: bare holdings, shared corporate-action factors, and the settlement dialog's own figures
 
 Four more findings, fixed in the same change: bare holdings were de-rebasing backward instead of
 normalizing forward (item 3, the `30`/`15` example above); `groupFillsAction` was the one path that
@@ -238,7 +241,7 @@ checks the delivered quantity the user's dialog showed against what it recompute
 refusing a mismatch (a factor ingested between render and confirm) rather than settling against
 stale figures.
 
-### Review round 2
+### Addendum: exact rebase direction and the settlement fallback's own basis
 
 Three more findings, fixed in the same change. The backward and forward rebases in
 `corporate-action-basis.ts` were one function that inverted the factor (`1 ÷ F`) before dividing;

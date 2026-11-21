@@ -444,6 +444,26 @@ in `/carteira`: its legs at average cost and the fills behind them. The one kind
 hold, adjust or exit decision is recorded on (ADR-0022). One pending settlement is no longer held.
 _Avoid_: position (one instrument only), open trade
 
+**Roll**:
+Closing a held operation's option legs and opening a new operation at the next monthly expiry's
+nearest strike, leg by leg (ADR-0080): never by inferred structure. The new operation records the
+closed one as `rolledFromOperationId`; a covered call's stock leg carries forward into the new
+operation untouched. Recorded with the user's own execution price and session, never priced or
+executed by Fetha (CLAUDE.md, "no order execution").
+_Avoid_: adjust (a decision kind, never journaled by a roll), rollover
+
+**Roll agenda**:
+The list, on `/carteira`, of open operations whose expiry is within its own agenda window,
+each with a suggested action (roll, let it expire, watch, or close now for assignment risk)
+computed from sessions to expiry and each short leg's moneyness (ADR-0080).
+_Avoid_: roll reminders, expiring positions
+
+**Roll chain**:
+The linked list of operations one or more rolls connects, from a position's very first operation
+to its still-open last link, read from any link in the chain. Shown on an operation's own page as
+its roll history, grouped by month with a running total (ADR-0080).
+_Avoid_: roll history (reserved for the screen that shows it), lineage
+
 **Fill**:
 One executed buy or sell of one instrument at one price and quantity, on one date. Fills are the
 atomic facts behind operations and positions.

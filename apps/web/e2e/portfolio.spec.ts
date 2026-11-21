@@ -64,7 +64,12 @@ test("imports the B3 spreadsheet, shows positions and settles an expired series"
   await pending.getByRole("button", { name: "Revisar liquidação" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Confirmar liquidação" }).click();
 
-  const operations = page.locator("section", { hasText: "Operações" }).first();
+  // The roll agenda panel's own subtitle also contains the substring "Operações" (#382), so a
+  // plain `hasText` filter can match it instead of the operations table below it; this scopes
+  // to the section whose own heading is exactly "Operações".
+  const operations = page
+    .locator("section")
+    .filter({ has: page.getByRole("heading", { name: "Operações", exact: true }) });
   await expect(operations.getByText("vencida")).toBeVisible();
   await expect(page.locator("section", { hasText: "Liquidação pendente" })).toHaveCount(0);
 });
