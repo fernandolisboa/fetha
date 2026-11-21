@@ -111,6 +111,43 @@ test("adjust a plan's strike with the keyboard buttons, see what changed, then s
   await expect(page.getByText("Plano salvo.")).toBeVisible();
 });
 
+// Ticket #380 (round 2): the handle itself lives on the payoff chart's own price axis, not only
+// in the ← → buttons tested above — `role="slider"` plus a per-leg `aria-label` (the buy and
+// sell legs of this spread get distinct labels, "Compra de call, strike" / "Venda de call,
+// strike", so `getByRole` is strict-mode-safe without `.first()`) makes it focusable and
+// operable by keyboard alone.
+test("move a strike with the payoff chart's own handle, then see what changed and reset", async ({
+  page,
+  baseURL,
+  request,
+}) => {
+  test.setTimeout(90_000);
+
+  await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
+
+  const seeded = await page.request.post("/api/e2e/seed-radar", {
+    headers: { "x-e2e-secret": e2eSecret ?? "" },
+  });
+  expect(seeded.status()).toBe(201);
+  const { suggestionId } = (await seeded.json()) as { suggestionId: string | null };
+  expect(suggestionId, "the engine should price the seeded spread").toBeTruthy();
+
+  await page.goto(`/planos/novo?sugestao=${suggestionId ?? ""}`);
+  await expect(page.getByRole("heading", { name: "Plano de operação" })).toBeVisible();
+  await expect(page.getByText("Nada mudou ainda.")).toBeVisible();
+
+  const handle = page.getByRole("slider", { name: "Compra de call, strike" });
+  await expect(handle).toBeVisible();
+  await handle.focus();
+  await page.keyboard.press("ArrowRight");
+
+  await expect(page.getByText("Nada mudou ainda.")).toBeHidden();
+  await expect(page.getByRole("button", { name: "Voltar ao plano da Fetha" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Voltar ao plano da Fetha" }).click();
+  await expect(page.getByText("Nada mudou ainda.")).toBeVisible();
+});
+
 test("build a plan from the asset page's own view question and see its orders", async ({
   page,
   baseURL,

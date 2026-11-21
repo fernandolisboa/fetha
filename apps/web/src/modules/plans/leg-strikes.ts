@@ -21,6 +21,27 @@ export function indexOfTicker(strikes: readonly PlanChainEntry[], ticker: Ticker
   return strikes.findIndex((entry) => entry.ticker === ticker);
 }
 
+// Every listed strike of a leg's right and expiry, traded or not (ticket #380's own chart
+// handle): unlike `selectableStrikes`, this keeps the untraded ones in — they render as dimmed
+// ticks along the price axis, a handle may pass over them while dragging, but `selectableStrikes`
+// stays the only list a drag or a step may actually land on.
+export function allStrikesFor(
+  chain: readonly PlanChainEntry[],
+  right: "call" | "put",
+  expiry: SessionDate,
+): PlanChainEntry[] {
+  return chain
+    .filter((entry) => entry.right === right && entry.expiry === expiry)
+    .sort((a, b) => Number(a.strike) - Number(b.strike));
+}
+
+// Resolves the chart handle's own snapped numeric strike (ticket #380, `nearestStrikeAtPixel`'s
+// own return value) back to the listed ticker at that exact price — the handle only ever snaps
+// to a candidate already drawn from `strikes`' own values, so this is always found in practice.
+export function tickerAtStrike(strikes: readonly PlanChainEntry[], value: number): Ticker | null {
+  return strikes.find((entry) => Number(entry.strike) === value)?.ticker ?? null;
+}
+
 // One step of a leg's strike (ticket #380, the native range input and the ← → buttons behind
 // it): moves to the next or previous traded strike in the sorted list, clamped at either end —
 // `direction` mirrors `stepLots`'s own `1 | -1`.

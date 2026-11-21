@@ -246,16 +246,74 @@ Every number drag-to-adjust shows while the user is still touching a handle come
 identically in the browser, against the same `MarketView`, pricing instant, risk profile and
 open-operation count the server already resolved and handed back in `BuildPlanOutcome.preview`.
 This preview is never saved and never shown as official: on release (a lot step, a strike step or
-an expiry chip, not on every pixel of a drag — the range input's own discrete, per-strike steps
-already bound how often this fires), `adjustPlanAction` reprices the exact same edit through the
-server's own two-rung, limit-price pricing (`priceExactLegs`, factored out of the existing
-`priceLot` so the auto-sized and the user-edited paths share one implementation), and only that
-reply ever becomes the plan's official numbers. `LatestRequestWins`
-(`apps/web/src/modules/plans/latest-wins.ts`) guards the one race this introduces: a slow reply to
-an earlier edit landing after a faster reply to a later one can never un-apply the newer edit.
-`savePlanAction` still re-derives and re-verifies the saved plan's own fingerprint from scratch
-before writing anything (CLAUDE.md principle 1): an edited save reprices the user's exact legs and
-lots again, server-side, rather than trusting the last `adjustPlanAction` reply either.
+an expiry chip, not on every pixel of a drag — the chart handle only calls back when the nearest
+traded strike under the pointer changes, never on every pixel, bounding how often this fires),
+`adjustPlanAction` reprices the exact same edit through the server's own two-rung, limit-price
+pricing (`priceExactLegs`, factored out of the existing `priceLot` so the auto-sized and the
+user-edited paths share one implementation), and only that reply ever becomes the plan's official
+numbers. `LatestRequestWins` (`apps/web/src/modules/plans/latest-wins.ts`) guards the one race
+this introduces: a slow reply to an earlier edit landing after a faster reply to a later one can
+never un-apply the newer edit. `savePlanAction` still re-derives and re-verifies the saved plan's
+own fingerprint from scratch before writing anything (CLAUDE.md principle 1): an edited save
+reprices the user's exact legs and lots again, server-side, rather than trusting the last
+`adjustPlanAction` reply either.
+
+### The strike handle lives on the payoff chart's own price axis, not only in a range input
+
+The first pass of this ticket answered "each strike is a handle on the payoff chart's price
+axis" (the issue's own wording) with a native range input below the chart plus ← → buttons, on
+the view that the range input's own keyboard behaviour (arrow keys move its thumb) already
+covered the handle's accessibility requirement and a canvas-drawn handle would need its own,
+separately-built one. A review of that pass read the issue literally: the handle is a feature on
+the chart itself, not an alternative control next to it, so this ticket now draws it there.
+
+- **Where it lives**: `PayoffChart` (`apps/web/src/modules/portfolio/builder/payoff-chart.tsx`,
+  shared with the builder's own read-only preview and the open-operations payoff) grows one new,
+  optional prop, `handles: readonly PayoffStrikeHandle[]`, absent for every other caller — the
+  chart stays exactly the read-only component it always was unless the caller hands it strike
+  handles. A `PayoffStrikeHandle` carries only numbers and callbacks (`value`, `min`, `max`,
+  `ticks: { value, traded }[]`, `onPreview`, `onCommit`, `onStep`); the chart never resolves a
+  strike to a leg, a ticker or a plan — every lookup (`tickerAtStrike`, `leg-strikes.ts`) stays in
+  `apps/web/src/modules/plans`, which builds the handle list and owns the engine-facing side of
+  every callback. This keeps the chart a deep module with one thin, numbers-only interface rather
+  than forking it into a "plans" variant and a read-only one.
+- **Pointer events, not HTML5 drag-and-drop**: `pointerdown` sets pointer capture on the handle
+  itself (`setPointerCapture`), so the same three handlers (`onPointerDown`/`onPointerMove`/
+  `onPointerUp`) answer a mouse, a pen and a touch identically — HTML5 drag-and-drop has no touch
+  equivalent and would need a second path for phones anyway.
+- **Pixel→strike mapping**: `nearestStrikeAtPixel` (`payoff-chart-layout.ts`) inverts the pointer
+  position through the exact same `xScale` the axis itself is drawn with (never a second,
+  reconstructed scale) and snaps to the nearest of the given candidates via the chart's own
+  `nearestIndex` (unit-tested directly, `payoff-chart-layout.test.ts`); the handle passes it only
+  the traded strikes' values, so it can never land anywhere else.
+- **Dimmed, untraded strikes stay traded-only on release — considered and rejected letting a drag
+  land on one with a warning instead.** `PayoffStrikeHandle.ticks` carries every listed strike
+  (`allStrikesFor`, `leg-strikes.ts`), traded or not; the chart draws all of them as small marks
+  along the axis, `var(--line)` for a traded one and `var(--faint)` for an untraded one, so the
+  user can see where the ladder is denser or thinner. The handle's own rendered position while
+  dragging follows the raw pointer continuously (so it visually passes over a dimmed mark rather
+  than jumping past it), but the value `onPreview`/`onCommit` ever receive is always the nearest
+  _traded_ strike — the same restriction `selectableStrikes` already enforced for the range input
+  and the ← → buttons. Letting a drag land on an untraded strike with a warning (mirroring how a
+  risk-limit breach surfaces as a warning rather than a refusal) was considered and rejected: an
+  untraded strike has no price at the anchor session at all, so previewing or saving against one
+  would not be a worse-than-ideal plan, it would be an unpriceable one — `generatePlan`'s and
+  `buildAdjustedPlan`'s own stale/no-price refusals exist precisely to keep that out of a plan
+  Fetha ever shows as ready to execute.
+- **Keyboard**: the handle is a real, focusable element (`tabIndex={0}`, `role="slider"`,
+  `aria-valuenow`/`aria-valuetext` in pt-BR `R$` format, `aria-label` naming the leg, e.g.
+  "Compra de call, strike"), and its own `onKeyDown` calls `onStep`, the identical function the
+  ← → buttons already call (`onStrikeStep` in `plan-adjuster.tsx`) — never a second
+  implementation of "the next traded strike." The range input is gone (the handle plus the
+  buttons already cover every input method a native range input did); the ← → buttons stay as
+  the explicit phone and assistive-technology alternative the issue asks for, not merely a
+  side-effect of keeping a slider around.
+- **Motion and hit target**: the handle's horizontal movement is a CSS transition
+  (`transition-[cx] duration-[120ms]`, `motion-reduce:transition-none`, matching every other
+  animated element in the app), disabled while actively dragging (so it tracks the pointer
+  exactly, not with a lag) and re-enabled on release, when it snaps visually to the committed
+  strike. Its hit area is a 24px-diameter circle (`r={12}`), DESIGN.md's own accent token
+  (`var(--accent)`) fill.
 
 ## Alternatives considered
 

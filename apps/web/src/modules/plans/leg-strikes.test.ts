@@ -2,7 +2,14 @@ import { describe, expect, it } from "vitest";
 import { tickerSchema, type DecimalString, type SessionDate } from "@fetha/contracts";
 
 import type { PlanChainEntry } from "./chain-view";
-import { indexOfTicker, remapToExpiry, selectableStrikes, stepStrike } from "./leg-strikes";
+import {
+  allStrikesFor,
+  indexOfTicker,
+  remapToExpiry,
+  selectableStrikes,
+  stepStrike,
+  tickerAtStrike,
+} from "./leg-strikes";
 
 function entry(
   ticker: string,
@@ -42,6 +49,31 @@ describe("selectableStrikes", () => {
   it("excludes the other option right", () => {
     const strikes = selectableStrikes(CHAIN, "put", EXPIRY_A);
     expect(strikes.map((entry) => entry.ticker)).toEqual(["PETRP036"]);
+  });
+});
+
+describe("allStrikesFor", () => {
+  it("keeps the untraded strikes too, sorted ascending", () => {
+    const strikes = allStrikesFor(CHAIN, "call", EXPIRY_A);
+    expect(strikes.map((entry) => entry.ticker)).toEqual([
+      "PETRC034",
+      "PETRC036",
+      "PETRC038",
+      "PETRC040",
+    ]);
+    expect(strikes.map((entry) => entry.traded)).toEqual([true, true, false, true]);
+  });
+});
+
+describe("tickerAtStrike", () => {
+  it("finds the listed ticker at a given numeric strike", () => {
+    const strikes = allStrikesFor(CHAIN, "call", EXPIRY_A);
+    expect(tickerAtStrike(strikes, 38)).toBe("PETRC038");
+  });
+
+  it("returns null for a price nothing is listed at", () => {
+    const strikes = allStrikesFor(CHAIN, "call", EXPIRY_A);
+    expect(tickerAtStrike(strikes, 39)).toBeNull();
   });
 });
 

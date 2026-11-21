@@ -19,7 +19,7 @@ import { ErrorNotice } from "@/components/error-notice";
 import { formatSessionDate } from "@/lib/format/date-time";
 import { formatQuantity } from "@/lib/format/quantity";
 import { exitText } from "@/modules/recipes";
-import { PayoffChart, RiskNotice } from "@/modules/portfolio/client";
+import { PayoffChart, RiskNotice, type PayoffStrikeHandle } from "@/modules/portfolio/client";
 
 import {
   adjustPlanAction,
@@ -27,7 +27,14 @@ import {
   type BuildPlanOutcome,
   type PlanActionError,
 } from "../actions";
-import { indexOfTicker, remapToExpiry, selectableStrikes, stepStrike } from "../leg-strikes";
+import {
+  allStrikesFor,
+  indexOfTicker,
+  remapToExpiry,
+  selectableStrikes,
+  stepStrike,
+  tickerAtStrike,
+} from "../leg-strikes";
 import { LatestRequestWins } from "../latest-wins";
 import { diffPlans, type PlanDiffLeg, type PlanSnapshot } from "../plan-diff";
 import { stepLots } from "../lot-step";
@@ -66,11 +73,14 @@ function expiryOf(outcome: Ok): SessionDate | null {
 const sideLabel = { buy: t.screen.orders.buy, sell: t.screen.orders.sell } as const;
 
 // Drag-to-adjust (ticket #380): wraps the read-only plan screen's own numbers, orders, chart and
-// rules with editable strike handles (native range inputs plus ← → buttons, both calling the
-// same step helpers so a mouse drag and a phone tap are one code path, not two), a lot stepper
-// and expiry chips. A client-side preview (`previewPlan`, the engine's own pure
-// `priceOperation`) redraws the chart on every edit; `adjustPlanAction` then prices the exact
-// same edit on the server, and only that reply ever becomes the plan's official numbers
+// rules with editable strike handles drawn directly on the payoff chart's own price axis
+// (`PayoffStrikeHandle`, `@/modules/portfolio/client`), the per-leg ← → buttons (the phone and
+// screen-reader alternative, not a fallback relegated to a second control — the handle's own
+// arrow keys call the exact same `onStrikeStep`), a lot stepper and expiry chips. A client-side
+// preview (`previewPlan`, the engine's own pure `priceOperation`) redraws the chart continuously
+// while dragging (`previewLegChange`, never hitting the server); `adjustPlanAction` then prices
+// the exact same edit on the server once, on release, a lot +/- press or an expiry chip — never
+// on every pixel of a drag — and only that reply ever becomes the plan's official numbers
 // (`current`) — guarded by `LatestRequestWins` so a slow reply from an earlier edit can never
 // overwrite a newer one.
 export function PlanAdjuster({
@@ -135,23 +145,25 @@ export function PlanAdjuster({
     applyLegChange(leg, nextTicker);
   }
 
-  function onStrikeIndex(leg: PlanDiffLeg, index: number) {
-    const right = rightOf(current, leg.ticker);
-    if (!right || !expiry) return;
-    const strikes = selectableStrikes(chain, right, expiry);
-    const nextTicker = strikes[index]?.ticker;
-    if (!nextTicker || nextTicker === leg.ticker) return;
-    applyLegChange(leg, nextTicker);
-  }
-
-  function applyLegChange(leg: PlanDiffLeg, nextTicker: Ticker) {
-    const nextLegs = legsOf(current.plan).map((candidate) =>
+  function legsWithChange(leg: PlanDiffLeg, nextTicker: Ticker): PlanDiffLeg[] {
+    return legsOf(current.plan).map((candidate) =>
       candidate.role === leg.role && candidate.side === leg.side
         ? { ...candidate, ticker: nextTicker }
         : candidate,
     );
+  }
+
+  function applyLegChange(leg: PlanDiffLeg, nextTicker: Ticker) {
+    const nextLegs = legsWithChange(leg, nextTicker);
     preview(nextLegs, current.plan.lots);
     void commit(nextLegs, current.plan.lots);
+  }
+
+  // The chart handle's own continuous redraw while dragging (ticket #380): client preview only,
+  // never a server round trip — `onHandleCommit` (release) is what calls `applyLegChange`.
+  function previewLegChange(leg: PlanDiffLeg, nextTicker: Ticker) {
+    if (nextTicker === leg.ticker) return;
+    preview(legsWithChange(leg, nextTicker), current.plan.lots);
   }
 
   function onLotsStep(direction: 1 | -1) {
@@ -185,6 +197,44 @@ export function PlanAdjuster({
 
   const plan = current.plan;
   const legs = legsOf(plan);
+
+  // One payoff-chart handle per option leg (ticket #380): the chart only ever sees numbers and
+  // ticks, every ticker lookup stays here. `onPreview`/`onCommit` resolve the chart's own
+  // snapped strike (already restricted to traded candidates, `tradedStrikes`) back to its
+  // ticker through `tickerAtStrike`, then hand off to `previewLegChange`/`applyLegChange` —
+  // the exact functions the ← → buttons already call, never a second implementation.
+  const strikeHandles: PayoffStrikeHandle[] = legs.flatMap((leg) => {
+    if (leg.role === "stock" || !expiry) return [];
+    const right = rightOf(current, leg.ticker);
+    const series = current.seriesByTicker[leg.ticker];
+    if (!right || !series) return [];
+    const tradedStrikes = selectableStrikes(chain, right, expiry);
+    const allStrikes = allStrikesFor(chain, right, expiry);
+    if (allStrikes.length === 0) return [];
+    const values = allStrikes.map((entry) => Number(entry.strike));
+    return [
+      {
+        key: `${leg.role}-${leg.side}`,
+        ariaLabel: t.adjust.strikeLabel(sideLabel[leg.side], t.adjust.roleNames[leg.role]),
+        valueText: formatPriceBRL(series.strike),
+        value: Number(series.strike),
+        min: values[0] ?? Number(series.strike),
+        max: values.at(-1) ?? Number(series.strike),
+        ticks: allStrikes.map((entry) => ({ value: Number(entry.strike), traded: entry.traded })),
+        onPreview: (nextValue) => {
+          const nextTicker = tickerAtStrike(tradedStrikes, nextValue);
+          if (nextTicker) previewLegChange(leg, nextTicker);
+        },
+        onCommit: (nextValue) => {
+          const nextTicker = tickerAtStrike(tradedStrikes, nextValue);
+          if (nextTicker && nextTicker !== leg.ticker) applyLegChange(leg, nextTicker);
+        },
+        onStep: (direction) => {
+          onStrikeStep(leg, direction);
+        },
+      },
+    ];
+  });
 
   return (
     <div className="flex flex-col gap-6">
@@ -331,6 +381,9 @@ export function PlanAdjuster({
           </div>
         )}
 
+        {/* Mandatory phone/keyboard alternative to the chart's own strike handles below (ticket
+            #380), not a fallback: one per-leg row of ← → buttons, calling the exact same
+            `onStrikeStep` the chart handle's own arrow keys call. */}
         <div className="flex flex-col gap-3">
           {legs
             .filter((leg) => leg.role !== "stock")
@@ -359,19 +412,6 @@ export function PlanAdjuster({
                     >
                       ←
                     </Button>
-                    <input
-                      type="range"
-                      className="flex-1"
-                      aria-label={label}
-                      min={0}
-                      max={Math.max(0, strikes.length - 1)}
-                      step={1}
-                      value={index === -1 ? 0 : index}
-                      disabled={pending || strikes.length <= 1}
-                      onChange={(event) => {
-                        onStrikeIndex(leg, Number(event.target.value));
-                      }}
-                    />
                     <Button
                       type="button"
                       variant="outline"
@@ -407,6 +447,7 @@ export function PlanAdjuster({
         maxLoss={plan.maxLossCentavos}
         spotLabel={formatPriceBRL(plan.spot)}
         framed
+        handles={strikeHandles}
       />
 
       <section className="flex flex-col gap-3">
