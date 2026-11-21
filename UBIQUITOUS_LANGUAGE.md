@@ -805,3 +805,33 @@ The flow that lets a user set a new password after proving control of their emai
 one-time link, revoking every session that predates the reset (ADR-0018). Completing it also marks
 the account's email verified, since the link reached the mailbox (ADR-0028).
 _Avoid_: forgot password, password recovery
+
+### Learning
+
+**Lesson**:
+One unit of the learning catalog: a level, a topic, a few short text blocks, optional payoff
+examples and a 3-to-5-question quiz (ADR-0081). Carries a `version`, bumped when its quiz
+changes, so a stored score can be told apart from an attempt at an older quiz. pt-BR: "lição".
+_Avoid_: module, course, chapter
+
+**Level**:
+A lesson's place on the Jornada axis, from `first-steps` ("Primeiros passos") through `advanced`
+("Avançado"), fixed display order. Every lesson has exactly one. pt-BR: "nível".
+_Avoid_: tier, stage, track (reserved for "learning track" below)
+
+**Topic**:
+A lesson's subject on the Temas axis (`options-basics`, `pricing`, `structures`, `risk`,
+`b3-rules`, `using-fetha`). Never called "theme" in code: `theme` already names the per-user
+visual theme (ADR-0015, ADR-0069). UI copy may still call the Temas view "Temas".
+_Avoid_: theme (in code), category, tag
+
+**Learning track ("Trilha")**:
+The catalog as a whole: one set of lessons, viewable either by level (Jornada) or by topic
+(Temas) without being two different catalogs (ADR-0081). pt-BR: "trilha de aprendizado".
+_Avoid_: curriculum, path
+
+**Jornada**:
+The learning track's by-level view and its default: lessons grouped by level, in level display
+order, each level showing "X de Y" lessons done or "Em breve" with none yet. The source of the
+recommended next lesson (the first not-done lesson in this order).
+_Avoid_: journey (in code; this is the canonical pt-BR name even in English prose about it)
