@@ -4,6 +4,7 @@ import {
   topicIds,
   MAX_QUIZ_QUESTIONS,
   MIN_QUIZ_QUESTIONS,
+  PASSING_SCORE_RATIO,
   type Lesson,
   type LessonBlock,
 } from "@fetha/contracts";
@@ -46,24 +47,17 @@ describe("the lesson catalog and its content files", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("only references known levels and topics", () => {
+  it("stores level and topic only in catalog.json, never duplicated on a lesson file", () => {
     for (const lesson of lessons) {
-      expect(levelIds).toContain(lesson.level);
-      expect(topicIds).toContain(lesson.topic);
-    }
-    for (const entry of lessonCatalog.lessons) {
-      expect(levelIds).toContain(entry.level);
-      expect(topicIds).toContain(entry.topic);
+      expect(lesson).not.toHaveProperty("level");
+      expect(lesson).not.toHaveProperty("topic");
     }
   });
 
-  it("agrees with the catalog's own level and topic for every lesson", () => {
-    const catalogById = new Map(lessonCatalog.lessons.map((entry) => [entry.id, entry]));
-    for (const lesson of lessons) {
-      const entry = catalogById.get(lesson.id);
-      expect(entry).toBeDefined();
-      expect(lesson.level).toBe(entry?.level);
-      expect(lesson.topic).toBe(entry?.topic);
+  it("only references known levels and topics in the catalog", () => {
+    for (const entry of lessonCatalog.lessons) {
+      expect(levelIds).toContain(entry.level);
+      expect(topicIds).toContain(entry.topic);
     }
   });
 
@@ -85,10 +79,12 @@ describe("the lesson catalog and its content files", () => {
     }
   });
 
-  it("every quiz has between 3 and 5 questions, each with an explanation", () => {
+  it("every quiz has between 3 and 5 questions, each with an explanation and a unique id", () => {
     for (const lesson of lessons) {
       expect(lesson.quiz.length).toBeGreaterThanOrEqual(MIN_QUIZ_QUESTIONS);
       expect(lesson.quiz.length).toBeLessThanOrEqual(MAX_QUIZ_QUESTIONS);
+      const ids = lesson.quiz.map((question) => question.id);
+      expect(new Set(ids).size).toBe(ids.length);
       for (const question of lesson.quiz) {
         expect(question.explanation.en.length).toBeGreaterThan(0);
         expect(question.explanation.pt.length).toBeGreaterThan(0);
@@ -99,12 +95,38 @@ describe("the lesson catalog and its content files", () => {
     }
   });
 
+  it("never lets the correct option sit at the same position often enough to pass by always picking it", () => {
+    for (const lesson of lessons) {
+      const maxOptions = Math.max(...lesson.quiz.map((question) => question.options.length));
+      for (let position = 0; position < maxOptions; position += 1) {
+        const correctCount = lesson.quiz.filter(
+          (question) => question.options[position]?.id === question.correctOptionId,
+        ).length;
+        const ratio = correctCount / lesson.quiz.length;
+        expect(
+          ratio,
+          `lesson "${lesson.id}": always picking option position ${String(position)} scores ${String(ratio)}`,
+        ).toBeLessThan(PASSING_SCORE_RATIO);
+      }
+    }
+  });
+
   it("every placeholder in every lesson resolves against the illustrative market", async () => {
     const examples = await loadIllustrativeExamples();
     for (const lesson of lessons) {
       for (const text of allLocalizedTexts(lesson)) {
         expect(() => resolveText(text.pt, examples)).not.toThrow();
         expect(() => resolveText(text.en, examples)).not.toThrow();
+      }
+    }
+  });
+
+  it("never leaves a raw {{placeholder}} in resolved text, in either locale", async () => {
+    const examples = await loadIllustrativeExamples();
+    for (const lesson of lessons) {
+      for (const text of allLocalizedTexts(lesson)) {
+        expect(resolveText(text.pt, examples)).not.toContain("{{");
+        expect(resolveText(text.en, examples)).not.toContain("{{");
       }
     }
   });

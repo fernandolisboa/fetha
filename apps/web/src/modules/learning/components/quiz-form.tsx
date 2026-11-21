@@ -123,19 +123,17 @@ export function QuizForm({
             {result.passed ? t.quiz.passed : t.quiz.failed}
           </p>
           <div className="flex flex-wrap gap-3">
-            {!result.passed ? (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setResult(null);
-                  setAnswers({});
-                  setError(null);
-                }}
-              >
-                {t.quiz.retry}
-              </Button>
-            ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setResult(null);
+                setAnswers({});
+                setError(null);
+              }}
+            >
+              {t.quiz.retry}
+            </Button>
             {result.passed && nextLessonId ? (
               <Link href={`/aprender/${nextLessonId}`} className={buttonVariants({})}>
                 {t.quiz.nextLesson}

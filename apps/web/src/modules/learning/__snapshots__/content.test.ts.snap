@@ -42,8 +42,8 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "correctOptionId": "a",
       "explanation": "A perda de uma call vendida a descoberto cresce conforme a ação sobe além do ponto de equilíbrio, sem um teto próprio.",
       "options": [
-        "Uma perda que cresce com a alta da ação, sem um teto natural",
         "Uma perda travada no prêmio recebido",
+        "Uma perda que cresce com a alta da ação, sem um teto natural",
         "Nenhum risco",
       ],
       "prompt": "Lançar (vender) uma call a descoberto expõe quem lança a:",
@@ -52,9 +52,9 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "correctOptionId": "a",
       "explanation": "O máximo que uma call vendida pode ganhar é o prêmio pelo qual foi vendida, se a ação ficar no strike ou abaixo dele.",
       "options": [
-        "R$ 1,50, o prêmio recebido",
         "Um valor sem limite superior",
         "O preço do strike",
+        "R$ 1,50, o prêmio recebido",
       ],
       "prompt": "No exemplo desta lição, lançar a call a descoberto trava o ganho em:",
     },
@@ -120,9 +120,9 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "correctOptionId": "a",
       "explanation": "O ponto de equilíbrio é onde o resultado da posição cruza o zero; na call comprada, ele fica acima do strike, pela distância do prêmio pago.",
       "options": [
-        "Ponto de equilíbrio",
         "Strike",
         "Prêmio",
+        "Ponto de equilíbrio",
       ],
       "prompt": "Nos exemplos desta lição, a call comprada precisa da ação acima de R$ 21,50 para dar lucro. Como esse valor é chamado?",
     },
@@ -155,7 +155,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "type": "callout",
     },
     {
-      "text": "No vencimento, a B3 exerce automaticamente as opções que estão dentro do dinheiro, seguindo as próprias regras da bolsa, então quem detém a opção não precisa pedir o exercício manualmente para isso acontecer; uma opção de estilo europeu só pode ser exercida assim, no vencimento.",
+      "text": "Uma opção de estilo europeu só pode ser exercida na própria data de vencimento, nunca antes. No vencimento, a B3 exerce automaticamente uma opção que está dentro do dinheiro depois que ela passa de uma margem mínima que a própria B3 define; abaixo dessa margem, quem detém a opção precisa pedir o exercício manualmente. Nos dois casos, quem detém a opção pode optar por não ser exercido.",
       "type": "paragraph",
     },
     {
@@ -178,8 +178,8 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "correctOptionId": "a",
       "explanation": "A maioria das calls sobre ações da B3 é do estilo americano; sempre confira a série específica antes de supor isso.",
       "options": [
-        "Americano (em qualquer momento até o vencimento)",
         "Europeu (só no vencimento)",
+        "Americano (em qualquer momento até o vencimento)",
       ],
       "prompt": "Na B3, qual estilo de exercício é mais comum nas calls sobre ações?",
     },
@@ -196,9 +196,9 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "correctOptionId": "a",
       "explanation": "A B3 atribui o exercício a um lançador daquela mesma série; esse lançador é dito “atribuído”.",
       "options": [
-        "Um lançador daquela mesma série, atribuído pela B3",
         "Todo lançador de toda série daquele ativo",
         "A própria B3",
+        "Um lançador daquela mesma série, atribuído pela B3",
       ],
       "prompt": "Quando quem detém a opção exerce, quem recebe a obrigação correspondente?",
     },
@@ -219,12 +219,16 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "items": [
         "As letras de A a L marcam uma call, uma letra por mês: A para janeiro, B para fevereiro, e assim até L para dezembro.",
         "As letras de M a X marcam uma put, do mesmo jeito: M para janeiro até X para dezembro.",
-        "As séries fictícias EXMPC20 e EXMPP20 usadas em outras partes deste módulo seguem o mesmo formato: uma raiz, uma letra de tipo, e um número.",
+        "Uma série semanal (nos ativos que têm uma) acrescenta um sufixo de W1 a W5 dizendo em qual semana do mês ela vence, além do mesmo formato de letra e número.",
       ],
       "type": "list",
     },
     {
-      "text": "O número no final do ticker não é o preço de strike. É um número de sequência que a B3 atribui para diferenciar séries do mesmo ativo, tipo e mês entre si; o strike de fato é um campo separado nos dados da própria opção, nunca algo para ler direto do ticker.",
+      "text": "As duas séries fictícias de fevereiro deste módulo são EXMPB105 (letra B, uma call) e EXMPN105 (letra N, uma put) — mesma raiz EXMP, mesmo mês, letra de tipo diferente.",
+      "type": "paragraph",
+    },
+    {
+      "text": "O número no final do ticker não é o preço de strike: ele só parece um. É um identificador que a B3 atribui para diferenciar séries do mesmo ativo, tipo e mês entre si, e ele nunca acompanha um evento corporativo que ajusta o strike — o strike em si é sempre um campo separado nos dados da própria opção, nunca algo para ler direto do ticker.",
       "tone": "warning",
       "type": "callout",
     },
@@ -242,20 +246,20 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
     },
     {
       "correctOptionId": "a",
-      "explanation": "De A a L (12 letras, uma por mês) marcam uma call; de M a X marcam uma put.",
+      "explanation": "As letras de A a L (12, uma por mês) marcam uma call; B é a segunda letra, logo fevereiro. As letras de M a X marcam uma put do mesmo jeito.",
       "options": [
-        "Uma call",
-        "Uma put",
+        "Uma put que vence em fevereiro",
+        "Uma call que vence em fevereiro",
       ],
-      "prompt": "Uma letra entre A e L no código de uma série marca:",
+      "prompt": "A série EXMPB105 deste módulo, de letra B, é:",
     },
     {
       "correctOptionId": "a",
-      "explanation": "Ler esse número como strike é um erro comum; o strike sempre vem dos dados da própria opção, nunca do ticker.",
+      "explanation": "Ler esse número como strike é um erro comum; o strike sempre vem dos dados da própria opção, e só esse campo muda quando um evento corporativo o ajusta.",
       "options": [
-        "Um número de sequência para diferenciar séries, não o strike",
         "O preço de strike, em reais",
         "O dia do mês em que vence",
+        "Um identificador para diferenciar séries, que pode parecer um strike, mas não é",
       ],
       "prompt": "O número no final do código de uma série é:",
     },
@@ -280,7 +284,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "type": "list",
     },
     {
-      "text": "O prêmio é o preço da opção: R$ 1,50 pela call do exemplo desta lição, pago por quem compra a quem vende, na abertura da posição.",
+      "text": "O prêmio é o preço da opção: R$ 1,50 pela call do exemplo desta lição, pago por quem compra a quem vende, na abertura da posição. Essa cotação é por ação; na B3 uma opção negocia em lotes de 100 ações, então o valor em dinheiro de fato é o prêmio cotado vezes 100 (e de novo vezes quantos lotes a posição tiver).",
       "type": "paragraph",
     },
     {
@@ -304,8 +308,8 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "correctOptionId": "a",
       "explanation": "O ciclo mensal vence perto da terceira sexta-feira (um pregão antes, se cair em feriado); alguns ativos líquidos também têm séries semanais.",
       "options": [
-        "Uma vez por mês, em torno da terceira sexta-feira",
         "Todo dia",
+        "Uma vez por mês, em torno da terceira sexta-feira",
         "Só uma vez por ano",
       ],
       "prompt": "Na B3, as opções sobre ações costumam vencer:",
@@ -314,9 +318,9 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "correctOptionId": "a",
       "explanation": "O prêmio muda de mãos uma única vez, de quem compra para quem vende, no momento da negociação — R$ 1,50 na call desta lição.",
       "options": [
-        "Por quem compra a quem vende, na abertura da posição",
         "Por quem vende a quem compra, no vencimento",
         "À B3, como uma taxa",
+        "Por quem compra a quem vende, na abertura da posição",
       ],
       "prompt": "O prêmio é pago:",
     },
@@ -360,7 +364,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "type": "payoff-example",
     },
     {
-      "text": "Todo número acima vem do motor de cálculo da própria Fetha, rodado sobre um mercado fictício inventado para esta lição — nunca de uma cotação real.",
+      "text": "O prêmio acima é um preço inventado, de um mercado fictício criado para esta lição, nunca uma cotação real. Já o ponto de equilíbrio, a perda máxima e o gráfico não são inventados: o motor de cálculo da própria Fetha os calcula a partir desse prêmio.",
       "tone": "info",
       "type": "callout",
     },
@@ -391,8 +395,8 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "explanation": "Assim como o prêmio de um seguro, ele não é devolvido: fica com quem vendeu desde a abertura da posição, exercendo ou não quem comprou.",
       "options": [
         "Ele é devolvido",
-        "Ele fica com quem o recebeu",
         "Ele é transferido para o próximo contrato",
+        "Ele fica com quem o recebeu",
       ],
       "prompt": "Na comparação com seguro, o que acontece com o prêmio se o evento segurado nunca ocorre?",
     },
