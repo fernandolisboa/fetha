@@ -69,6 +69,48 @@ test("build a plan from a suggestion, save it, and decide on it from the portfol
   ).toBeVisible();
 });
 
+// Ticket #380: the strike ← → buttons are the keyboard/phone alternative to dragging a handle
+// on the payoff chart, mandatory rather than a fallback (the range input underneath answers the
+// same step for a mouse or an arrow key). Scoped with `.first()` for strict mode: both of the
+// spread's two call legs render their own "Aumentar o strike" button with the same label.
+test("adjust a plan's strike with the keyboard buttons, see what changed, then save", async ({
+  page,
+  baseURL,
+  request,
+}) => {
+  test.setTimeout(90_000);
+
+  await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
+
+  const seeded = await page.request.post("/api/e2e/seed-radar", {
+    headers: { "x-e2e-secret": e2eSecret ?? "" },
+  });
+  expect(seeded.status()).toBe(201);
+  const { suggestionId } = (await seeded.json()) as { suggestionId: string | null };
+  expect(suggestionId, "the engine should price the seeded spread").toBeTruthy();
+
+  await page.goto(`/planos/novo?sugestao=${suggestionId ?? ""}`);
+  await expect(page.getByRole("heading", { name: "Plano de operação" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Ajustar o plano" })).toBeVisible();
+  await expect(page.getByText("Nada mudou ainda.")).toBeVisible();
+
+  const increaseStrike = page.getByRole("button", { name: "Aumentar o strike" }).first();
+  await expect(increaseStrike).toBeEnabled();
+  await increaseStrike.click();
+
+  // "O que mudou" (what changed from Fetha's own plan) now lists the edit, and the reset button
+  // to go back to Fetha's plan appears alongside it.
+  await expect(page.getByText("Nada mudou ainda.")).toBeHidden();
+  await expect(page.getByRole("button", { name: "Voltar ao plano da Fetha" })).toBeVisible();
+
+  // Waits for the server's own reprice (ADR-0079 round 4: the client preview is never official)
+  // to land before saving, so the save button carries the edited plan's own fingerprint.
+  await expect(page.getByText("Reprecificando...")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Salvar plano" }).click();
+  await expect(page.getByText("Plano salvo.")).toBeVisible();
+});
+
 test("build a plan from the asset page's own view question and see its orders", async ({
   page,
   baseURL,

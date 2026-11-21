@@ -84,6 +84,18 @@ vi.mock("@/modules/market-data", async () => {
             style: "european",
             asOf: SERIES_ASOF,
           },
+          // A third, further-out-of-the-money strike (ticket #380): gives drag-to-adjust's own
+          // tests a traded strike beyond the recipe's own auto-sized choice to drag the sell leg
+          // onto.
+          {
+            ticker: "PETR4K40",
+            underlying: "PETR4",
+            right: "call",
+            strike: "40.000000",
+            expiry: "2027-01-15",
+            style: "european",
+            asOf: SERIES_ASOF,
+          },
         ],
         optionPrices: [
           {
@@ -101,6 +113,15 @@ vi.mock("@/modules/market-data", async () => {
             asOf: `${candleSession}T20:00:00.000Z`,
             average: "0.800000",
             close: "0.800000",
+            trades: 10,
+            tradedQuantity: 1000,
+          },
+          {
+            ticker: "PETR4K40",
+            session: candleSession,
+            asOf: `${candleSession}T20:00:00.000Z`,
+            average: "0.400000",
+            close: "0.400000",
             trades: 10,
             tradedQuantity: 1000,
           },
@@ -136,32 +157,67 @@ vi.mock("@/modules/market-data", async () => {
   };
 });
 
-function lotsOf(legsInput: unknown): number {
-  const first = (Array.isArray(legsInput) ? legsInput[0] : legsInput) as { quantity: number };
-  return first.quantity / 100;
+interface MockLegInput {
+  role: "stock" | "call" | "put";
+  side: "buy" | "sell";
+  ticker: string;
+  quantity: number;
+  price?: string;
 }
 
-function okPricing(lots: number): OperationPricing {
-  const leg = (
-    side: "buy" | "sell",
-    ticker: string,
-    price: string,
-  ): OperationPricing["legs"][number] => ({
-    leg: {
-      role: "call",
-      side,
-      ticker,
-      quantity: 100 * lots,
-    } as OperationPricing["legs"][number]["leg"],
-    price: price as OperationPricing["spot"],
-    priceSource: "last",
-    stale: null,
-    fairValue: price as OperationPricing["spot"],
-    impliedVolatility: "0.300000" as OperationPricing["spot"],
-    volatilitySource: "last_trade_implied",
-    greeks: null,
-    timeToExpiryYears: "0.100000" as OperationPricing["spot"],
-    notes: [],
+// `priceOperation`'s own `legs` input (ADR-0013) accepts either concrete legs or one
+// `LegSelection` object, never a bare quantity — `legSelectionFor`'s own probe call (the
+// auto-sized path's first rung, `priceLot` in actions.ts) is the only caller that still passes a
+// selection here; it always resolves to Fetha's own bull-call-spread fixture below, exactly as
+// before this ticket. Every other caller (drag-to-adjust's `priceExactLegs`) already passes
+// concrete legs, echoed back as-is so a test can tell an edited plan's legs apart from Fetha's
+// own (ticket #380).
+function normalizeLegs(legsInput: unknown): MockLegInput[] {
+  if (Array.isArray(legsInput)) return legsInput as MockLegInput[];
+  const quantity = (legsInput as { quantity: number }).quantity;
+  return [
+    { role: "call", side: "buy", ticker: "PETR4K36", quantity },
+    { role: "call", side: "sell", ticker: "PETR4K38", quantity },
+  ];
+}
+
+function lotsOf(legsInput: unknown): number {
+  const [first] = normalizeLegs(legsInput);
+  return (first?.quantity ?? 0) / 100;
+}
+
+// A fixed last-price table (ticket #380): the mock engine echoes back whichever ticker the
+// caller actually priced — the auto-sized path's own PETR4K36/PETR4K38 pair, or drag-to-adjust's
+// own edited leg (e.g. PETR4K40) — rather than always returning the same two legs regardless of
+// input, so a test can tell an edited plan's legs apart from Fetha's own.
+const LAST_PRICE_BY_TICKER: Record<string, string> = {
+  PETR4K36: "1.500000",
+  PETR4K38: "0.800000",
+  PETR4K40: "0.400000",
+};
+
+function okPricing(rawLegsInput: unknown): OperationPricing {
+  const legsInput = normalizeLegs(rawLegsInput);
+  const lots = lotsOf(rawLegsInput);
+  const legs: OperationPricing["legs"] = legsInput.map((input) => {
+    const price = input.price ?? LAST_PRICE_BY_TICKER[input.ticker] ?? "1.000000";
+    return {
+      leg: {
+        role: input.role,
+        side: input.side,
+        ticker: input.ticker,
+        quantity: input.quantity,
+      } as OperationPricing["legs"][number]["leg"],
+      price: price as OperationPricing["spot"],
+      priceSource: input.price ? "given" : "last",
+      stale: null,
+      fairValue: price as OperationPricing["spot"],
+      impliedVolatility: "0.300000" as OperationPricing["spot"],
+      volatilitySource: "last_trade_implied",
+      greeks: null,
+      timeToExpiryYears: "0.100000" as OperationPricing["spot"],
+      notes: [],
+    };
   });
   return {
     at: "2027-01-02T14:00:00.000Z",
@@ -169,7 +225,7 @@ function okPricing(lots: number): OperationPricing {
     spot: "36.000000" as OperationPricing["spot"],
     riskFreeRate: "0.100000" as OperationPricing["riskFreeRate"],
     dividendYield: "0.000000" as OperationPricing["dividendYield"],
-    legs: [leg("buy", "PETR4K36", "1.500000"), leg("sell", "PETR4K38", "0.800000")],
+    legs,
     netPremium: (-70 * lots) as OperationPricing["netPremium"],
     greeks: {
       delta: "0.300000" as OperationPricing["greeks"]["delta"],
@@ -209,13 +265,13 @@ vi.mock("@fetha/engine", async () => {
         }),
       priceOperation: (input: { legs: unknown; at: string }): Promise<Result<OperationPricing>> => {
         priceOperationCalls.push(input.at);
-        return Promise.resolve({ ok: true, value: okPricing(lotsOf(input.legs)) });
+        return Promise.resolve({ ok: true, value: okPricing(input.legs) });
       },
     },
   };
 });
 
-const { buildPlanAction, savePlanAction } = await import("./actions");
+const { adjustPlanAction, buildPlanAction, savePlanAction } = await import("./actions");
 const { OperationsRepository } = await import("@/modules/portfolio");
 const { PlanRulesRepository } = await import("./plan-rules-repository");
 const { DecisionsRepository } = await import("@/modules/decisions");
@@ -329,6 +385,35 @@ describe("buildPlanAction", () => {
   });
 });
 
+describe("adjustPlanAction", () => {
+  it("reprices the user's own chosen legs and lot count, not Fetha's auto-sized ones", async () => {
+    await ensureBullCallSpreadStructure();
+    const email = uniqueEmail("adjust-ok");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+
+    const built = await buildPlanAction({ kind: "view", underlying: "PETR4", view: "up" });
+    expect(built.status).toBe("ok");
+    if (built.status !== "ok") return;
+
+    const edited = await adjustPlanAction({
+      kind: "view",
+      underlying: "PETR4",
+      view: "up",
+      legs: [
+        { role: "call", side: "buy", ticker: "PETR4K36" },
+        { role: "call", side: "sell", ticker: "PETR4K40" },
+      ],
+      lots: built.plan.lots,
+    });
+
+    expect(edited.status).toBe("ok");
+    if (edited.status !== "ok") return;
+    expect(edited.plan.legs.map(({ leg }) => leg.ticker).sort()).toEqual(["PETR4K36", "PETR4K40"]);
+    expect(edited.plan.lots).toBe(built.plan.lots);
+  });
+});
+
 describe("savePlanAction", () => {
   it("writes the contemplated operation, its plan rules and an enter decision together, linked by operation id", async () => {
     await ensureBullCallSpreadStructure();
@@ -362,6 +447,50 @@ describe("savePlanAction", () => {
     const decision = decisions.get(saved.operationId);
     expect(decision?.kind).toBe("enter");
     expect(decision?.contemplatedOperationId).toBe(saved.operationId);
+  });
+
+  it("saves the user's edited legs while keeping Fetha's own plan under rules.original", async () => {
+    await ensureBullCallSpreadStructure();
+    const email = uniqueEmail("save-edited");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+
+    const built = await buildPlanAction({ kind: "view", underlying: "PETR4", view: "up" });
+    expect(built.status).toBe("ok");
+    if (built.status !== "ok") return;
+    const fethaLegs = built.plan.legs.map(({ leg }) => leg.ticker).sort();
+
+    const editedLegs = [
+      { role: "call" as const, side: "buy" as const, ticker: "PETR4K36" },
+      { role: "call" as const, side: "sell" as const, ticker: "PETR4K40" },
+    ];
+    const edited = await adjustPlanAction({
+      kind: "view",
+      underlying: "PETR4",
+      view: "up",
+      legs: editedLegs,
+      lots: built.plan.lots,
+    });
+    expect(edited.status).toBe("ok");
+    if (edited.status !== "ok") return;
+
+    const saved = await savePlanAction({
+      kind: "view",
+      underlying: "PETR4",
+      view: "up",
+      fingerprint: edited.fingerprint,
+      adjustment: { legs: editedLegs, lots: built.plan.lots },
+    });
+    expect(saved.status).toBe("ok");
+    if (saved.status !== "ok") return;
+
+    const operationsRepo = new OperationsRepository(getDb(), currentUser);
+    const operation = await operationsRepo.findMine(saved.operationId);
+    expect(operation.legs.map((leg) => leg.ticker).sort()).toEqual(["PETR4K36", "PETR4K40"]);
+
+    const planRulesRepo = new PlanRulesRepository(getDb(), currentUser);
+    const rules = await planRulesRepo.findByOperation(saved.operationId);
+    expect(rules?.rules.original.legs.map((leg) => leg.ticker).sort()).toEqual(fethaLegs);
   });
 
   it("rejects the save when the plan changed since the user reviewed it", async () => {
