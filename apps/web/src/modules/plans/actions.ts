@@ -92,6 +92,10 @@ export type PlanActionError =
   | "rate_limited";
 
 export interface PlanLegSeries {
+  // The series' own underlying (round 4 review): the ticket's decoded order line names it, not
+  // the option series' own ticker — a trader reads an order by what it is on, not by the chain's
+  // internal code.
+  underlying: Ticker;
   right: OptionRight;
   strike: DecimalString;
   expiry: SessionDate;
@@ -259,6 +263,7 @@ function seriesFactsOf(
       );
     if (series) {
       facts.set(valuation.leg.ticker, {
+        underlying: series.underlying,
         right: series.right,
         strike: series.strike,
         expiry: series.expiry,

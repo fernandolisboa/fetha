@@ -11,10 +11,12 @@ import {
 } from "@/components/ui/table";
 import { formatBRL, formatPriceBRL } from "@/lib/format/brl";
 import { formatSessionDate } from "@/lib/format/date-time";
+import { formatQuantity } from "@/lib/format/quantity";
 import { exitText } from "@/modules/recipes";
 import { PayoffChart, RiskNotice } from "@/modules/portfolio/client";
 
 import type { BuildPlanActionInput, BuildPlanOutcome, PlanLegSeries } from "../actions";
+import { instrumentLabel } from "../instrument-label";
 import { t } from "../strings";
 import { SavePlanButton } from "./save-plan-button";
 
@@ -27,16 +29,26 @@ function StatBlock({ label, value }: { label: string; value: string }) {
   );
 }
 
-function instrumentText(
-  leg: { role: "stock" | "call" | "put"; side: "buy" | "sell"; ticker: string },
-  series: PlanLegSeries | undefined,
-): string {
-  if (leg.role === "stock" || !series) return t.screen.orders.stock(leg.ticker);
-  const strike = formatPriceBRL(series.strike);
-  const expiry = formatSessionDate(series.expiry);
-  return leg.role === "call"
-    ? t.screen.orders.call(leg.ticker, strike, expiry)
-    : t.screen.orders.put(leg.ticker, strike, expiry);
+// `instrumentLabel` (round 4 review) names the underlying, not the option's own series ticker;
+// this still shows that series ticker as a second, muted line, for placing the order at the
+// broker, for an option leg only — a stock leg's own ticker is already the label.
+function InstrumentCell({
+  leg,
+  series,
+}: {
+  leg: { role: "stock" | "call" | "put"; side: "buy" | "sell"; ticker: string };
+  series: PlanLegSeries | undefined;
+}) {
+  const label = instrumentLabel(leg, series);
+  if (leg.role === "stock" || !series) return <>{label}</>;
+  return (
+    <span className="flex flex-col gap-0.5">
+      <span>{label}</span>
+      <span className="text-muted-foreground text-xs">
+        {t.screen.orders.seriesCode(leg.ticker)}
+      </span>
+    </span>
+  );
 }
 
 function riskUsedText(maxLoss: number | "unbounded", riskLimitCentavos: number): string {
@@ -127,13 +139,13 @@ export function PlanScreen({
                   {leg.side === "buy" ? t.screen.orders.buy : t.screen.orders.sell}
                 </TableCell>
                 <TableCell data-label={t.screen.orders.instrument} data-stack="full">
-                  {instrumentText(leg, seriesByTicker[leg.ticker])}
+                  <InstrumentCell leg={leg} series={seriesByTicker[leg.ticker]} />
                 </TableCell>
                 <TableCell
                   data-label={t.screen.orders.quantity}
                   className="text-right font-mono tabular-nums"
                 >
-                  {leg.quantity}
+                  {formatQuantity(leg.quantity)}
                 </TableCell>
                 <TableCell
                   data-label={t.screen.orders.limitPrice}

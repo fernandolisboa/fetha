@@ -50,11 +50,12 @@ const en = {
       total: "Total",
       buy: "Buy",
       sell: "Sell",
-      call: (ticker: string, strike: string, expiry: string) =>
-        `Call on ${ticker}, strike ${strike}, expires ${expiry}`,
-      put: (ticker: string, strike: string, expiry: string) =>
-        `Put on ${ticker}, strike ${strike}, expires ${expiry}`,
+      call: (underlying: string, strike: string, expiry: string) =>
+        `Call on ${underlying}, strike ${strike}, expires ${expiry}`,
+      put: (underlying: string, strike: string, expiry: string) =>
+        `Put on ${underlying}, strike ${strike}, expires ${expiry}`,
       stock: (ticker: string) => `${ticker} shares`,
+      seriesCode: (ticker: string) => `code ${ticker}`,
     },
     rules: {
       title: "Rules",
@@ -131,11 +132,12 @@ const ptBR = {
       total: "Total",
       buy: "Compra",
       sell: "Venda",
-      call: (ticker: string, strike: string, expiry: string) =>
-        `Call de ${ticker}, strike ${strike}, vence ${expiry}`,
-      put: (ticker: string, strike: string, expiry: string) =>
-        `Put de ${ticker}, strike ${strike}, vence ${expiry}`,
+      call: (underlying: string, strike: string, expiry: string) =>
+        `Call de ${underlying}, strike ${strike}, vence ${expiry}`,
+      put: (underlying: string, strike: string, expiry: string) =>
+        `Put de ${underlying}, strike ${strike}, vence ${expiry}`,
       stock: (ticker: string) => `Ações de ${ticker}`,
+      seriesCode: (ticker: string) => `código ${ticker}`,
     },
     rules: {
       title: "Regras",
