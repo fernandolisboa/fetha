@@ -35,3 +35,8 @@ export { portfolioStrings, t } from "./strings";
 export { PortfolioDataExport } from "./data-export";
 export { RollAgendaPanel } from "./roll/components/roll-agenda-panel";
 export { RollChainHistory } from "./roll/components/roll-chain-history";
+export {
+  seedE2ERollPair,
+  type RollPairCandidate,
+  type SeedE2ERollPairResult,
+} from "./roll/roll-pair-e2e";
