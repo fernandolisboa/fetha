@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 import { UserScopedRepository } from "@/lib/user-scoped-repository";
 
@@ -34,11 +34,13 @@ export class LessonProgressRepository extends UserScopedRepository {
     }));
   }
 
-  // Records one graded attempt. A new quiz version (the lesson's text or
-  // questions changed) starts the best score over, rather than compare a
-  // ratio from a different quiz; the same version keeps the better of the
-  // two. `firstPassedAt` is set once and never moved, so retrying a passed
-  // lesson cannot erase when it was first passed.
+  // One atomic upsert, not a read-then-write: two concurrent attempts (two
+  // tabs, a slow network retry) must never let the loser's write clobber
+  // the winner's. The database itself keeps the better ratio and the
+  // earliest pass, via a CASE expression against `excluded` (the row this
+  // call tried to insert) and the table's own, pre-update values. A quiz
+  // version different from the stored one starts the best score and the
+  // pass timestamp over, rather than compare a ratio from a different quiz.
   async recordAttempt(
     lessonId: string,
     lessonVersion: number,
@@ -46,22 +48,6 @@ export class LessonProgressRepository extends UserScopedRepository {
     total: number,
     passed: boolean,
   ): Promise<void> {
-    const [existing] = await this.db
-      .select({
-        lessonVersion: lessonProgress.lessonVersion,
-        bestCorrect: lessonProgress.bestCorrect,
-        total: lessonProgress.total,
-        firstPassedAt: lessonProgress.firstPassedAt,
-      })
-      .from(lessonProgress)
-      .where(and(eq(lessonProgress.userId, this.userId), eq(lessonProgress.lessonId, lessonId)));
-
-    const previous = existing?.lessonVersion === lessonVersion ? existing : undefined;
-    const keptBest =
-      previous !== undefined && correct / total <= previous.bestCorrect / previous.total
-        ? previous
-        : { bestCorrect: correct, total };
-
     await this.db
       .insert(lessonProgress)
       .values({
@@ -76,11 +62,21 @@ export class LessonProgressRepository extends UserScopedRepository {
         target: [lessonProgress.userId, lessonProgress.lessonId],
         set: {
           lessonVersion,
-          bestCorrect: keptBest.bestCorrect,
-          total: keptBest.total,
-          firstPassedAt: passed
-            ? (previous?.firstPassedAt ?? new Date())
-            : (previous?.firstPassedAt ?? null),
+          bestCorrect: sql`case
+            when ${lessonProgress.lessonVersion} is distinct from excluded.lesson_version then excluded.best_correct
+            when excluded.best_correct::float / excluded.total > ${lessonProgress.bestCorrect}::float / ${lessonProgress.total} then excluded.best_correct
+            else ${lessonProgress.bestCorrect}
+          end`,
+          total: sql`case
+            when ${lessonProgress.lessonVersion} is distinct from excluded.lesson_version then excluded.total
+            when excluded.best_correct::float / excluded.total > ${lessonProgress.bestCorrect}::float / ${lessonProgress.total} then excluded.total
+            else ${lessonProgress.total}
+          end`,
+          firstPassedAt: sql`case
+            when ${lessonProgress.lessonVersion} is distinct from excluded.lesson_version then excluded.first_passed_at
+            when ${lessonProgress.firstPassedAt} is not null then ${lessonProgress.firstPassedAt}
+            else excluded.first_passed_at
+          end`,
           updatedAt: new Date(),
         },
       });

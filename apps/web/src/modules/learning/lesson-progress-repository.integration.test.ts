@@ -129,4 +129,26 @@ describe("LessonProgressRepository isolation", () => {
       passed: false,
     });
   });
+
+  it("keeps the better of two concurrent attempts, neither clobbering the other", async () => {
+    const db = getDb();
+    const email = uniqueEmail("concurrent");
+    createdEmails.push(email);
+    const testUser = await insertBareUser(email);
+    const repository = new LessonProgressRepository(db, testUser);
+
+    await Promise.all([
+      repository.recordAttempt("calls-and-puts", 1, 1, 4, false),
+      repository.recordAttempt("calls-and-puts", 1, 4, 4, true),
+    ]);
+
+    const [row] = await repository.findAll();
+    expect(row).toEqual({
+      lessonId: "calls-and-puts",
+      lessonVersion: 1,
+      bestCorrect: 4,
+      total: 4,
+      passed: true,
+    });
+  });
 });
