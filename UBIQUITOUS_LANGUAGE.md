@@ -244,8 +244,10 @@ watchlist page; reference data, never a user's strategy.
 _Avoid_: screener, scanner, ranking, suggestion (that is the priced match, its own entry)
 
 **Suggestion** (pt-BR: _Sugestão_):
-A radar match made concrete and spoken in Fetha's own voice ("Uma trava de alta com calls em
-PETR4 cabe agora.", ADR-0067): the structure one B3 standard lot (100 units per ratio unit)
+A radar match made concrete, titled "<estrutura> em <TICKER>" with Fetha's own voice in the
+payoff sentence under it (e.g. "Você paga R$ 1,98 e ganha até R$ 5,00 se VALE3 fechar entre
+R$ 14,25 e R$ 16,80 em 16/01/2027. Fora dessa faixa, perde até R$ 26,98.", ADR-0067, amended
+2026-11-21): the structure one B3 standard lot (100 units per ratio unit)
 resolves to on the scanned session's closing chain, the engine's pricing of it, a thesis claim
 (`close_above`/`close_below` its single break-even, or `operation_pnl_positive`) and a horizon, the
 options' shared expiry. Exists only when every leg was priced, the max loss is bounded and the
@@ -309,11 +311,13 @@ delay they chose (ADR-0074). Only that user's panel changes: it is still open, s
 decisions and is scored for everyone, unlike an archived suggestion.
 _Avoid_: hidden, dismissed, archived (alone: the radar's archive of ADR-0073)
 
-**Expected move**:
+**Expected move** (UI label "Cenário", ADR-0067 amendment 2026-11-21):
 What the user expects an instrument to do when choosing a recipe: `up`, `down`, `sideways` or
-`big_move` (either way). Stated by the user; a recipe only maps it to a structure.
+`big_move` (either way). Stated by the user; a recipe only maps it to a structure. On a
+suggestion or research idea card it shows as a "Cenário: alta / queda / preço parado / movimento
+forte" chip, never "Aposta"/"bet" (Thesis's avoid-list).
 _Avoid_: view, market view (MarketView is the engine's data snapshot), outlook (an analysis's
-scored claim), thesis
+scored claim), thesis, bet, aposta
 
 **IV regime**:
 The implied-volatility condition a recipe enters on: `low` (the DSL's `iv_rank` over 63

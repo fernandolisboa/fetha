@@ -138,9 +138,11 @@ exposing module's interface, never through its tables.
    (ADR-0059). The asset page lists the next steps: keep following, study an operation in the
    builder pre-filled with the ticker, or a starter recipe. A strategy stays optional; an active
    one adds the nightly evaluation and its signals.
-9. **Read today's suggestions.** The home shows "Sugestões de hoje" (ADR-0067): each radar match
-   the engine priced for one standard lot, in Fetha's own voice ("Uma trava de alta com calls em
-   PETR4 cabe agora."), ordered by traded series, with the user's own risk-profile breaches
+9. **Read today's suggestions.** The home shows "Sugestões de hoje" (ADR-0067, amended 2026-11-21):
+   each radar match the engine priced for one standard lot, titled "<estrutura> em <TICKER>" with
+   Fetha's own voice in the payoff sentence right under it ("Você paga R$ 1,98 e ganha até R$ 5,00
+   se VALE3 fechar entre R$ 14,25 e R$ 16,80 em 16/01/2027. Fora dessa faixa, perde até R$ 26,98."),
+   ordered by traded series, with the user's own risk-profile breaches
    computed on display. From a card or `/sugestoes/[id]` the user records enter or do not enter,
    requests an analysis with a verdict, tests the recipe through the recipe start flow (or opens
    the run already made for that ticker) or opens the builder prefilled with the lot. Nothing is
