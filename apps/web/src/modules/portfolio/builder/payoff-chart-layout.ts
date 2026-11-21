@@ -18,6 +18,30 @@ export function nearestIndex(xs: readonly number[], x: number): number | null {
   return nearest;
 }
 
+// Any scale with an `invert` (the real `scaleLinear` the chart already draws its own price axis
+// with, in production): kept as a narrow interface, not the full visx type, so this stays a pure
+// function a test can call against a bare fake.
+export interface InvertibleScale {
+  invert(value: number): number;
+}
+
+// Drag-to-adjust's own pixel→strike mapping (ticket #380): a pointer position on the chart's own
+// price axis, inverted through the exact same scale the axis is drawn with (never a second,
+// reconstructed one — the caller passes its own `xScale`), then snapped to the nearest of the
+// given candidates by `nearestIndex`'s own rule (ties resolve to the lower one, for candidates
+// supplied ascending, as every caller here already sorts strikes). Callers restrict `candidates`
+// to traded strikes only, so a handle can never land on one nothing traded at the anchor session,
+// even while it visually passes over a dimmed, untraded tick during the drag.
+export function nearestStrikeAtPixel(
+  scale: InvertibleScale,
+  pixelX: number,
+  candidates: readonly number[],
+): number | null {
+  const price = scale.invert(pixelX);
+  const index = nearestIndex(candidates, price);
+  return index === null ? null : (candidates[index] ?? null);
+}
+
 // Break-even labels sit above the zero line; one closer than `minGap` pixels to the label before it
 // drops below the line instead, so a narrow butterfly's two labels never print over each other.
 export function staggeredBelow(xs: readonly number[], minGap: number): boolean[] {

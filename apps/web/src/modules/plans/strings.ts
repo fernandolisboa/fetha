@@ -8,9 +8,9 @@ const en = {
       unsure:
         "Fetha built this {structure} on {ticker} to fit the current, {ivRegime} volatility, since you have no view on direction.",
     },
-    // No volatility reading at all (an asset with too little history, ticket #379 round 4
-    // review): drops the volatility clause entirely instead of naming it "any", which read as a
-    // literal, nonsensical regime.
+    // No volatility reading at all (an asset with too little history, ticket #379): drops the
+    // volatility clause entirely instead of naming it "any", which read as a literal,
+    // nonsensical regime.
     fromViewNoIv: {
       up: "Fetha built this {structure} on {ticker} because you expect it to rise; there is not yet enough history to measure volatility.",
       down: "Fetha built this {structure} on {ticker} because you expect it to fall; there is not yet enough history to measure volatility.",
@@ -78,8 +78,35 @@ const en = {
       no_market_price: "At least one leg has no market price today.",
       plan_changed: "This plan changed since you opened it; review it again.",
       rate_limited: "Too many plans built in a short time; try again shortly.",
+      invalid_adjustment: "This edit no longer matches the structure; try a different strike.",
     },
     backToSuggestion: "Back to the suggestion",
+  },
+  adjust: {
+    title: "Adjust the plan",
+    roleNames: { call: "call", put: "put", stock: "stock" },
+    strikeLabel: (side: string, role: string) => `${side} ${role}, strike`,
+    decreaseStrike: "Lower strike",
+    increaseStrike: "Raise strike",
+    lotsLabel: "Lots",
+    decreaseLots: "One fewer lot",
+    increaseLots: "One more lot",
+    expiryLabel: "Expiry",
+    preview: "Previewing, not yet official.",
+    whatChanged: {
+      title: "What changed from Fetha's plan",
+      none: "Nothing changed yet.",
+      lots: (from: number, to: number) => `Lots: ${String(from)} → ${String(to)}`,
+      leg: (side: string, role: string, from: string, to: string) =>
+        `${side} ${role}: ${from} → ${to}`,
+    },
+    reset: "Back to Fetha's plan",
+    adjusting: "Repricing...",
+    errors: {
+      adjust_failed: "Fetha could not reprice this edit; try again.",
+      expiry_remap_failed:
+        "Could not move every leg to that expiry; the plan stays on its current one.",
+    },
   },
 } satisfies Record<string, unknown>;
 
@@ -161,8 +188,35 @@ const ptBR = {
       no_market_price: "Pelo menos uma ponta não tem preço de mercado hoje.",
       plan_changed: "Esse plano mudou desde que você abriu; revise de novo.",
       rate_limited: "Muitos planos montados em pouco tempo; tente novamente em breve.",
+      invalid_adjustment: "Esse ajuste não corresponde mais à estrutura; tente outro strike.",
     },
     backToSuggestion: "Voltar para a sugestão",
+  },
+  adjust: {
+    title: "Ajustar o plano",
+    roleNames: { call: "call", put: "put", stock: "ação" },
+    strikeLabel: (side: string, role: string) => `${side} de ${role}, strike`,
+    decreaseStrike: "Diminuir o strike",
+    increaseStrike: "Aumentar o strike",
+    lotsLabel: "Lotes",
+    decreaseLots: "Um lote a menos",
+    increaseLots: "Um lote a mais",
+    expiryLabel: "Vencimento",
+    preview: "Pré-visualização, ainda não é o valor oficial.",
+    whatChanged: {
+      title: "O que mudou em relação ao plano da Fetha",
+      none: "Nada mudou ainda.",
+      lots: (from: number, to: number) => `Lotes: ${String(from)} → ${String(to)}`,
+      leg: (side: string, role: string, from: string, to: string) =>
+        `${side} de ${role}: ${from} → ${to}`,
+    },
+    reset: "Voltar ao plano da Fetha",
+    adjusting: "Reprecificando...",
+    errors: {
+      adjust_failed: "A Fetha não conseguiu reprecificar esse ajuste; tente de novo.",
+      expiry_remap_failed:
+        "Não foi possível mover todas as pontas para esse vencimento; o plano continua no vencimento atual.",
+    },
   },
 } satisfies typeof en;
 

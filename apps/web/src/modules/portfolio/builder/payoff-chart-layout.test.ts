@@ -7,6 +7,7 @@ import {
   guideLabelY,
   guideVisible,
   nearestIndex,
+  nearestStrikeAtPixel,
   pnlAt,
   pnlNowAt,
   staggeredBelow,
@@ -38,6 +39,33 @@ describe("nearestIndex", () => {
 
   it("has nothing to snap to without samples", () => {
     expect(nearestIndex([], 10)).toBeNull();
+  });
+});
+
+describe("nearestStrikeAtPixel", () => {
+  // A linear axis from strike 30 to 50 over a 0..200px chart, matching how `xScale` maps the
+  // underlying's price onto the plot (ticket #380, drag-to-adjust).
+  const axis = { invert: (pixelX: number) => 30 + (pixelX / 200) * 20 };
+  const strikes = [32, 36, 38, 40, 44];
+
+  it("inverts the pixel to a price, then snaps to the nearest traded strike", () => {
+    // pixel 60 -> price 36; pixel 90 -> price 39, nearer to 38 than 40.
+    expect(nearestStrikeAtPixel(axis, 60, strikes)).toBe(36);
+    expect(nearestStrikeAtPixel(axis, 90, strikes)).toBe(38);
+  });
+
+  it("resolves a tie to the lower strike, same rule as nearestIndex over ascending input", () => {
+    // pixel 70 -> price 37, exactly between 36 and 38.
+    expect(nearestStrikeAtPixel(axis, 70, strikes)).toBe(36);
+  });
+
+  it("clamps to an end strike for a pointer outside the plotted range", () => {
+    expect(nearestStrikeAtPixel(axis, -50, strikes)).toBe(32);
+    expect(nearestStrikeAtPixel(axis, 500, strikes)).toBe(44);
+  });
+
+  it("has nothing to snap to without any traded strike", () => {
+    expect(nearestStrikeAtPixel(axis, 60, [])).toBeNull();
   });
 });
 

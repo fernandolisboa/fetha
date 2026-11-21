@@ -1,6 +1,12 @@
 "use client";
 
-import { useId, useState, type PointerEvent } from "react";
+import {
+  useId,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { ParentSize } from "@visx/responsive";
 import { scaleLinear } from "@visx/scale";
 import { AreaClosed, Line, LinePath } from "@visx/shape";
@@ -20,10 +26,45 @@ import {
   guideVisible,
   focusWindow,
   nearestIndex,
+  nearestStrikeAtPixel,
   pnlAt,
   pnlNowAt,
   staggeredBelow,
 } from "./payoff-chart-layout";
+
+// Drag-to-adjust's own handle on the payoff chart's price axis (ticket #380): the caller (the
+// plan screen) supplies one per leg, already resolved to this leg's own listed strikes — the
+// chart only ever draws and drags pixels, every strike/ticker lookup and every server round trip
+// stays the caller's own (ADR-0013-adjacent separation: this chart has no notion of a "leg" or a
+// "plan"). `ticks` draws every listed strike (traded or not) as a mark along the axis; a drag or
+// an arrow key only ever snaps to the traded ones.
+export interface PayoffStrikeTick {
+  value: number;
+  traded: boolean;
+}
+
+export interface PayoffStrikeHandle {
+  key: string;
+  ariaLabel: string;
+  valueText: string;
+  value: number;
+  min: number;
+  max: number;
+  ticks: readonly PayoffStrikeTick[];
+  // Called continuously while dragging, only when the nearest traded strike under the pointer
+  // changes (never on every pixel): the caller's own client-side preview.
+  onPreview: (value: number) => void;
+  // Called once, on release: the caller's own server reprice.
+  onCommit: (value: number) => void;
+  // The ← → buttons' own step, reused verbatim for the handle's own arrow keys (never a second
+  // implementation of "the next traded strike").
+  onStep: (direction: 1 | -1) => void;
+  // Called when a drag is cancelled or its pointer capture is lost outside a normal release,
+  // never when the gesture simply ends where it started: the caller's own chance to drop a
+  // client-side preview that would otherwise never be cleared, since neither `onPreview` nor
+  // `onCommit` fires again for it.
+  onAbort?: () => void;
+}
 
 const MARGIN = { top: 12, right: 28, bottom: 28 };
 // Every theme's mono font advances 0.6em (6.6px at 11px); 7px leaves room for renderers that draw it
@@ -78,6 +119,7 @@ function Chart({
   breakEvens,
   extremes,
   framed,
+  handles,
 }: {
   width: number;
   points: PayoffPoint[];
@@ -86,8 +128,12 @@ function Chart({
   breakEvens: DecimalString[];
   extremes: Extremes;
   framed: boolean;
+  handles?: readonly PayoffStrikeHandle[];
 }) {
   const [hovered, setHovered] = useState<number | null>(null);
+  const [dragPixel, setDragPixel] = useState<Record<string, number>>({});
+  const dragRef = useRef<Map<string, { pointerId: number; snapped: number | null }>>(new Map());
+  const plotRectRef = useRef<SVGRectElement | null>(null);
   const clipId = `payoff-${useId().replace(/[^\w-]/g, "")}`;
   const height = Math.max(MIN_HEIGHT, Math.min(Math.round((width * 340) / 800), MAX_HEIGHT));
   const innerHeight = height - MARGIN.top - MARGIN.bottom;
@@ -157,13 +203,78 @@ function Chart({
   const hoveredX = point ? xScale(point.underlying) : null;
   const sourceNow = source ? pnlNowAt(pointsNow, source.underlying) : null;
 
-  function onPointer(event: PointerEvent<SVGRectElement>) {
+  function onPointer(event: ReactPointerEvent<SVGRectElement>) {
     const box = event.currentTarget.getBoundingClientRect();
     const nearest = nearestIndex(
       shown.map((point) => point.underlying),
       xScale.invert(event.clientX - box.left),
     );
     setHovered(nearest === null ? null : (shown[nearest]?.index ?? null));
+  }
+
+  // Drag-to-adjust's own handle (ticket #380): `pixelFromClientX` shares the same
+  // group-relative coordinate `onPointer` above already reads the hover readout from
+  // (`getBoundingClientRect` on the same invisible plot rect), clamped to the plot's own width so
+  // a handle dragged past either edge stops at it rather than reporting a price off the axis.
+  function pixelFromClientX(clientX: number): number {
+    const box = plotRectRef.current?.getBoundingClientRect();
+    if (!box) return 0;
+    return Math.max(0, Math.min(innerWidth, clientX - box.left));
+  }
+
+  function tradedValuesOf(handle: PayoffStrikeHandle): number[] {
+    return handle.ticks.filter((tick) => tick.traded).map((tick) => tick.value);
+  }
+
+  function onHandlePointerDown(handle: PayoffStrikeHandle, event: ReactPointerEvent) {
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragRef.current.set(handle.key, { pointerId: event.pointerId, snapped: null });
+    setDragPixel((prev) => ({ ...prev, [handle.key]: xScale(handle.value) }));
+  }
+
+  function onHandlePointerMove(handle: PayoffStrikeHandle, event: ReactPointerEvent) {
+    const state = dragRef.current.get(handle.key);
+    if (!state || state.pointerId !== event.pointerId) return;
+    const pixelX = pixelFromClientX(event.clientX);
+    setDragPixel((prev) => ({ ...prev, [handle.key]: pixelX }));
+    const snapped = nearestStrikeAtPixel(xScale, pixelX, tradedValuesOf(handle));
+    if (snapped !== null && snapped !== state.snapped) {
+      dragRef.current.set(handle.key, { ...state, snapped });
+      handle.onPreview(snapped);
+    }
+  }
+
+  function onHandlePointerUp(handle: PayoffStrikeHandle, event: ReactPointerEvent) {
+    const state = dragRef.current.get(handle.key);
+    dragRef.current.delete(handle.key);
+    setDragPixel((prev) =>
+      Object.fromEntries(Object.entries(prev).filter(([key]) => key !== handle.key)),
+    );
+    if (state?.snapped !== null && state?.snapped !== undefined) {
+      handle.onCommit(state.snapped);
+    }
+    event.currentTarget.releasePointerCapture(event.pointerId);
+  }
+
+  // A cancelled gesture (the browser interrupts it, e.g. a system gesture or a disconnected
+  // pen) or a capture lost outside a normal pointerup must drop the drag without committing
+  // whatever was last snapped — unlike `onHandlePointerUp`, never `handle.onCommit`.
+  function onHandleDragAbort(handle: PayoffStrikeHandle) {
+    dragRef.current.delete(handle.key);
+    setDragPixel((prev) =>
+      Object.fromEntries(Object.entries(prev).filter(([key]) => key !== handle.key)),
+    );
+    handle.onAbort?.();
+  }
+
+  function onHandleKeyDown(handle: PayoffStrikeHandle, event: ReactKeyboardEvent) {
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      handle.onStep(1);
+    } else if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      handle.onStep(-1);
+    }
   }
 
   return (
@@ -326,6 +437,7 @@ function Chart({
             })}
           />
           <rect
+            ref={plotRectRef}
             width={innerWidth}
             height={innerHeight}
             fill="transparent"
@@ -337,6 +449,64 @@ function Chart({
               if (event.pointerType === "mouse") setHovered(null);
             }}
           />
+          {handles?.map((handle) => {
+            const dragging = handle.key in dragPixel;
+            const cx = dragPixel[handle.key] ?? xScale(handle.value);
+            return (
+              <Group key={handle.key}>
+                {handle.ticks.map((tick) => (
+                  <Line
+                    key={tick.value}
+                    from={{ x: xScale(tick.value), y: innerHeight - 5 }}
+                    to={{ x: xScale(tick.value), y: innerHeight + 5 }}
+                    stroke={tick.traded ? "var(--line)" : "var(--faint)"}
+                    strokeWidth={1}
+                    pointerEvents="none"
+                  />
+                ))}
+                <circle
+                  cx={cx}
+                  cy={innerHeight}
+                  r={12}
+                  fill="var(--accent)"
+                  fillOpacity={dragging ? 0.9 : 0.7}
+                  stroke="var(--surface)"
+                  strokeWidth={2}
+                  role="slider"
+                  tabIndex={0}
+                  aria-label={handle.ariaLabel}
+                  aria-valuemin={handle.min}
+                  aria-valuemax={handle.max}
+                  aria-valuenow={handle.value}
+                  aria-valuetext={handle.valueText}
+                  className="transition-[cx] duration-[120ms] ease-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] motion-reduce:transition-none"
+                  style={{
+                    cursor: "ew-resize",
+                    touchAction: "none",
+                    transitionDuration: dragging ? "0ms" : undefined,
+                  }}
+                  onPointerDown={(event) => {
+                    onHandlePointerDown(handle, event);
+                  }}
+                  onPointerMove={(event) => {
+                    onHandlePointerMove(handle, event);
+                  }}
+                  onPointerUp={(event) => {
+                    onHandlePointerUp(handle, event);
+                  }}
+                  onPointerCancel={() => {
+                    onHandleDragAbort(handle);
+                  }}
+                  onLostPointerCapture={() => {
+                    onHandleDragAbort(handle);
+                  }}
+                  onKeyDown={(event) => {
+                    onHandleKeyDown(handle, event);
+                  }}
+                />
+              </Group>
+            );
+          })}
         </Group>
       </svg>
       {source && hoveredX !== null ? (
@@ -445,6 +615,7 @@ export function PayoffChart({
   maxLoss,
   spotLabel,
   framed = false,
+  handles,
 }: {
   points: PayoffPoint[];
   pointsNow?: OperationPricing["payoffNow"];
@@ -454,6 +625,10 @@ export function PayoffChart({
   maxLoss?: OperationPricing["maxLoss"];
   spotLabel?: string;
   framed?: boolean;
+  // Drag-to-adjust's own strike handles (ticket #380), one per leg: absent for every other
+  // caller (the builder's own preview, the open-operations payoff), which stays exactly the
+  // read-only chart it always was.
+  handles?: readonly PayoffStrikeHandle[];
 }) {
   if (points.length === 0) {
     return null;
@@ -480,6 +655,7 @@ export function PayoffChart({
             breakEvens={breakEvens}
             extremes={{ maxGain, maxLoss }}
             framed={framed}
+            handles={handles}
           />
         ) : null
       }
