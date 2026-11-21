@@ -34,8 +34,10 @@ test("build a plan from a suggestion, save it, and decide on it from the portfol
   await expect(page).toHaveURL(new RegExp(`/planos/novo\\?sugestao=${suggestionId ?? ""}$`));
 
   await expect(page.getByRole("heading", { name: "Plano de operação" })).toBeVisible();
-  await expect(page.getByText("Perda máxima")).toBeVisible();
-  await expect(page.getByText("Ganho máximo")).toBeVisible();
+  // Exact match (the exit rule text "a perda chega a 50% da perda máxima" would otherwise also
+  // match "Perda máxima"'s own substring).
+  await expect(page.getByText("Perda máxima", { exact: true })).toBeVisible();
+  await expect(page.getByText("Ganho máximo", { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Ordens" })).toBeVisible();
   await expect(page.getByRole("cell", { name: /Call de PETR4, strike R\$/ })).toHaveCount(2);
   await expect(page.getByRole("heading", { name: "Regras" })).toBeVisible();
@@ -83,7 +85,7 @@ test("build a plan from the asset page's own view question and see its orders", 
 
   await expect(page).toHaveURL(/\/planos\/novo\?ticker=PETR4&view=up$/);
   await expect(page.getByRole("heading", { name: "Plano de operação" })).toBeVisible();
-  await expect(page.getByText("Perda máxima")).toBeVisible();
+  await expect(page.getByText("Perda máxima", { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Ordens" })).toBeVisible();
   await expect(page.getByRole("row").filter({ hasText: "PETR4" }).first()).toBeVisible();
 });

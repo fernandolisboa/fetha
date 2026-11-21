@@ -8,6 +8,17 @@ const en = {
       unsure:
         "Fetha built this {structure} on {ticker} to fit the current, {ivRegime} volatility, since you have no view on direction.",
     },
+    // No volatility reading at all (an asset with too little history, ticket #379 round 4
+    // review): drops the volatility clause entirely instead of naming it "any", which read as a
+    // literal, nonsensical regime.
+    fromViewNoIv: {
+      up: "Fetha built this {structure} on {ticker} because you expect it to rise; there is not yet enough history to measure volatility.",
+      down: "Fetha built this {structure} on {ticker} because you expect it to fall; there is not yet enough history to measure volatility.",
+      sideways:
+        "Fetha built this {structure} on {ticker} because you expect it to move sideways; there is not yet enough history to measure volatility.",
+      unsure:
+        "Fetha built this {structure} on {ticker} since you have no view on direction; there is not yet enough history to measure volatility.",
+    },
     fromSuggestion: "Fetha built this {structure} on {ticker} from today's suggestion.",
     priceClose: (date: string) => ` Prices from the close on ${date}.`,
   },
@@ -80,6 +91,14 @@ const ptBR = {
         "A Fetha montou essa {structure} em {ticker} porque você espera lateralização e a volatilidade está {ivRegime}.",
       unsure:
         "A Fetha montou essa {structure} em {ticker} para a volatilidade atual, {ivRegime}, já que você não tem uma visão de direção.",
+    },
+    fromViewNoIv: {
+      up: "A Fetha montou essa {structure} em {ticker} porque você espera alta; ainda não há histórico suficiente para medir a volatilidade.",
+      down: "A Fetha montou essa {structure} em {ticker} porque você espera queda; ainda não há histórico suficiente para medir a volatilidade.",
+      sideways:
+        "A Fetha montou essa {structure} em {ticker} porque você espera lateralização; ainda não há histórico suficiente para medir a volatilidade.",
+      unsure:
+        "A Fetha montou essa {structure} em {ticker} já que você não tem uma visão de direção; ainda não há histórico suficiente para medir a volatilidade.",
     },
     fromSuggestion: "A Fetha montou essa {structure} em {ticker} a partir da sugestão de hoje.",
     priceClose: (date: string) => ` Preços do fechamento de ${date}.`,

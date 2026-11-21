@@ -201,6 +201,19 @@ describe("generatePlan", () => {
     expect(result.plan.summary).toContain("sugestão");
   });
 
+  // Round 4 review: an asset with too little history to classify IV at all (`ivDisplay: "any"`)
+  // must not name the volatility clause the literal word "qualquer" — it must drop the clause
+  // entirely and say plainly that there is no reading yet.
+  it("drops the volatility clause instead of naming it 'qualquer' when there is no IV reading at all", async () => {
+    const result = await generatePlan(baseInput({ ivDisplay: "any" }));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.plan.summary).not.toContain("qualquer");
+    expect(result.plan.summary).toContain(
+      "ainda não há histórico suficiente para medir a volatilidade",
+    );
+  });
+
   it("carries the final rung's limit breaches through to the plan", async () => {
     const breach = {
       limit: "maxLossPerOperation" as const,

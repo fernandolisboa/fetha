@@ -95,7 +95,6 @@ function summaryFor(
     "structureName" | "underlying" | "view" | "ivDisplay" | "priceSessionDate"
   >,
 ): string {
-  const ivWord = t.ivRegimes[input.ivDisplay];
   const priceClose = t.summary.priceClose(formatSessionDate(input.priceSessionDate));
   if (input.view === null) {
     return (
@@ -104,11 +103,20 @@ function summaryFor(
         .replace("{ticker}", input.underlying) + priceClose
     );
   }
+  // No IV reading at all (round 4 review): names no regime, rather than the literal word "any",
+  // which read as a nonsensical volatility level rather than "we don't know".
+  if (input.ivDisplay === "any") {
+    return (
+      t.summary.fromViewNoIv[input.view]
+        .replace("{structure}", input.structureName)
+        .replace("{ticker}", input.underlying) + priceClose
+    );
+  }
   return (
     t.summary.fromView[input.view]
       .replace("{structure}", input.structureName)
       .replace("{ticker}", input.underlying)
-      .replace("{ivRegime}", ivWord) + priceClose
+      .replace("{ivRegime}", t.ivRegimes[input.ivDisplay]) + priceClose
   );
 }
 
