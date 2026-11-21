@@ -360,6 +360,176 @@ that rank is offered), and resolves a rank's own new strike to every one of its 
 at once (`tickersForRank` in `plan-adjuster.tsx`) before previewing or committing — always
 all-or-nothing, the same shape `onExpirySelect`'s own remap already used for a whole plan.
 
+## Addendum (ticket #381): "Executei" links a plan to the real operation; nightly rule alerts
+
+Ticket #381 closes the loop: "Executei" turns a saved plan into a real, held operation, and the
+nightly job alerts the user when the plan's own rules fire against it. No order is ever sent
+(CLAUDE.md, the issue's own wording); the user still acts from the Carteira.
+
+- **Link direction and shape.** `operation_plan_rules` grows a nullable `operation_id` column,
+  bound by a composite `(operation_id, user_id)` foreign key against `operations(id, user_id)` —
+  the same pattern `fills` and the plan's own `contemplated_operation_id` already use — with a
+  unique index on `operation_id` so a plan links to at most one operation, and an operation can be
+  the target of at most one plan. A second unique index, on `(id, user_id)`, exists only so
+  `plan_signals` below can reference this table by that pair: Postgres requires a unique
+  constraint on exactly the referenced columns, which the primary key on `id` alone does not
+  provide. The plan points at the operation, not the reverse: the operation is still an ordinary
+  `operations` row (grouped from fills exactly like any other), and asking it "which plan, if any,
+  made you" is the rarer read (the nightly job's own loop, and the Carteira showing a plan as
+  executed), so the pointer lives on the rarer-written, already-plan-specific side rather than
+  widening every operation with a column only some of them ever use. Migration
+  `0051_operation_plan_execution.sql`, additive only.
+- **Ungrouping a plan-linked operation unlinks the plan.** The Carteira's "Desagrupar" action
+  (`PortfolioRepository.ungroup`) deletes the `operations` row; before this addendum's fix, the
+  `operation_id` foreign key above had no `ON DELETE` action, so that delete raised a plain
+  23503 and ungrouping a plan-linked operation failed outright. The fix is at the database level:
+  the foreign key now reads `ON DELETE SET NULL ("operation_id")`, Postgres's column-list form
+  for a composite key (PG15+), which nulls only `operation_id` and leaves `user_id` alone — the
+  plain, all-columns `set null` Drizzle's own schema builder supports would instead try to null
+  `user_id` too, which is `NOT NULL` and would just trade one failure for another. Drizzle has no
+  equivalent of the column-list form, so this one clause is hand-written into the migration SQL
+  and the `operation_plan_rules` schema carries a comment recording the gap. The plan itself goes
+  back to not executed (`operation_id` reads null again, so it can execute once more), and its
+  `plan_signals` rows cascade-delete with the operation they were about, the same as any other
+  `operation_id`-scoped row.
+- **"Executei" prefills from the plan's own legs, never a per-leg stored price.** A saved plan's
+  `contemplated_operations.legs` already carries the exact ticker/role/side/quantity per order
+  (ADR-0079's own body); `executePlanAction` reads those, never trusts a client-sent leg — quantity
+  is editable from that starting point (a partial fill is still one order), ticker and side are
+  not. What the plan does **not** carry is a per-leg limit price — only the totals are stored, by
+  design (the body above describes the contemplated operation as storing exactly what it priced
+  at save time, nothing more). `planExecutionPrefillAction` therefore prefills each row's price
+  from a fresh, live `priceOperationNow` read (the same call the builder's own price button
+  makes) rather than "the plan's limit price" literally — a deviation from the orchestrator's
+  stated shape, justified because there is no stored per-leg price to read back, and a live price
+  is a better starting point for "what did this actually fill at" than a stale build-time number
+  would be anyway. That price is formatted pt-BR (`formatDecimal`) before it reaches the dialog:
+  `parsePriceInput` only ever accepts pt-BR input, so an unedited, dot-decimal prefill could never
+  itself be submitted — a round trip the prefill action's own tests now assert. The user corrects
+  every price, quantity and the execution session (defaulting to today in São Paulo, validated the
+  same way `recordFillAction` validates one) before saving; nothing from the prefill is trusted
+  again once the user submits, and the prefill action itself is rate-limited (`plans/prefill`,
+  60/min) since every open of the dialog reprices live.
+- **One transaction, atomic — and `plans` never validates a fill itself.** `recordFillsAsOperation
+(db, tx, user, session, rawFills)` — the `portfolio` module's one entry point for turning raw,
+  unparsed leg input into a new operation — takes each leg exactly as the user typed it: ticker,
+  side, quantity, and price/costs still as pt-BR strings. It validates every leg through
+  `resolveFillInstrument`, the same function `recordFillAction` calls for its own one fill
+  (`fill-validation.ts`): asset class is always read off the option-series lookup, never a
+  caller's own guess, so a stock leg gets the same unknown-instrument check (`latestCandle`) an
+  option leg's series lookup already gave it for free. Before this fix, `executePlanAction` built
+  each `NewFill` itself from the plan's own `leg.role`, which had already drifted from
+  `recordFillAction`'s own logic (assetClass guessed from `role` instead of the series lookup, and
+  no `latestCandle` check for a stock leg at all) — a second copy of validation a plan's own shape
+  could silently fall out of step with. `recordFillsAsOperation` then resolves series and
+  corporate-action facts, inserts the fills and groups them into one new operation, all inside
+  the caller's `tx`. `executePlanAction` is the only caller: it opens one `db.transaction`, calls
+  `recordFillsAsOperation`, then `PlanRulesRepository.linkOperation` with that same `tx`. Before
+  the atomicity fix, a refusal from either step was `return`ed from inside the transaction's
+  callback, which Drizzle commits on a plain return — only a thrown error rolls a transaction
+  back. Both refusals are now a typed `ExecutePlanRefusedError`, thrown inside the callback and
+  caught outside it, so a forced grouping refusal (two legs on different underlyings, say) or the
+  losing side of two concurrent submits of the same plan both leave zero new fills and zero new
+  operations, not an orphan. `PortfolioRepository.insertFills`/`.group` express "run in the
+  caller's own transaction, or open a fresh one" as a plain method overload (`tx?: Transaction`)
+  rather than a runtime `Database | Transaction` union checked at the call site — the union
+  version needed an `executor as Transaction` cast to tell the two apart; the overload needs none,
+  since the caller's own argument is already typed `Transaction`. `linkOperation`'s own `where`
+  clause still requires the plan's `operation_id` to be null, so the loser of two concurrent
+  "Executei" submits is the one whose `linkOperation` call returns no rows, not a race on who
+  reads first; the unique index on `operation_id` is the second, database-level guarantee behind
+  it. `plans` reaches into no portfolio internal directly — `recordFillsAsOperation` (and its
+  `RecordFillsAsOperationResult`/`RawFillInput` types), `loadPortfolio`/`OperationRow` (the
+  nightly step's own read) and the already-existing `OperationsRepository`/`priceOperationNow` are
+  the whole seam. The portfolio module's public index carries none of `PortfolioRepository`,
+  `NewFill` or `GroupResult`: the one other caller that needed `PortfolioRepository` for a single
+  method (`plans`' own ungroup-unlinks-the-plan test) imports it from its own file
+  (`@/modules/portfolio/portfolio-repository`), the pattern every other cross-module integration
+  test already used for a repository it needs but the production code across that boundary never
+  does.
+- **An executed plan cannot execute again.** `planExecutionPrefillAction` and `executePlanAction`
+  both refuse with `already_executed` once `operation_plan_rules.operation_id` is set — checked
+  up front (a fast, friendly refusal) and enforced again by `linkOperation`'s own conditional
+  update (the actual race guard).
+- **The journal gains no new decision.** The plan's own "enter" decision was already recorded
+  when it was saved (ADR-0079's round-1 addendum); "Executei" is the user acting on a decision
+  already in the journal, not a new one — the existing `held_operation` origin (ADR-0022) already
+  covers whatever the user records next about the position it became.
+- **Nightly alerts: a new `plan_signals` table, not the strategy signal inbox.** `signals` (the
+  strategy catalog's own inbox) carries machinery a plan alert has no use for and would have to
+  work around: a `NOT NULL` `strategy_version_id` foreign key a plan simply has none of; an
+  append-only trigger that forbids updating a row once written, which rules out a `supersededBy`-
+  style "this one replaced that one" edit; the ADR-0047 supersession machinery built on top of
+  that trigger, sized for re-evaluating a strategy's own signal history, not a plan's one-shot
+  rule check; and `decisions` rows that reference a `signals.id` directly, which a plan alert must
+  never participate in (ADR-0079's own point above: "Executei" produces no new decision). Making
+  `strategy_version_id` nullable and dropping to Postgres's `NULLS NOT DISTINCT` would solve only
+  the narrow dedup problem (two NULLs normally compare unequal in a unique index; that modifier
+  makes them compare equal) — it does nothing about the trigger, the supersession machinery or
+  the decision linkage, so it would still leave `plan_signals` needing to coexist inside a table
+  shaped for a different kind of row. `plan_signals` is a small, dedicated table instead:
+  `user_id`, `operation_plan_rules_id` and `operation_id` (both composite-FK'd the same way as the
+  rest of this schema, cascading on delete), `kind` (`target_hit` | `stop_hit` | `roll_due` |
+  `expiry_near`), `session`, `at`. Its own unique index is `(user_id, operation_id, kind)`, backed
+  by a `clearStale` delete (not append-only): every nightly run re-evaluates every kind it has the
+  pricing to check and deletes any of this operation's rows whose kind it evaluated but did not
+  find firing, so "don't re-alert every night" is "insert what newly fires, delete what no longer
+  does" — a condition that clears and later fires again does alert a second time, unlike a plain
+  `onConflictDoNothing`-only table would. The `/sinais` page reads both sources and renders the
+  plan ones in their own panel (`PlanSignalsPanel`), read-only, no decision bar —
+  `firedPlanSignalKinds`'s own kinds are an alert to act on, not a journal entry to score the way a
+  strategy's `entry`/`exit`/`adjust` signal is.
+- **The rule-firing math mirrors the engine's own exit-rule evaluation, without depending on its
+  internals — and is entry-priced, not mark-priced.** `evaluateNumericExitRule` and
+  `computeExitRuleBases` (`packages/engine/src/internal/evaluate-strategy.ts`) are not part of the
+  frozen public interface (ADR-0013); `plan-signal-rules.ts`'s `firedPlanSignalKinds` reimplements
+  only the comparison over bases its caller resolves, mirroring the engine's own choice to price
+  every leg "given" at its own `entryPrice` rather than today's spot, so the base never drifts as
+  the position moves. `evaluate-plan-signals.ts` resolves `premiumBaseCentavos`/
+  `maxLossBaseCentavos` from `OperationRow.entryPayoff` (`engine.priceOperation` at each leg's
+  entry price, already computed by `loadPortfolio` for the Carteira's own P&L breakdown) rather
+  than from today's mark pricing — pricing a short option's stop against its own drifting mark
+  premium could put the stop multiple past 1 and never fire, or fire a profit target at the wrong
+  fraction entirely. Target and stop are skipped (not fired, not cleared) when `entryPayoff.kind`
+  is not `"priced"` (a corporate action since opening, or a pricing failure) or when today's mark
+  pricing itself carries a `no_market_price` note, since `unrealizedPnl` is derived from that same
+  mark; a lone `iv_not_converged` note is not a skip condition — it fires when a leg has a market
+  price but no greeks (a deep-ITM short priced below intrinsic, say), and the engine's own
+  `evaluateNumericExitRule` still treats that mark and the `unrealizedPnl` derived from it as
+  valid. Roll and expiry-near need no price at all, so they are evaluated regardless. Every `ExitRule` kind is matched exhaustively: `days_before_expiry` resolves to its
+  own `expiry_near` kind rather than being silently dropped (its already-resolved
+  `ResolvedExitRule.session`, computed once at save time against the series the plan actually
+  listed, is compared to today's session, the same way roll due is); `condition` exit rules
+  evaluate an indicator-based `Condition` this nightly step has no indicator evaluation for, so
+  they never fire here — a documented gap for a future ticket, not a silent one. CLAUDE.md
+  principle 1 ("AI never produces numbers") is satisfied the same way
+  `modules/portfolio/bookkeeping.ts`'s own ledger arithmetic already is (ADR-0021 item 3): this
+  module invents no number of its own, it only compares numbers the engine already produced.
+- **The nightly step's own loop.** `evaluatePlanSignals` is chained right after decision scoring
+  (the same `asOfSession` every other scoring step reads), looping over `executedPlanUserIds`
+  (every user with at least one `operation_plan_rules.operation_id is not null` row) and, per
+  user, one `loadPortfolio` call shared across every one of that user's linked plans — not one
+  `loadPortfolio` per plan. A user with no executed plan still linked to an open operation is
+  counted as evaluated, not skipped from the count entirely. It honours the shared `deadlineAt`
+  budget the same way `evaluateSignalsForSession`/`scoreDueDecisions` do (a user not yet reached
+  when the deadline passes is `usersSkipped`, picked up again the next run) and is reported in
+  `nightly_runs`' own redacted report (`planSignalScoring { usersEvaluated, usersSkipped,
+signalsWritten, signalsCleared, errorCount }`, ADR-0045's addendum pattern) and in
+  `NightlyJobOutcome`. It writes to `plan_signals`, its own store — not "the signal inbox",
+  `signals`, which stays strategy-scoped. A plan's linked operation that is no longer open
+  (settled, rolled away, or pending its own settlement) clears every kind `plan_signals` still
+  has for it (`clearStale(operationId, planSignalKinds, [])`) rather than leaving a stale
+  `target_hit` on `/sinais` for a position the user no longer holds (review round 2, #381); the
+  read side defends the same thing independently — `getMyPlanSignals` joins each signal's
+  operation through `getMyPortfolio`'s own open operations, so a signal in the narrow window
+  before the next nightly run clears it is left out of the list rather than shown, not just
+  deduplicated.
+- **A plan alert links to the real operation, not the Carteira's own front page.**
+  `PlanSignalListEntry` carries the operation's own id, not only its underlying, so
+  `PlanSignalsPanel`'s own "ver carteira" link on `/sinais` points at
+  `/carteira/operacoes/<operationId>` — the same operation page #388 added — instead of the
+  generic `/carteira` list the user would have had to search through themselves.
+
 ## Alternatives considered
 
 - **One new table carrying the full operation (structure, legs, pricing) plus the rules.** Forks

@@ -18,8 +18,14 @@ export {
 } from "./operations-repository";
 export { getMyOperation, getMyOperations } from "./operations-queries";
 export { getMyOperationSummary, getMyPortfolio, type OperationSummary } from "./portfolio-queries";
-export type { PortfolioReadModel } from "./portfolio-service";
+export { loadPortfolio, recordFillsAsOperation } from "./portfolio-service";
+export type {
+  PortfolioReadModel,
+  OperationRow,
+  RecordFillsAsOperationResult,
+} from "./portfolio-service";
 export { countLiveOpenOperations } from "./portfolio-service";
+export type { RawFillInput } from "./fill-validation";
 export { PortfolioDashboard, type OperationDecisionSlot } from "./components/portfolio-dashboard";
 export {
   getMyHeldOperation,

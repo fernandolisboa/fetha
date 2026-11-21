@@ -9,6 +9,7 @@ import type {
 } from "@/modules/decisions";
 import type { IngestOutcome, SourceOutcome } from "@/modules/market-data";
 import type { RadarScanOutcome, ScoreSuggestionsOutcome } from "@/modules/radar";
+import type { EvaluatePlanSignalsOutcome } from "@/modules/plans";
 
 import { purgeExpiredAccessLog } from "@/modules/audit";
 import {
@@ -18,6 +19,7 @@ import {
 } from "@/modules/auth";
 import { scoreDueAnalyses, scoreDueDecisions, scoreDueResearch } from "@/modules/decisions";
 import { ingest, type IngestOptions } from "@/modules/market-data";
+import { evaluatePlanSignals } from "@/modules/plans";
 import { scanRadar, scoreDueSuggestions } from "@/modules/radar";
 import { runSentimentJob, type SentimentJobOutcome } from "@/modules/sentiment";
 import { evaluateSignalsForSession } from "@/modules/strategies";
@@ -38,6 +40,7 @@ export interface NightlyJobOutcome {
   analysisScoring: ScoreAnalysesOutcome;
   suggestionScoring: ScoreSuggestionsOutcome;
   researchScoring: ScoreResearchOutcome;
+  planSignalScoring: EvaluatePlanSignalsOutcome;
   radar: RadarScanOutcome | null;
   sentiment: SentimentJobOutcome;
   accessLogPurge: AccessLogPurgeOutcome;
@@ -81,7 +84,7 @@ function ivIndexComputed(result: IngestOutcome): boolean {
 }
 
 // Shared by the cron GET handler and the owner's manual Server Action
-// (#51): both need the exact same purge -> ingest -> evaluate -> score -> radar ->
+// (#51): both need the exact same purge -> ingest -> evaluate -> score -> plan signals -> radar ->
 // sentiment sequence and response shape, only the caller and its authorization differ.
 export async function runNightlyJob(
   db: Database,
@@ -114,6 +117,10 @@ export async function runNightlyJob(
   const suggestionScoring = await scoreDueSuggestions(db, scoring.asOfSession, { deadlineAt });
   // The ideas of the user's own researches, every verdict, right after (docs/adr/0076).
   const researchScoring = await scoreDueResearch(db, scoring.asOfSession, { deadlineAt });
+  // Every executed plan's rules, on the same as-of session decisions were scored on (ADR-0079
+  // addendum, ticket #381): target hit, stop hit, roll due, expiry near, written to `plan_signals`
+  // — its own store, not the strategy-scoped `signals` table (see the ADR addendum for why).
+  const planSignalScoring = await evaluatePlanSignals(db, scoring.asOfSession, { deadlineAt });
   // The radar reads the newest session's close after everything a user's own data depends on
   // (docs/adr/0066): it is resumable, so whatever the deadline leaves the next run reads.
   const radar =
@@ -135,6 +142,7 @@ export async function runNightlyJob(
     analysisScoring,
     suggestionScoring,
     researchScoring,
+    planSignalScoring,
     radar,
     sentiment,
     accessLogPurge,

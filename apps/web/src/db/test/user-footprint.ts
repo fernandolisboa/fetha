@@ -25,7 +25,7 @@ import {
   operations,
   riskProfiles,
 } from "@/modules/portfolio/schema";
-import { operationPlanRules } from "@/modules/plans/schema";
+import { operationPlanRules, planSignals } from "@/modules/plans/schema";
 import { preferences } from "@/modules/preferences/schema";
 import { suggestionSightings } from "@/modules/radar/schema";
 import {
@@ -209,17 +209,6 @@ export async function seedUserFootprint(
   await db
     .insert(riskProfiles)
     .values({ userId, declaredCapital: 10_000_000, limits: {} as never });
-  await db.insert(operationPlanRules).values({
-    userId,
-    contemplatedOperationId: contemplated.id,
-    recipeId: "footprint",
-    rules: {
-      recipeId: "footprint",
-      summary: "footprint",
-      exitRules: [{ rule: { kind: "days_before_expiry", businessDays: 5 }, session: null }],
-      roll: { applies: false, session: null },
-    } as never,
-  });
   const operation = only(
     await db
       .insert(operations)
@@ -236,6 +225,31 @@ export async function seedUserFootprint(
     session: "2026-09-25",
     source: "manual",
     operationId: operation.id,
+  });
+  const planRules = only(
+    await db
+      .insert(operationPlanRules)
+      .values({
+        userId,
+        contemplatedOperationId: contemplated.id,
+        recipeId: "footprint",
+        rules: {
+          recipeId: "footprint",
+          summary: "footprint",
+          exitRules: [{ rule: { kind: "days_before_expiry", businessDays: 5 }, session: null }],
+          roll: { applies: false, session: null },
+        } as never,
+        operationId: operation.id,
+      })
+      .returning({ id: operationPlanRules.id }),
+  );
+  await db.insert(planSignals).values({
+    userId,
+    operationPlanRulesId: planRules.id,
+    operationId: operation.id,
+    kind: "expiry_near",
+    session: "2026-09-25",
+    at: new Date("2026-09-25T20:00:00.000Z"),
   });
 
   await db.insert(backtestRuns).values({

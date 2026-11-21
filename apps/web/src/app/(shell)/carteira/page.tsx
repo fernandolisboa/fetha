@@ -37,6 +37,7 @@ import {
   t,
 } from "@/modules/portfolio";
 import { ImportFillsDialog, RecordFillDialog } from "@/modules/portfolio/client";
+import { ExecutePlanDialog, getMyPlanRulesByOperation, t as plansT } from "@/modules/plans";
 import { sessionBefore, tradingSessionForDate } from "@/modules/market-data";
 import { PageHeader, Panel, t as shellStrings } from "@/modules/shell";
 
@@ -53,7 +54,11 @@ export const maxDuration = 120;
 
 export default async function PortfolioPage() {
   await requireUser();
-  const [portfolio, operations] = await Promise.all([getMyPortfolio(), getMyOperations()]);
+  const [portfolio, operations, planRulesByOperation] = await Promise.all([
+    getMyPortfolio(),
+    getMyOperations(),
+    getMyPlanRulesByOperation(),
+  ]);
   const today = todaySaoPauloDate();
   const db = getDb();
   const [todaySession, latestOpenedSession] = await Promise.all([
@@ -208,6 +213,20 @@ export default async function PortfolioPage() {
                     </TableCell>
                     <TableCell data-stack="full" className="text-right">
                       <span className="inline-flex flex-wrap items-center justify-end gap-2">
+                        {(() => {
+                          const planRules = planRulesByOperation.get(operation.id);
+                          if (!planRules) return null;
+                          return planRules.operationId ? (
+                            <Link
+                              href={`/carteira/operacoes/${planRules.operationId}`}
+                              className="text-muted-foreground text-xs underline"
+                            >
+                              {plansT.execute.executed}
+                            </Link>
+                          ) : (
+                            <ExecutePlanDialog contemplatedOperationId={operation.id} />
+                          );
+                        })()}
                         <AnalysisDialog
                           subjectKind="contemplated_operation"
                           subjectId={operation.id}

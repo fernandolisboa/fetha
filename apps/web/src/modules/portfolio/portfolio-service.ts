@@ -22,7 +22,8 @@ import {
   type SettlementProposal,
 } from "@fetha/engine";
 
-import type { Database } from "@/db/client";
+import type { Database, Transaction } from "@/db/client";
+import { nowInstant } from "@/lib/instant";
 import { todaySaoPauloDate } from "@/lib/today-sao-paulo";
 import type { ScopedUser } from "@/lib/user-scoped-repository";
 import {
@@ -46,12 +47,19 @@ import {
   heldExpiry,
   planOperation,
   toEngineOperation,
+  type GroupRefusal,
   type OperationState,
   type SeriesByHolding,
   type SeriesFacts,
 } from "./operation-plan";
 import { entryPayoff, type EntryPayoff } from "./entry-payoff";
-import { PortfolioRepository, type FillRecord, type OperationRecord } from "./portfolio-repository";
+import { validateFillInput, type RawFillInput } from "./fill-validation";
+import {
+  PortfolioRepository,
+  type FillRecord,
+  type NewFill,
+  type OperationRecord,
+} from "./portfolio-repository";
 import { RiskProfileRepository } from "./risk-profile-repository";
 import { closingQuantities } from "./settlement-plan";
 
@@ -104,11 +112,16 @@ export interface PortfolioReadModel {
   fills: FillRecord[];
 }
 
+// Everything `seriesByHolding` reads off a fill: a stored `FillRecord` or a not-yet-inserted
+// `NewFill` share exactly this shape, so `recordFillsAsOperation` resolves series facts for a
+// fresh set of fills without faking a `FillRecord` (review round 2, #381).
+type SeriesLookupFill = Pick<FillRecord, "ticker" | "assetClass" | "expiry" | "session">;
+
 // Facts for every option fill's series, keyed by `holdingKey(ticker,
 // expiry)`: the expiry resolved when the fill was written (ADR-0021 item 3).
 export async function seriesByHolding(
   db: Database,
-  fills: readonly FillRecord[],
+  fills: readonly SeriesLookupFill[],
 ): Promise<Map<string, SeriesFacts>> {
   const optionFills = fills.filter((fill) => fill.assetClass === "option" && fill.expiry);
   const resolved = await optionSeriesForFills(db, optionFills);
@@ -487,4 +500,80 @@ export async function loadPortfolio(
     pendingSettlements,
     fills,
   };
+}
+
+function underlyingOfNewFill(fill: SeriesLookupFill, series: SeriesByHolding): string | null {
+  return fill.assetClass === "stock"
+    ? fill.ticker
+    : (series.get(holdingKey(fill.ticker, fill.expiry))?.underlying ?? null);
+}
+
+export type RecordFillsAsOperationResult =
+  | { ok: true; operationId: string }
+  | {
+      ok: false;
+      reason:
+        | "invalid_input"
+        | "not_a_session"
+        | "unknown_instrument"
+        | "index_stock_leg"
+        | "fills_unavailable"
+        | "operation_unavailable"
+        | GroupRefusal;
+    };
+
+// Portfolio's one entry point for turning a user's own raw leg input — ticker, side, quantity,
+// and each price/costs still as the pt-BR string the user typed — into one new operation (review
+// round 2, #381): validates every leg the same way `recordFillAction` validates its own one fill
+// (`resolveFillInstrument`, so a stock leg gets the same unknown-instrument and market-index
+// checks an option leg's series lookup already gave it, never a caller's own guess at asset
+// class), then resolves series and corporate-action facts, inserts the fills and groups them into
+// a new operation, all inside the caller's own transaction. "Executei" is the only caller today,
+// and it reaches none of `PortfolioRepository`, `planOperation`, `seriesByHolding` or
+// `resolveFillInstrument` directly anymore — this function is the seam.
+export async function recordFillsAsOperation(
+  db: Database,
+  tx: Transaction,
+  user: ScopedUser,
+  session: SessionDate,
+  rawFills: readonly RawFillInput[],
+): Promise<RecordFillsAsOperationResult> {
+  if (rawFills.length === 0) {
+    return { ok: false, reason: "fills_unavailable" };
+  }
+  if (session > todaySaoPauloDate()) {
+    return { ok: false, reason: "invalid_input" };
+  }
+  // A fill dated on a day the market has not opened yet (recordFillAction's own guard): it would
+  // open an operation after the mark session, which the engine refuses outright.
+  const tradingSession = await tradingSessionForDate(db, session);
+  if (!tradingSession || new Date(tradingSession.open) > new Date(nowInstant())) {
+    return { ok: false, reason: "not_a_session" };
+  }
+
+  const newFills: NewFill[] = [];
+  for (const rawFill of rawFills) {
+    const validated = await validateFillInput(db, session, rawFill);
+    if (!validated.ok) return validated;
+    newFills.push(validated.fill);
+  }
+
+  const series = await seriesByHolding(db, newFills);
+  const corporateActions = await corporateActionsByUnderlying(
+    db,
+    newFills.map((fill) => underlyingOfNewFill(fill, series)),
+  );
+  const repository = new PortfolioRepository(db, user);
+  const { ids } = await repository.insertFills(newFills, tx);
+  return repository.group(
+    null,
+    ids,
+    (fillRows) => {
+      const plan = planOperation(fillRows, series, corporateActions);
+      if (!plan.ok) return plan;
+      const { underlying, expiry, openedAt, status, closedAt } = plan.state;
+      return { ok: true, state: { underlying, expiry, openedAt, status, closedAt } };
+    },
+    tx,
+  );
 }
