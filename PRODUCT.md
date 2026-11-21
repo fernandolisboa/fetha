@@ -38,8 +38,10 @@ strategy read-only with every registered user, who copies it to use it.
 A shared book of recipes (complete strategy definitions chosen by the move the user expects) can
 be started on any asset in one click. Every night the radar reads every liquid optionable
 underlying against those recipes, and each match the engine can price for one standard lot
-becomes a suggestion, in Fetha's own voice: "Uma trava de alta com calls em PETR4 cabe agora."
-Suggestions are the same for every user, ordered by a market fact (traded series), never by a
+becomes a suggestion, titled "Trava de alta com calls em PETR4" with Fetha's own voice right
+under it: "Você paga R$ 1,98 e ganha até R$ 5,00 se VALE3 fechar entre R$ 14,25 e R$ 16,80 em
+16/01/2027. Fora dessa faixa, perde até R$ 26,98." Suggestions are the same for every user,
+ordered by a market fact (traded series), never by a
 score; each can be answered with a decision, analysed, tested or opened in the builder, and is
 scored at expiry so the user sees how Fetha's own suggestions age. A suggestion can be wrong.
 

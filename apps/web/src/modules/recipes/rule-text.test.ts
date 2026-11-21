@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { conditionSchema, exitRuleSchema } from "@fetha/contracts";
 
@@ -39,6 +39,74 @@ describe("conditionLines", () => {
       { text: "não", depth: 1 },
       { text: "Fechamento ≥ Média exponencial de 9 sessões", depth: 2 },
     ]);
+  });
+  it("shows each operand's own observed value right next to it, through a localized 'at' reading", () => {
+    const recipe = recipes.find((entry) => entry.id === "bull-call-spread-low-iv");
+    const lines =
+      recipe &&
+      conditionLines(recipe.definition.entry, 0, (operand) => {
+        if (operand.kind === "price") return "R$ 43,17";
+        if (operand.kind === "indicator" && operand.indicator.kind === "sma") return "R$ 41,90";
+        return null;
+      });
+    expect(lines).toEqual([
+      { text: "Fechamento em R$ 43,17 > Média de 50 sessões em R$ 41,90", depth: 0 },
+      { text: "RSI 14 < 70", depth: 0 },
+      { text: "Ranking de IV (63 sessões) < 50", depth: 0 },
+    ]);
+  });
+
+  it("separates an operand name ending in a digit from its reading, instead of running them together", () => {
+    const lines = conditionLines(
+      conditionSchema.parse({
+        kind: "compare",
+        left: { kind: "indicator", indicator: { kind: "rsi", length: 14 } },
+        comparator: "<",
+        right: { kind: "constant", value: "70" },
+      }),
+      0,
+      (operand) => (operand.kind === "indicator" ? "45,7" : null),
+    );
+    expect(lines).toEqual([{ text: "RSI 14 em 45,7 < 70", depth: 0 }]);
+  });
+
+  it("separates a parenthesized operand name's reading the same way", () => {
+    const lines = conditionLines(
+      conditionSchema.parse({
+        kind: "compare",
+        left: { kind: "indicator", indicator: { kind: "iv_rank", lookbackSessions: 63 } },
+        comparator: "<",
+        right: { kind: "constant", value: "50" },
+      }),
+      0,
+      (operand) => (operand.kind === "indicator" ? "12" : null),
+    );
+    expect(lines).toEqual([{ text: "Ranking de IV (63 sessões) em 12 < 50", depth: 0 }]);
+  });
+
+  it("never asks for a constant operand's observed value: a constant already prints as itself", () => {
+    const observe = vi.fn(() => "should never be used");
+    conditionLines(
+      conditionSchema.parse({
+        kind: "compare",
+        left: { kind: "indicator", indicator: { kind: "rsi", length: 14 } },
+        comparator: "<",
+        right: { kind: "constant", value: "70" },
+      }),
+      0,
+      observe,
+    );
+    expect(observe).toHaveBeenCalledTimes(1);
+    expect(observe).toHaveBeenCalledWith({
+      kind: "indicator",
+      indicator: { kind: "rsi", length: 14 },
+    });
+  });
+
+  it("prints a comparison plainly when the facts have no reading for either side", () => {
+    const recipe = recipes.find((entry) => entry.id === "bull-call-spread-low-iv");
+    const lines = recipe && conditionLines(recipe.definition.entry, 0, () => null);
+    expect(lines?.[0]?.text).toBe("Fechamento > Média de 50 sessões");
   });
 });
 

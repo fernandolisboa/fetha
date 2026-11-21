@@ -1,11 +1,11 @@
-import type { DecimalString, IndicatorSpec } from "@fetha/contracts";
+import type { DecimalString, IndicatorSpec, Operand } from "@fetha/contracts";
 
 import { formatPriceBRL } from "@/lib/format/brl";
 import { formatDate } from "@/lib/format/date-time";
 import { formatDecimal } from "@/lib/format/decimal";
 import { sessionDateToDisplayDate } from "@/modules/market-data/client";
 
-import type { RadarFacts, RadarLeg } from "../match";
+import { indicatorSpecKey, type RadarFacts, type RadarLeg } from "../match";
 import { t } from "../strings";
 
 export function displayDate(session: string): string {
@@ -30,6 +30,21 @@ function indicatorValue(spec: IndicatorSpec, value: DecimalString | null): strin
     case "iv_rank":
       return formatDecimal(value, 0);
   }
+}
+
+// What a condition operand actually read today, so "Por que agora" can show each side of a
+// comparison next to the figure that made it true instead of a full facts list beside it.
+export function observeOperand(operand: Operand, facts: RadarFacts): string | null {
+  if (operand.kind === "price" && operand.field === "close") {
+    return formatPriceBRL(facts.close);
+  }
+  if (operand.kind === "indicator") {
+    const match = facts.indicators.find(
+      (entry) => indicatorSpecKey(entry.indicator) === indicatorSpecKey(operand.indicator),
+    );
+    return match ? indicatorValue(match.indicator, match.value) : null;
+  }
+  return null;
 }
 
 export function Facts({ facts }: { facts: RadarFacts }) {

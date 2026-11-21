@@ -21,31 +21,53 @@ function operandText(operand: Operand): string {
 
 export type RuleLine = { text: string; depth: number };
 
+// An operand's own name, plus what it actually read today right next to it (review round 2,
+// finding #2): a constant already prints its value as its name, so it is never observed. Joined
+// through a localized "at" reading (round 3's last advisory), not a bare space: several operand
+// names end in a digit ("RSI 14", "Ranking de IV (63 sessões)") or a closing paren, so a bare
+// space read as if the reading were still part of the name ("RSI 14 45,7").
+function operandWithValue(
+  operand: Operand,
+  observe: ((operand: Operand) => string | null) | undefined,
+): string {
+  const text = operandText(operand);
+  if (!observe || operand.kind === "constant") return text;
+  const value = observe(operand);
+  return value ? t.rule.reading(text, value) : text;
+}
+
 // A recipe's entry condition as nested lines (docs/adr/0067's suggestion page): a top-level
-// "and" reads as the list itself, anything nested names its connective.
-export function conditionLines(condition: Condition, depth = 0): RuleLine[] {
+// "and" reads as the list itself, anything nested names its connective. `observe`, when given,
+// reads an operand against today's facts so each side of a comparison can show what matched it,
+// without a second tree walk of its own.
+export function conditionLines(
+  condition: Condition,
+  depth = 0,
+  observe?: (operand: Operand) => string | null,
+): RuleLine[] {
   switch (condition.kind) {
-    case "compare":
-      return [
-        {
-          text: `${operandText(condition.left)} ${t.rule.comparators[condition.comparator]} ${operandText(condition.right)}`,
-          depth,
-        },
-      ];
+    case "compare": {
+      const left = operandWithValue(condition.left, observe);
+      const right = operandWithValue(condition.right, observe);
+      return [{ text: `${left} ${t.rule.comparators[condition.comparator]} ${right}`, depth }];
+    }
     case "and":
       return depth === 0
-        ? condition.conditions.flatMap((child) => conditionLines(child, depth))
+        ? condition.conditions.flatMap((child) => conditionLines(child, depth, observe))
         : [
             { text: t.rule.and, depth },
-            ...condition.conditions.flatMap((child) => conditionLines(child, depth + 1)),
+            ...condition.conditions.flatMap((child) => conditionLines(child, depth + 1, observe)),
           ];
     case "or":
       return [
         { text: t.rule.or, depth },
-        ...condition.conditions.flatMap((child) => conditionLines(child, depth + 1)),
+        ...condition.conditions.flatMap((child) => conditionLines(child, depth + 1, observe)),
       ];
     case "not":
-      return [{ text: t.rule.not, depth }, ...conditionLines(condition.condition, depth + 1)];
+      return [
+        { text: t.rule.not, depth },
+        ...conditionLines(condition.condition, depth + 1, observe),
+      ];
   }
 }
 
