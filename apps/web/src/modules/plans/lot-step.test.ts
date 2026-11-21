@@ -1,7 +1,7 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
-import { clampLots, overRiskLimit, stepLots } from "./lot-step";
+import { clampLots, stepLots } from "./lot-step";
 import { MAX_LOTS_SEARCHED } from "./sizing";
 
 describe("clampLots", () => {
@@ -35,23 +35,5 @@ describe("stepLots", () => {
 
   it("refuses to step above the sizing cap", () => {
     expect(stepLots(MAX_LOTS_SEARCHED, 1)).toBe(MAX_LOTS_SEARCHED);
-  });
-});
-
-describe("overRiskLimit", () => {
-  it("is false under the limit", () => {
-    expect(overRiskLimit(10_000, 20_000)).toBe(false);
-  });
-
-  it("is true over the limit", () => {
-    expect(overRiskLimit(25_000, 20_000)).toBe(true);
-  });
-
-  it("is false exactly at the limit", () => {
-    expect(overRiskLimit(20_000, 20_000)).toBe(false);
-  });
-
-  it("treats an unbounded max loss as over any non-negative limit", () => {
-    expect(overRiskLimit("unbounded", 20_000)).toBe(true);
   });
 });

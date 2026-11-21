@@ -103,19 +103,19 @@ test("adjust a plan's strike with the keyboard buttons, see what changed, then s
   await expect(page.getByText("Nada mudou ainda.")).toBeHidden();
   await expect(page.getByRole("button", { name: "Voltar ao plano da Fetha" })).toBeVisible();
 
-  // Waits for the server's own reprice (ADR-0079 round 4: the client preview is never official)
-  // to land before saving, so the save button carries the edited plan's own fingerprint.
+  // Waits for the server's own reprice (ADR-0079: the client preview is never official) to land
+  // before saving, so the save button carries the edited plan's own fingerprint.
   await expect(page.getByText("Reprecificando...")).toHaveCount(0);
 
   await page.getByRole("button", { name: "Salvar plano" }).click();
   await expect(page.getByText("Plano salvo.")).toBeVisible();
 });
 
-// Ticket #380 (round 2): the handle itself lives on the payoff chart's own price axis, not only
-// in the ← → buttons tested above — `role="slider"` plus a per-leg `aria-label` (the buy and
-// sell legs of this spread get distinct labels, "Compra de call, strike" / "Venda de call,
-// strike", so `getByRole` is strict-mode-safe without `.first()`) makes it focusable and
-// operable by keyboard alone.
+// Ticket #380: the handle itself lives on the payoff chart's own price axis, not only in the
+// ← → buttons tested above — `role="slider"` plus a per-leg `aria-label` (the buy and sell legs
+// of this spread get distinct labels, "Compra de call, strike" / "Venda de call, strike", so
+// `getByRole` is strict-mode-safe without `.first()`) makes it focusable and operable by
+// keyboard alone.
 test("move a strike with the payoff chart's own handle, then see what changed and reset", async ({
   page,
   baseURL,
@@ -146,6 +146,70 @@ test("move a strike with the payoff chart's own handle, then see what changed an
 
   await page.getByRole("button", { name: "Voltar ao plano da Fetha" }).click();
   await expect(page.getByText("Nada mudou ainda.")).toBeVisible();
+});
+
+test("add a lot with the stepper, see what changed, then save", async ({
+  page,
+  baseURL,
+  request,
+}) => {
+  test.setTimeout(90_000);
+
+  await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
+
+  const seeded = await page.request.post("/api/e2e/seed-radar", {
+    headers: { "x-e2e-secret": e2eSecret ?? "" },
+  });
+  expect(seeded.status()).toBe(201);
+  const { suggestionId } = (await seeded.json()) as { suggestionId: string | null };
+  expect(suggestionId, "the engine should price the seeded spread").toBeTruthy();
+
+  await page.goto(`/planos/novo?sugestao=${suggestionId ?? ""}`);
+  await expect(page.getByRole("heading", { name: "Plano de operação" })).toBeVisible();
+  await expect(page.getByText("Nada mudou ainda.")).toBeVisible();
+
+  await page.getByRole("button", { name: "Um lote a mais" }).click();
+
+  await expect(page.getByText("Nada mudou ainda.")).toBeHidden();
+  await expect(page.getByText("Reprecificando...")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Salvar plano" }).click();
+  await expect(page.getByText("Plano salvo.")).toBeVisible();
+});
+
+test("move to a different expiry chip, see what changed, then save", async ({
+  page,
+  baseURL,
+  request,
+}) => {
+  test.setTimeout(90_000);
+
+  await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
+
+  const seeded = await page.request.post("/api/e2e/seed-radar", {
+    headers: { "x-e2e-secret": e2eSecret ?? "" },
+  });
+  expect(seeded.status()).toBe(201);
+  const { suggestionId } = (await seeded.json()) as { suggestionId: string | null };
+  expect(suggestionId, "the engine should price the seeded spread").toBeTruthy();
+
+  await page.goto(`/planos/novo?sugestao=${suggestionId ?? ""}`);
+  await expect(page.getByRole("heading", { name: "Plano de operação" })).toBeVisible();
+  await expect(page.getByText("Nada mudou ainda.")).toBeVisible();
+
+  const expiryLabel = page.getByText("Vencimento", { exact: true });
+  await expect(expiryLabel).toBeVisible();
+  const chips = page.locator("button", { hasText: /^\d{2}\/\d{2}\/\d{4}$/ });
+  const chipCount = await chips.count();
+  test.skip(chipCount < 2, "needs a second traded, in-window expiry to switch to");
+
+  await chips.nth(1).click();
+
+  await expect(page.getByText("Nada mudou ainda.")).toBeHidden();
+  await expect(page.getByText("Reprecificando...")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Salvar plano" }).click();
+  await expect(page.getByText("Plano salvo.")).toBeVisible();
 });
 
 test("build a plan from the asset page's own view question and see its orders", async ({

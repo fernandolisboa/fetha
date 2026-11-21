@@ -4,12 +4,15 @@ import { tickerSchema, type DecimalString, type SessionDate } from "@fetha/contr
 import type { PlanChainEntry } from "./chain-view";
 import {
   allStrikesFor,
+  boundedStrikes,
   indexOfTicker,
+  rankBoundsFor,
   remapToExpiry,
   selectableStrikes,
   stepStrike,
   tickerAtStrike,
 } from "./leg-strikes";
+import type { OptionLegTemplate } from "./template-legs";
 
 function entry(
   ticker: string,
@@ -110,6 +113,60 @@ describe("stepStrike", () => {
 
   it("returns null when there is nothing selectable", () => {
     expect(stepStrike([], tickerSchema.parse("PETRC034"), 1)).toBeNull();
+  });
+
+  it("returns null for a ticker not in the list, rather than stepping from the first one", () => {
+    expect(stepStrike(strikes, tickerSchema.parse("PETRC999"), 1)).toBeNull();
+  });
+});
+
+describe("boundedStrikes", () => {
+  const strikes = selectableStrikes(CHAIN, "call", EXPIRY_A);
+
+  it("drops a strike at or below the lower bound", () => {
+    const bounded = boundedStrikes(strikes, 34, null);
+    expect(bounded.map((entry) => entry.ticker)).toEqual(["PETRC036", "PETRC040"]);
+  });
+
+  it("drops a strike at or above the upper bound", () => {
+    const bounded = boundedStrikes(strikes, null, 40);
+    expect(bounded.map((entry) => entry.ticker)).toEqual(["PETRC034", "PETRC036"]);
+  });
+
+  it("keeps everything when both bounds are absent", () => {
+    expect(boundedStrikes(strikes, null, null)).toEqual(strikes);
+  });
+});
+
+describe("rankBoundsFor", () => {
+  const butterfly: OptionLegTemplate[] = [
+    { role: "call", side: "buy", ratio: 1, strikeRank: 1 },
+    { role: "call", side: "sell", ratio: 2, strikeRank: 2 },
+    { role: "call", side: "buy", ratio: 1, strikeRank: 3 },
+  ];
+  const currentStrikes = [34, 36, 38];
+
+  it("bounds the middle wing by its lower and upper neighbours' current strikes", () => {
+    const bounds = rankBoundsFor(butterfly, (index) => currentStrikes[index] ?? null);
+    expect(bounds[1]).toEqual({ lower: 34, upper: 38 });
+  });
+
+  it("leaves the lowest rank with no lower bound and the highest with no upper bound", () => {
+    const bounds = rankBoundsFor(butterfly, (index) => currentStrikes[index] ?? null);
+    expect(bounds[0]).toEqual({ lower: null, upper: 36 });
+    expect(bounds[2]).toEqual({ lower: 36, upper: null });
+  });
+
+  it("never bounds a leg against another leg sharing the same rank", () => {
+    const boxLikePair: OptionLegTemplate[] = [
+      { role: "call", side: "sell", ratio: 1, strikeRank: 2 },
+      { role: "put", side: "buy", ratio: 1, strikeRank: 2 },
+    ];
+    const bounds = rankBoundsFor(boxLikePair, (index) => (index === 0 ? 38 : 38));
+    expect(bounds).toEqual([
+      { lower: null, upper: null },
+      { lower: null, upper: null },
+    ]);
   });
 });
 

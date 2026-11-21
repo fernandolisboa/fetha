@@ -17,7 +17,7 @@ describe("diffPlans", () => {
     expect(changes).toEqual([{ kind: "lots", from: 2, to: 3 }]);
   });
 
-  it("reports a leg's ticker change by role and side, not position", () => {
+  it("reports a leg's ticker change by its template position, not role and side", () => {
     const original: PlanSnapshot = {
       lots: 1,
       legs: [
@@ -28,12 +28,36 @@ describe("diffPlans", () => {
     const edited: PlanSnapshot = {
       lots: 1,
       legs: [
-        { role: "call", side: "sell", ticker: "PETRC115" },
         { role: "call", side: "buy", ticker: "PETRC100" },
+        { role: "call", side: "sell", ticker: "PETRC115" },
       ],
     };
     expect(diffPlans(original, edited)).toEqual([
       { kind: "leg", role: "call", side: "sell", from: "PETRC110", to: "PETRC115" },
+    ]);
+  });
+
+  it("tells apart two legs sharing the same role and side by their own template position", () => {
+    // A call-butterfly's two buy-call wings (ticket #380, blocking item 3): same role, same
+    // side, same strikeRank-adjacent pricing, but distinct template positions.
+    const original: PlanSnapshot = {
+      lots: 1,
+      legs: [
+        { role: "call", side: "buy", ticker: "PETRC034" },
+        { role: "call", side: "sell", ticker: "PETRC036" },
+        { role: "call", side: "buy", ticker: "PETRC038" },
+      ],
+    };
+    const edited: PlanSnapshot = {
+      lots: 1,
+      legs: [
+        { role: "call", side: "buy", ticker: "PETRC034" },
+        { role: "call", side: "sell", ticker: "PETRC036" },
+        { role: "call", side: "buy", ticker: "PETRC040" },
+      ],
+    };
+    expect(diffPlans(original, edited)).toEqual([
+      { kind: "leg", role: "call", side: "buy", from: "PETRC038", to: "PETRC040" },
     ]);
   });
 

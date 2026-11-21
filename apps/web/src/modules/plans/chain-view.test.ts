@@ -1,8 +1,27 @@
 import { describe, expect, it } from "vitest";
 import { tickerSchema, type DecimalString, type SessionDate } from "@fetha/contracts";
-import type { MarketView, OptionSeries } from "@fetha/engine";
+import type { MarketView, OptionSeries, TradingSession } from "@fetha/engine";
 
 import { chainFromMonthlyView, expiryOptionsFrom } from "./chain-view";
+import { PLAN_MAX_SESSIONS_AHEAD, PLAN_MIN_SESSIONS_AHEAD } from "./plan-selection";
+
+// A calendar long enough to carry the plan's own 20-50-session window past any of this test's
+// own expiries (`expiryOptionsFrom` now refuses a chip outside it, round 4 review item 7):
+// one session per calendar day starting at the anchor itself, so `session + N` days is always
+// exactly `N` sessions ahead of it.
+function windowedCalendar(anchor: string, days: number): TradingSession[] {
+  const start = new Date(`${anchor}T00:00:00.000Z`);
+  return Array.from({ length: days }, (_, index) => {
+    const date = new Date(start);
+    date.setUTCDate(date.getUTCDate() + index);
+    const iso = date.toISOString().slice(0, 10);
+    return {
+      date: iso,
+      open: `${iso}T13:00:00.000Z`,
+      close: `${iso}T20:00:00.000Z`,
+    };
+  });
+}
 
 const UNDERLYING = tickerSchema.parse("PETR4");
 
@@ -87,39 +106,59 @@ describe("chainFromMonthlyView", () => {
   });
 });
 
+function dateAt(calendar: readonly TradingSession[], index: number): SessionDate {
+  const session = calendar[index];
+  if (!session) throw new Error(`fixture index ${String(index)} is out of bounds`);
+  return session.date;
+}
+
 describe("expiryOptionsFrom", () => {
-  it("lists only traded, upcoming expiries, nearest first", () => {
+  const CALENDAR = windowedCalendar("2027-01-02", 70);
+  const ANCHOR = dateAt(CALENDAR, 0);
+  const withinWindowA = dateAt(CALENDAR, PLAN_MIN_SESSIONS_AHEAD);
+  const withinWindowB = dateAt(CALENDAR, PLAN_MIN_SESSIONS_AHEAD + 15);
+  const tooNear = dateAt(CALENDAR, PLAN_MIN_SESSIONS_AHEAD - 1);
+  const tooFar = dateAt(CALENDAR, PLAN_MAX_SESSIONS_AHEAD + 1);
+
+  it("lists only traded expiries inside the plan's own window, nearest first", () => {
     const chain = [
       {
         ticker: tickerSchema.parse("PETRC001"),
         right: "call" as const,
         strike: decimal("36"),
-        expiry: "2027-02-19",
+        expiry: withinWindowB,
         traded: true,
       },
       {
         ticker: tickerSchema.parse("PETRC002"),
         right: "call" as const,
         strike: decimal("36"),
-        expiry: "2027-01-15",
+        expiry: withinWindowA,
         traded: true,
       },
       {
         ticker: tickerSchema.parse("PETRC003"),
         right: "call" as const,
         strike: decimal("36"),
-        expiry: "2026-12-18",
+        expiry: tooNear,
         traded: true,
       },
       {
         ticker: tickerSchema.parse("PETRC004"),
         right: "call" as const,
         strike: decimal("40"),
-        expiry: "2027-03-19",
+        expiry: tooFar,
+        traded: true,
+      },
+      {
+        ticker: tickerSchema.parse("PETRC005"),
+        right: "call" as const,
+        strike: decimal("40"),
+        expiry: withinWindowB,
         traded: false,
       },
     ];
-    expect(expiryOptionsFrom(chain, "2027-01-02")).toEqual(["2027-01-15", "2027-02-19"]);
+    expect(expiryOptionsFrom(chain, ANCHOR, CALENDAR)).toEqual([withinWindowA, withinWindowB]);
   });
 
   it("caps the chip list at six expiries", () => {
@@ -127,9 +166,9 @@ describe("expiryOptionsFrom", () => {
       ticker: tickerSchema.parse(`PETRC0${String(index)}`),
       right: "call" as const,
       strike: decimal("36"),
-      expiry: `2027-0${String((index % 9) + 1)}-15`,
+      expiry: dateAt(CALENDAR, PLAN_MIN_SESSIONS_AHEAD + index),
       traded: true,
     }));
-    expect(expiryOptionsFrom(chain, "2027-01-01")).toHaveLength(6);
+    expect(expiryOptionsFrom(chain, ANCHOR, CALENDAR)).toHaveLength(6);
   });
 });

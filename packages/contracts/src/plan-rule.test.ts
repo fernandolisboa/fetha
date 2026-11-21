@@ -21,14 +21,15 @@ function baseRules() {
 describe("planRulesSchema", () => {
   it("accepts rules with the plan's own original legs and lots", () => {
     const parsed = planRulesSchema.parse(baseRules());
-    expect(parsed.original.lots).toBe(1);
-    expect(parsed.original.legs).toHaveLength(1);
+    expect(parsed.original?.lots).toBe(1);
+    expect(parsed.original?.legs).toHaveLength(1);
   });
 
-  it("rejects rules missing the original side (ticket #380: scoring needs both sides)", () => {
+  it("accepts rules with no original (a plan saved before ticket #380 shipped)", () => {
     const withoutOriginal: Record<string, unknown> = baseRules();
     delete withoutOriginal.original;
-    expect(() => planRulesSchema.parse(withoutOriginal)).toThrow();
+    const parsed = planRulesSchema.parse(withoutOriginal);
+    expect(parsed.original).toBeUndefined();
   });
 
   it("rejects an original with no legs", () => {

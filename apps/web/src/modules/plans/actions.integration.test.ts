@@ -40,12 +40,27 @@ vi.mock("@/modules/audit", async () => {
   return { ...actual, recordAccess: () => Promise.resolve() };
 });
 
+function sessionRow(date: string): { date: string; open: Date; close: Date } {
+  return {
+    date,
+    open: new Date(`${date}T13:00:00.000Z`),
+    close: new Date(`${date}T20:00:00.000Z`),
+  };
+}
+
+// A calendar long enough for the plan's own 20-50-session window check (round 4 review item 7)
+// to have something real to count against: the anchor session at index 0, "2027-01-05" just
+// inside index 3 (too near for the window-refusal test below), filler sessions in between, and
+// "2027-01-15" (every fixture's own expiry) landing at index 25 — inside the window.
 const CALENDAR = [
-  {
-    date: "2027-01-15",
-    open: new Date("2027-01-15T13:00:00.000Z"),
-    close: new Date("2027-01-15T20:00:00.000Z"),
-  },
+  sessionRow("2027-01-02"),
+  ...Array.from({ length: 2 }, (_, index) => sessionRow(`2027-01-02-filler-near-${String(index)}`)),
+  sessionRow("2027-01-05"),
+  ...Array.from({ length: 21 }, (_, index) => sessionRow(`2027-01-02-filler-${String(index)}`)),
+  sessionRow("2027-01-15"),
+  // A second, real B3 monthly expiry (the third Friday of February 2027) for the mixed-expiry
+  // test below: a different month's own listed series, not just an unlisted ticker.
+  sessionRow("2027-02-19"),
 ];
 const SERIES_ASOF = "2020-01-01T00:00:00.000Z";
 
@@ -54,6 +69,10 @@ const SERIES_ASOF = "2020-01-01T00:00:00.000Z";
 // entry, but `latestCandle` can point at an earlier one, and `tradingSessionForDate` echoes
 // back whichever date it is asked to resolve — the same session a candle names.
 let candleSession = "2027-01-02";
+// Overrides the calendar for one test at a time (the expiry-outside-the-window case below):
+// a two-session calendar puts "2027-01-15" only one session ahead of the anchor, well under the
+// plan's own 20-session minimum, without disturbing every other test's own 25-session distance.
+let calendarOverride: typeof CALENDAR | null = null;
 
 vi.mock("@/modules/market-data", async () => {
   const actual =
@@ -62,7 +81,7 @@ vi.mock("@/modules/market-data", async () => {
     ...actual,
     buildOperationMarketView: () =>
       Promise.resolve({
-        calendar: CALENDAR,
+        calendar: calendarOverride ?? CALENDAR,
         candles: [],
         corporateActions: [],
         optionSeries: [
@@ -96,6 +115,26 @@ vi.mock("@/modules/market-data", async () => {
             style: "european",
             asOf: SERIES_ASOF,
           },
+          // A put at the same strike as PETR4K36 (the role-mismatch test below) and a call of a
+          // different, real monthly expiry (the mixed-expiry test below).
+          {
+            ticker: "PETR4P36",
+            underlying: "PETR4",
+            right: "put",
+            strike: "36.000000",
+            expiry: "2027-01-15",
+            style: "european",
+            asOf: SERIES_ASOF,
+          },
+          {
+            ticker: "PETR4K36FEB",
+            underlying: "PETR4",
+            right: "call",
+            strike: "36.000000",
+            expiry: "2027-02-19",
+            style: "european",
+            asOf: SERIES_ASOF,
+          },
         ],
         optionPrices: [
           {
@@ -122,6 +161,24 @@ vi.mock("@/modules/market-data", async () => {
             asOf: `${candleSession}T20:00:00.000Z`,
             average: "0.400000",
             close: "0.400000",
+            trades: 10,
+            tradedQuantity: 1000,
+          },
+          {
+            ticker: "PETR4P36",
+            session: candleSession,
+            asOf: `${candleSession}T20:00:00.000Z`,
+            average: "1.200000",
+            close: "1.200000",
+            trades: 10,
+            tradedQuantity: 1000,
+          },
+          {
+            ticker: "PETR4K36FEB",
+            session: candleSession,
+            asOf: `${candleSession}T20:00:00.000Z`,
+            average: "2.000000",
+            close: "2.000000",
             trades: 10,
             tradedQuantity: 1000,
           },
@@ -321,6 +378,7 @@ afterEach(async () => {
   currentUser = null;
   priceOperationCalls.splice(0);
   candleSession = "2027-01-02";
+  calendarOverride = null;
   const db = getDb();
   for (const email of createdEmails.splice(0)) {
     await deleteTestUser(db, email);
@@ -400,10 +458,7 @@ describe("adjustPlanAction", () => {
       kind: "view",
       underlying: "PETR4",
       view: "up",
-      legs: [
-        { role: "call", side: "buy", ticker: "PETR4K36" },
-        { role: "call", side: "sell", ticker: "PETR4K40" },
-      ],
+      legs: [{ ticker: "PETR4K36" }, { ticker: "PETR4K40" }],
       lots: built.plan.lots,
     });
 
@@ -411,6 +466,162 @@ describe("adjustPlanAction", () => {
     if (edited.status !== "ok") return;
     expect(edited.plan.legs.map(({ leg }) => leg.ticker).sort()).toEqual(["PETR4K36", "PETR4K40"]);
     expect(edited.plan.lots).toBe(built.plan.lots);
+  });
+
+  // The structure's own template is rebuilt wholesale from the user's listed tickers (round 4
+  // review, blocking item 2): a call-butterfly's middle (sold, ratio 2) leg must keep its own
+  // ratio under every edit, never collapse to a flat `lots * 100`.
+  it("rebuilds a call-butterfly's legs from the structure's own ratio, giving 200/400/200 at two lots", async () => {
+    const email = uniqueEmail("butterfly-ratio");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+
+    const edited = await adjustPlanAction({
+      kind: "view",
+      underlying: "PETR4",
+      view: "sideways",
+      legs: [{ ticker: "PETR4K36" }, { ticker: "PETR4K38" }, { ticker: "PETR4K40" }],
+      lots: 2,
+    });
+
+    expect(edited.status).toBe("ok");
+    if (edited.status !== "ok") return;
+    expect(edited.plan.structureId).toBe("call-butterfly");
+    expect(edited.plan.legs.map(({ leg }) => leg.quantity)).toEqual([200, 400, 200]);
+    expect(edited.plan.maxGainCentavos).not.toBe("unbounded");
+  });
+
+  it("moves only the stepped wing when one leg of a call-butterfly is edited", async () => {
+    const email = uniqueEmail("butterfly-wing");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+
+    const edited = await adjustPlanAction({
+      kind: "view",
+      underlying: "PETR4",
+      view: "sideways",
+      legs: [{ ticker: "PETR4K36" }, { ticker: "PETR4K38" }, { ticker: "PETR4K40" }],
+      lots: 1,
+    });
+    expect(edited.status).toBe("ok");
+    if (edited.status !== "ok") return;
+    expect(edited.plan.legs.map(({ leg }) => leg.ticker)).toEqual([
+      "PETR4K36",
+      "PETR4K38",
+      "PETR4K40",
+    ]);
+
+    // Only the lowest wing moved; the sold middle leg and the upper wing's own tickers are
+    // untouched.
+    expect(edited.plan.legs[1]?.leg.ticker).toBe("PETR4K38");
+    expect(edited.plan.legs[2]?.leg.ticker).toBe("PETR4K40");
+  });
+
+  it("refuses equal strikes across adjacent ranks with invalid_adjustment", async () => {
+    const email = uniqueEmail("equal-strikes");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+
+    const edited = await adjustPlanAction({
+      kind: "view",
+      underlying: "PETR4",
+      view: "up",
+      legs: [{ ticker: "PETR4K36" }, { ticker: "PETR4K36" }],
+      lots: 1,
+    });
+    expect(edited).toEqual({ status: "error", error: "invalid_adjustment" });
+  });
+
+  it("refuses inverted strikes with invalid_adjustment", async () => {
+    const email = uniqueEmail("inverted-strikes");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+
+    const edited = await adjustPlanAction({
+      kind: "view",
+      underlying: "PETR4",
+      view: "up",
+      legs: [{ ticker: "PETR4K40" }, { ticker: "PETR4K36" }],
+      lots: 1,
+    });
+    expect(edited).toEqual({ status: "error", error: "invalid_adjustment" });
+  });
+
+  it("refuses a mixed-expiry edit with invalid_adjustment", async () => {
+    const email = uniqueEmail("mixed-expiry");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+
+    const edited = await adjustPlanAction({
+      kind: "view",
+      underlying: "PETR4",
+      view: "up",
+      // PETR4K36FEB is a real, traded, monthly-listed call, but at February's own expiry.
+      legs: [{ ticker: "PETR4K36" }, { ticker: "PETR4K36FEB" }],
+      lots: 1,
+    });
+    expect(edited).toEqual({ status: "error", error: "invalid_adjustment" });
+  });
+
+  it("refuses the wrong leg count with invalid_adjustment", async () => {
+    const email = uniqueEmail("wrong-count");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+
+    const edited = await adjustPlanAction({
+      kind: "view",
+      underlying: "PETR4",
+      view: "up",
+      legs: [{ ticker: "PETR4K36" }],
+      lots: 1,
+    });
+    expect(edited).toEqual({ status: "error", error: "invalid_adjustment" });
+  });
+
+  it("refuses a leg whose listed right does not match the template's role, with invalid_adjustment", async () => {
+    const email = uniqueEmail("role-mismatch");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+
+    const edited = await adjustPlanAction({
+      kind: "view",
+      underlying: "PETR4",
+      view: "up",
+      legs: [{ ticker: "PETR4P36" }, { ticker: "PETR4K40" }],
+      lots: 1,
+    });
+    expect(edited).toEqual({ status: "error", error: "invalid_adjustment" });
+  });
+
+  it("refuses lots above MAX_LOTS_SEARCHED with invalid_adjustment", async () => {
+    const email = uniqueEmail("lots-cap");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+
+    const edited = await adjustPlanAction({
+      kind: "view",
+      underlying: "PETR4",
+      view: "up",
+      legs: [{ ticker: "PETR4K36" }, { ticker: "PETR4K40" }],
+      lots: 51,
+    });
+    expect(edited).toEqual({ status: "error", error: "invalid_adjustment" });
+  });
+
+  it("refuses an expiry outside the plan's 20-50-session window with invalid_adjustment", async () => {
+    const email = uniqueEmail("outside-window");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+    calendarOverride = [sessionRow("2027-01-02"), sessionRow("2027-01-15")];
+
+    const edited = await adjustPlanAction({
+      kind: "view",
+      underlying: "PETR4",
+      view: "up",
+      legs: [{ ticker: "PETR4K36" }, { ticker: "PETR4K40" }],
+      lots: 1,
+    });
+    expect(edited).toEqual({ status: "error", error: "invalid_adjustment" });
   });
 });
 
@@ -460,10 +671,7 @@ describe("savePlanAction", () => {
     if (built.status !== "ok") return;
     const fethaLegs = built.plan.legs.map(({ leg }) => leg.ticker).sort();
 
-    const editedLegs = [
-      { role: "call" as const, side: "buy" as const, ticker: "PETR4K36" },
-      { role: "call" as const, side: "sell" as const, ticker: "PETR4K40" },
-    ];
+    const editedLegs = [{ ticker: "PETR4K36" }, { ticker: "PETR4K40" }];
     const edited = await adjustPlanAction({
       kind: "view",
       underlying: "PETR4",
@@ -490,7 +698,7 @@ describe("savePlanAction", () => {
 
     const planRulesRepo = new PlanRulesRepository(getDb(), currentUser);
     const rules = await planRulesRepo.findByOperation(saved.operationId);
-    expect(rules?.rules.original.legs.map((leg) => leg.ticker).sort()).toEqual(fethaLegs);
+    expect(rules?.rules.original?.legs.map((leg) => leg.ticker).sort()).toEqual(fethaLegs);
   });
 
   it("rejects the save when the plan changed since the user reviewed it", async () => {
