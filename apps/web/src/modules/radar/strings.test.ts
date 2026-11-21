@@ -1,20 +1,23 @@
 import { describe, expect, it } from "vitest";
-
-import { recipes } from "@/modules/strategies";
+import { expectedMoves } from "@fetha/contracts";
 
 import { radarStrings } from "./strings";
 
 describe("radar strings", () => {
-  it("has a direct-voice headline for every recipe in both locales", () => {
+  it("names the structure and the ticker in both locales", () => {
     for (const locale of [radarStrings.en, radarStrings.ptBR]) {
-      const headlines: Partial<Record<string, (ticker: string) => string>> =
-        locale.suggestions.headline;
-      for (const recipe of recipes) {
-        expect(headlines[recipe.id]?.("PETR4")).toContain("PETR4");
+      expect(locale.suggestions.cardTitle("Borboleta com calls", "PETR4")).toContain("PETR4");
+    }
+    expect(radarStrings.ptBR.suggestions.cardTitle("Borboleta com calls", "PETR4")).toBe(
+      "Borboleta com calls em PETR4",
+    );
+  });
+
+  it("has a bet label for every expected move in both locales", () => {
+    for (const locale of [radarStrings.en, radarStrings.ptBR]) {
+      for (const move of expectedMoves) {
+        expect(locale.suggestions.bet[move]).toBeTruthy();
       }
     }
-    expect(radarStrings.ptBR.suggestions.headline["bull-call-spread-low-iv"]("PETR4")).toBe(
-      "Uma trava de alta com calls em PETR4 cabe agora.",
-    );
   });
 });

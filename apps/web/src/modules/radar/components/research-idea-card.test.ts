@@ -109,8 +109,11 @@ describe("ResearchIdeaCard", () => {
 
     expect(html).toContain("Trava de alta com calls em PETR4");
     expect(html).toContain("O radar achou no fechamento de 21/10/2026.");
-    expect(html).toContain("100 ×");
-    expect(html).toContain("−R$ 70,00");
+    expect(html).toContain("Compra call");
+    expect(html).toContain("PETRK385");
+    expect(html).toContain(
+      "Você paga R$ 70,00 e ganha se PETR4 fechar acima de R$ 39,20 em 20/11/2026, até R$ 130,00. Abaixo disso, perde até os R$ 70,00 que pagou.",
+    );
     expect(html).toContain("Vence em 20/11/2026, daqui a 20 pregões");
     expect(html).toContain('href="/sugestoes/abc"');
     expect(html).toContain('href="/ativos/PETR4"');
@@ -148,12 +151,6 @@ describe("ResearchIdeaCard", () => {
     expect(html).toContain('data-testid="risk-notice"');
     expect(html).not.toContain('role="alert"');
     expect(html).toContain("4%");
-  });
-
-  it("keeps each break-even in one piece", () => {
-    const html = render(idea({ breakEvens: [decimal("11.48"), decimal("11.52")] }));
-
-    expect(html).toContain('<span class="whitespace-nowrap">R$ 11,48</span> / <span');
   });
 
   it("marks a card whose rule stopped holding with the warning border", () => {

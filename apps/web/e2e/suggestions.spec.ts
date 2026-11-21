@@ -6,7 +6,7 @@ import { registerAndSignIn } from "./helpers";
 // files PETR4 under the bull call spread recipe at its newest close, with the suggestion the
 // engine prices for one lot of it (docs/adr/0067).
 const e2eSecret = process.env.E2E_SECRET;
-const HEADLINE = "Uma trava de alta com calls em PETR4 cabe agora.";
+const HEADLINE = "Trava de alta com calls em PETR4";
 const RATIONALE = "Sugestão do Fetha seguida no teste de ponta a ponta";
 
 test.skip(!e2eSecret, "E2E_SECRET is not set; skipping the suggestions flow.");
@@ -31,7 +31,8 @@ test("see today's suggestion, open its recipe and record a decision on it", asyn
   const panel = page.getByTestId("today-suggestions");
   const card = panel.getByRole("article", { name: HEADLINE });
   await expect(card).toBeVisible();
-  await expect(card.getByRole("list", { name: "O lote" })).toContainText("100 ×");
+  await expect(card.getByRole("table")).toContainText("100");
+  await card.getByRole("button", { name: "Detalhes" }).click();
   await expect(card.getByText(/^A tese: /)).toBeVisible();
 
   // The engine's payoff at expiry beside the numbers; the read-out snaps to its own samples.

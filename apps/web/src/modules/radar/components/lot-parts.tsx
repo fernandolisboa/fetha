@@ -1,30 +1,14 @@
 import type { ReactNode } from "react";
-import { decimalStringSchema, type Centavos } from "@fetha/contracts";
-
-import { formatBRL, formatPriceBRL } from "@/lib/format/brl";
-import { formatDecimal } from "@/lib/format/decimal";
-
-import type { LotLeg } from "../lot-legs";
-import { t } from "../strings";
-import { legText } from "./radar-facts";
-
-export function lotLegText(leg: LotLeg): string {
-  const quantity = formatDecimal(decimalStringSchema.parse(String(leg.quantity)), 0);
-  return `${quantity} × ${legText(leg)} · ${t.suggestions.legPrice(formatPriceBRL(leg.price))}`;
-}
-
-// DESIGN.md's money convention, as the builder's StatBlocks: a credit reads "+ R$".
-export function netPremiumText(value: Centavos): string {
-  return value > 0 ? `+ ${formatBRL(value)}` : formatBRL(value);
-}
 
 export function Figure({
   label,
   value,
+  hint,
   token,
 }: {
   label: string;
   value: ReactNode;
+  hint?: string;
   token?: string;
 }) {
   return (
@@ -36,6 +20,7 @@ export function Figure({
       >
         {value}
       </dd>
+      {hint && <span className="text-faint text-[11px]">{hint}</span>}
     </div>
   );
 }
