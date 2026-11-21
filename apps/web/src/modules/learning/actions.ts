@@ -40,6 +40,16 @@ export async function submitLessonQuizAction(input: {
   lessonId: string;
   answers: { questionId: string; optionId: string }[];
 }): Promise<SubmitLessonQuizResult> {
+  const user = await withAuthenticatedAction(() => requireUser());
+  try {
+    await enforceAccountRateLimit(getDb(), user.email, "learning/submit-quiz", SUBMIT_RATE_LIMIT);
+  } catch (error) {
+    if (error instanceof AccountRateLimitExceededError) {
+      return { status: "error", error: "rate_limited" };
+    }
+    throw error;
+  }
+
   const parsed = submitInputSchema.safeParse(input);
   if (!parsed.success) {
     return { status: "error", error: "invalid" };
@@ -51,16 +61,6 @@ export async function submitLessonQuizAction(input: {
   }
   if (!answersMatchLessonQuestions(lesson, parsed.data.answers)) {
     return { status: "error", error: "invalid" };
-  }
-
-  const user = await withAuthenticatedAction(() => requireUser());
-  try {
-    await enforceAccountRateLimit(getDb(), user.email, "learning/submit-quiz", SUBMIT_RATE_LIMIT);
-  } catch (error) {
-    if (error instanceof AccountRateLimitExceededError) {
-      return { status: "error", error: "rate_limited" };
-    }
-    throw error;
   }
 
   const examples = await loadIllustrativeExamples();
