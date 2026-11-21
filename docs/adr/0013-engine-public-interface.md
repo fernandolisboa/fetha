@@ -80,7 +80,7 @@ import type {
   Timeframe,
 } from "@fetha/contracts";
 
-export const ENGINE_VERSION = "0.19.0";
+export const ENGINE_VERSION = "0.20.0";
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: EngineError };
 
@@ -154,7 +154,12 @@ export type NoteCode =
   | "option_strike_derived_across_corporate_action"
   | "candle_less_sessions_excluded"
   | "warm_up_sessions_excluded"
-  | "adjustment_not_applied";
+  // Retired by #383: a stored `backtest_runs` row from before 0.20.0 can still carry this code
+  // (ADR-0013's #383 addendum), so it stays parseable; `runBacktest` never emits it from 0.20.0
+  // on, having replaced it with the narrower `roll_no_series_match` below.
+  | "adjustment_not_applied"
+  | "roll_no_series_match"
+  | "roll_refused_limit_breach";
 export const noteCodes = [
   "european_pricing",
   "dividend_yield_defaulted",
@@ -185,6 +190,8 @@ export const noteCodes = [
   "candle_less_sessions_excluded",
   "warm_up_sessions_excluded",
   "adjustment_not_applied",
+  "roll_no_series_match",
+  "roll_refused_limit_breach",
 ] as const satisfies readonly NoteCode[];
 
 export type Note = { code: NoteCode; message: string };
@@ -3388,3 +3395,135 @@ goldens carries an `adjustments` rule, so none of their `notes` arrays gains the
 still change by `ENGINE_VERSION` alone, `"0.18.0"` to `"0.19.0"`, same as every prior version-only
 addendum above). A run whose strategy does declare one now carries one more note than it used to:
 the only persisted-artifact shape change this addendum makes.
+
+## Addendum: `runBacktest` executes `roll`; `ENGINE_VERSION` bumped to `0.20.0` (2026-11-21, #383, part 7 of #376)
+
+The #377 addendum above made the gap visible; this one closes it. `runBacktest` now reads a roll
+rule's own `when`/`expiry`/`strikes` fields (`AdjustmentRule`, already shipped by the contracts
+schema — nothing here needed a new field on it) the same way it already reads an exit rule's:
+evaluated per open operation, per session, against that session's own visible data. Firing closes
+the operation (fills, costs, slippage, B3 fees, exactly the path an exit already takes) and opens a
+new one at the series `resolveLegSelection` picks for the rule's `expiry`/`strikes` at that same
+session, using the strategy's structure for role/side/ratio — the same function and the same
+leg-selection rule the strategy's own entry already uses, just pointed at the roll rule's own
+selection instead of the definition's. The closed operation's `closeReason` is
+`{ kind: "rolled", toOperationId }`; the new operation's `rolledFrom` is the closed operation's id.
+Both fields were already part of `Operation`/`CloseReason` (added, unused, by #377 part 1) —
+reserved exactly for this.
+
+- **`evaluateStrategy` itself now emits `adjust` signals, not just `runBacktest`'s own report.**
+  A roll rule's `when` is evaluated by `evaluateStrategy` for every open operation passed to it,
+  the same per-session, per-operation evaluation its exit rules already get; firing produces a
+  `Signal` of kind `"adjust"` carrying the resolved successor's legs, the same shape an `"entry"`
+  signal's own `proposal` already takes. `runBacktest` is simply the first caller that acts on it
+  by actually filling the roll; the inbox-facing signal exists independently of that, the same way
+  an `"exit"` signal already does.
+- **Target resolution mirrors ADR-0080, not the real-portfolio roll it describes.** ADR-0080 rolls
+  a real position leg by leg to the next monthly expiry, nearest strike, by hand. A backtested
+  roll has no hand on it: it resolves the new legs by calling `resolveLegSelection` with the roll
+  rule's own `expiry`/`strikes`, the same call `evaluateStrategy`'s entry path and its exit-rule
+  bases already make for the strategy's own `strikes`/`expiry` fields. Same right, same side, same
+  ratio per leg, because the structure is unchanged by a roll — only the series each option leg
+  resolves to changes. A stock leg is never closed or reopened by a roll; it carries forward with
+  its cost basis and quantity rebased by whatever corporate-action factor applies between the two
+  sessions (the same rebasing convention every other stale-leg carry-forward in this engine already
+  uses, ADR-0014 Q51), exactly as ADR-0080 already states for the manual case. If no series matches
+  the rule's own selection at that session (an empty expiry window, or every candidate collapsing
+  onto a degenerate strike), the operation is held without rolling and the run carries a new note,
+  `roll_no_series_match` (`ROLL_NO_SERIES_MATCH_NOTE`) — never a silent skip, never a hard refusal;
+  `runBacktest` still produces a valid run of the declared structure, same as the #377 addendum's
+  own "held as is" reading of a roll gap.
+- **A rolled-into operation's exit-rule bases are its own entry, not inherited from the operation
+  it replaced (ADR-0014 Q50 extended).** The new operation is primed through the same entry-fill
+  path as any other open; its `profit_target`/`stop_loss` bases are computed against its own entry
+  price the first time an exit rule reads them, never against the closed operation's. A roll is a
+  fresh position economically (a new series, usually a new strike), so a base carried over from the
+  old one would compare today's premium against a price that was never paid for what is now held.
+  The carried-forward stock leg is the one deliberate exception: its own cost basis moves into the
+  successor's `entryCosts` unchanged, not reset to zero, because the
+  covered call's stock leg never actually re-entered — a profit_target or stop_loss on the
+  successor still measures against the whole position's own combined basis, stock and option leg
+  together, the same single-position reading ADR-0080 already gives a hand-rolled covered call.
+- **Roll beats settlement when both are live on the same session; otherwise settlement wins.** A
+  roll's own `when` (typically `days_before_expiry`) fires before expiry by construction, so in the
+  ordinary case there is nothing left to settle once it fires — the operation is already closed and
+  reopened days before its series would ever reach expiry. The two can still coincide at the edges:
+  a `when` that fires at `businessDays: 1` queues a roll on the session right before expiry, whose
+  fill attempt (`resolvePendingRollFills`) then lands on the expiry session itself, immediately
+  after pending exits and strictly before expiring operations are settled
+  (`resolveExpiringOperations`) — the same ordering the loop already gives exits over settlement,
+  so the roll wins the race and the operation never reaches settlement at all. A `when` of
+  `businessDays: 0`, by contrast, never races anything: `queueNextSignals` (where a roll's own
+  `when` is ever evaluated) runs after `resolveExpiringOperations` within the same session, so an
+  operation whose series expires that same session is already gone from `openOperations` by the
+  time a `businessDays: 0` rule would have fired for it — settlement wins by construction, not by
+  resolving a tie. A rule that never fires before its own series actually expires settles the same
+  way, for the unrelated reason that no pending roll was ever queued for it to fill.
+- **`capabilities().adjustmentRules` now reports `roll`; `unsupportedAdjustmentRuleKinds` is empty.**
+  `implementedAdjustmentRuleKinds`/`unsupportedAdjustmentRuleKinds` in `vocabularies.ts` follow the
+  same split `implementedExitRuleKinds`/`unsupportedExitRuleKinds` already established, and the
+  same conformance test (`capabilities.conformance.test.ts`) now asserts the adjustment pair
+  together covers every `AdjustmentRule["kind"]` the contracts schema declares, exactly as it
+  already does for exit rules.
+- **`NoteCode` gains `roll_no_series_match` and `roll_refused_limit_breach`, and retires
+  `adjustment_not_applied`.** The #377 note had no reason to keep firing once `runBacktest`
+  actually executes a roll when one is possible; keeping it emitted would have meant two codes
+  answering the same "was my roll rule honored" question, one of them now almost always
+  misleading. It is retired, not dropped: `runBacktest` never emits it from `0.20.0` on, but the
+  code stays in `NoteCode`/`noteCodes` (the frozen block's own comment on it) so a `backtest_runs`
+  row persisted before this version still parses — the additive path the change policy already
+  gives a shape nothing stops emitting outright but stops being the shape new rows take.
+  `roll_no_series_match` is strictly narrower: it fires only for the two gaps rolling itself
+  cannot paper over — an empty selection, or a corporate-action factor that groups a leg below
+  one effective unit (the next bullet) — at the session the rule's `when` fired, the same shape
+  every other partial, non-fatal gap in this file already degrades to a note for.
+- **A grouping that leaves a leg under one effective unit holds the operation without rolling,
+  never `invalid_input`.** Checked for every leg (stock or option) at both the signal
+  (`evaluateStrategy`'s own `resolveRollTarget`) and the fill (`runBacktest`'s
+  `resolvePendingRollFills`, before either loop that would otherwise start moving cash for the
+  close or the open): a factor this aggressive is not a corrupt factor, only one too aggressive
+  for this leg's own size to survive a roll, the same `roll_no_series_match` degrade an empty
+  selection already gets, never a path naming `openOperations[?]`, which a backtest's own pending
+  roll never actually has. `invalid_input` stays reserved for a genuinely corrupt factor — one
+  that overflows a safe integer or a safe centavos amount outright, not merely one that rounds a
+  leg to zero.
+  `roll_refused_limit_breach` (`ROLL_REFUSED_LIMIT_BREACH_NOTE`) is new for this addendum too: under
+  `limits: "enforce"`, a roll whose successor would breach the risk profile is refused the same way
+  an entry already is, and the held operation carries this note rather than rolling into a breach
+  (ADR-0014 Q39 extended, below). The breach itself is checkpointed on the pending roll, not only on
+  the run-wide note: `PendingRoll.limitBreaches: LimitBreach[]` carries the successor's own breaches
+  (same shape a pending entry's `limitBreaches` already does) from the signal that queued the roll
+  through to the fill that actually rolls onto `BacktestRun.limitBreaches` with the fill's own
+  session and ticker, the same two-step roll a pending entry's own breach already takes.
+- **The enforce check runs at the signal that queues the roll, not at the fill that executes it**,
+  matching a pending entry's own breach check. A risk profile is read off the
+  session the roll's `when` fires, against that session's own equity; if the operation's own equity
+  or the underlying's price has moved by the fill session, the successor's actual fill is never
+  re-checked against the risk profile a second time — the same timing a pending entry's own
+  `limit_breach` refusal already has (`queueNextSignals` above, not `resolvePendingEntryFills`).
+- **A roll's own `expiry` window excludes the held operation's current expiry.**
+  `resolveRollTarget` filters `view.optionSeries` to `series.expiry > heldExpiry` before ever
+  calling `resolveLegSelection`, so a roll rule never rolls an operation into itself or into the
+  past every session its `when` keeps firing: a roll rule whose own `expiry`
+  window would otherwise admit the operation's own series, or an earlier one, is restricted to a
+  strictly later one. A roll rule written to roll into the _same_ expiry at a different strike
+  (a strike-only roll with no calendar move) is therefore never satisfiable — `no_series_match`
+  every time it fires, by this filter alone, never by the strike selection itself finding nothing.
+  The strategy author's own remedy is the same one two different-but-coincident expiries already
+  need: declare the roll's `expiry` window to start strictly after the held structure's, even by
+  one session.
+
+A run whose strategy declares no adjustment, or whose roll rule's `when` never fires inside the
+backtested period, is bit-for-bit unchanged by this addendum (the four pinned backtest goldens
+carry no `adjustments` rule, so they change by `ENGINE_VERSION` alone, `"0.19.0"` to `"0.20.0"`,
+same as every prior version-only addendum above). A run whose roll does fire now carries two closed
+operations and one open one where it used to carry a single operation straight through to
+settlement or period end — the shape change this addendum makes, exercised by a new golden fixture
+(`runBacktest — roll adjustments executed (#383)`, `run-backtest.test.ts`) with hand-verified fills,
+costs, slippage and taxes; by two property tests of its own (`roll-adjustment.property.test.ts`)
+checking the roll obeys the engine's no-look-ahead invariant and that its cash flows scale linearly
+with the strategy's sizing capital; and by roll-specific cases added to the three existing
+invariant property suites (`i1-future-blind.property.test.ts`, `i2-chunk-invariance.property.test.ts`
+and `i7-prefix-consistency.property.test.ts`, via a shared `rollBacktestFixtureArbitrary`) checking
+the roll obeys no-look-ahead, chunk-invariance and prefix-consistency the same way every other
+fixture in those suites already must.

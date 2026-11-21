@@ -12,6 +12,7 @@ import type {
 import { pricingModels } from "../api";
 import { capabilities } from "../internal/capabilities";
 import {
+  implementedAdjustmentRuleKinds,
   implementedExitRuleKinds,
   implementedExpirySelectionKinds,
   implementedIndicatorKinds,
@@ -74,11 +75,12 @@ describe("capabilities() conformance with the contracts vocabularies", () => {
     expect(capabilities().exitRules).toEqual([...implementedExitRuleKinds]);
   });
 
-  it("every adjustmentRules kind is unsupported (no adjustment-rule method is implemented yet)", () => {
-    expectTypeOf<(typeof unsupportedAdjustmentRuleKinds)[number]>().toEqualTypeOf<
+  it("adjustmentRules is implemented in full and matches the contracts AdjustmentRule kinds exactly", () => {
+    expect(unsupportedAdjustmentRuleKinds).toEqual([]);
+    expectTypeOf<(typeof implementedAdjustmentRuleKinds)[number]>().toEqualTypeOf<
       AdjustmentRule["kind"]
     >();
-    expect(capabilities().adjustmentRules).toEqual([]);
+    expect(capabilities().adjustmentRules).toEqual([...implementedAdjustmentRuleKinds]);
   });
 
   it("thesisClaims is implemented in full and matches the contracts ThesisClaim kinds exactly", () => {

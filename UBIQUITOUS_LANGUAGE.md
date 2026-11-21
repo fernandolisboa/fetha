@@ -449,7 +449,10 @@ Closing a held operation's option legs and opening a new operation at the next m
 nearest strike, leg by leg (ADR-0080): never by inferred structure. The new operation records the
 closed one as `rolledFromOperationId`; a covered call's stock leg carries forward into the new
 operation untouched. Recorded with the user's own execution price and session, never priced or
-executed by Fetha (CLAUDE.md, "no order execution").
+executed by Fetha (CLAUDE.md, "no order execution"). `runBacktest` executes a strategy's own roll
+rule the same way on its own, session by session, with no hand on it (#383): a separate code path
+from the Carteira's roll above, it resolves the new legs through the strategy's own `expiry`/
+`strikes` selection rather than ADR-0080's nearest-strike/next-monthly reading.
 _Avoid_: adjust (a decision kind, never journaled by a roll), rollover
 
 **Roll agenda**:

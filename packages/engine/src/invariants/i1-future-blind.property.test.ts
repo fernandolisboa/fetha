@@ -9,6 +9,7 @@ import type {
   IndicatorSeries,
   IndicatorsInput,
   MarketView,
+  OptionSeries,
   Operation,
   Result,
   StrategyVersion,
@@ -23,6 +24,7 @@ import {
   candlePriceArbitrary,
   candleSeriesArbitrary,
   longBacktestFixtureArbitrary,
+  rollBacktestFixtureArbitrary,
 } from "./arbitraries";
 
 const riskProfile = {
@@ -553,4 +555,65 @@ describe("I1 Future-blind — runBacktest", () => {
       { numRuns: 8 },
     );
   }, 30_000);
+
+  // #383: appending rows dated after `period.to` (the test above) never
+  // reaches a roll's own series selection at all, since that selection runs at the roll's own
+  // fire session, days before the period ends — a mutation that made a roll read option series
+  // by some later instant instead (the period's own end, say) would still pass it. This instead
+  // adds a strictly better matching series — a strike closer to the flat spot than the one the
+  // roll rule's own `nearest` selection would otherwise pick, within the same expiry window and
+  // with no listed epoch at all elsewhere — listed with an `asOf` after the roll's own fill
+  // session but still inside the period, and checks it is never picked: the one discriminator
+  // specific to a roll's own look-ahead this file did not already have.
+  it("a candidate series listed strictly after the roll's own fill session is never rolled into", () => {
+    fc.assert(
+      fc.property(rollBacktestFixtureArbitrary, (fixture) => {
+        const view = (extra: OptionSeries[]): MarketView => ({
+          calendar: fixture.calendar,
+          candles: fixture.candles,
+          corporateActions: [],
+          optionSeries: [...fixture.optionSeries, ...extra],
+          optionPrices: fixture.optionPrices,
+          quotes: [],
+          macro: [],
+          dividendYields: [],
+          impliedVolatilityIndex: [],
+        });
+
+        const baseResult = runBacktest({ view: view([]), config: fixture.config });
+
+        // The fixture's own roll rule fires at or before session index 10 (5 business days
+        // before its near call's own expiry, session index 15); this series is listed one
+        // session later, strictly after that fill. Its strike sits exactly on the roll rule's
+        // own "11.00" target, strictly closer than the fixture's own far series (kept at 11.50,
+        // #383) — a roll that ignored listing dates would pick this one instead.
+        const laterSession = assertDefined(
+          fixture.calendar[11],
+          "test setup: the fixture carries at least 45 sessions",
+        );
+        const betterMatch: OptionSeries = {
+          ticker: "PETR4C1100-FUTURE-LISTED",
+          underlying: "PETR4",
+          right: "call",
+          strike: decimalString("11.00"),
+          expiry: fixture.farExpiry,
+          style: "european",
+          asOf: laterSession.open,
+        };
+        const extendedResult = runBacktest({
+          view: view([betterMatch]),
+          config: fixture.config,
+        });
+
+        expect(baseResult.ok).toBe(true);
+        expect(extendedResult.ok).toBe(true);
+        if (!baseResult.ok || !extendedResult.ok) return;
+        if (baseResult.value.status !== "complete" || extendedResult.value.status !== "complete") {
+          throw new Error("expected both runs to complete");
+        }
+        expect(extendedResult.value.run).toEqual(baseResult.value.run);
+      }),
+      { numRuns: 15 },
+    );
+  });
 });

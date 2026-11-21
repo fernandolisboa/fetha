@@ -49,7 +49,12 @@ types in ADR-0013 encode; where a rule sharpens an earlier ADR it says so.
   operation is filled at the requested size and the breach is recorded in the run's
   `limitBreaches` with its session and ticker, plus note `limit_breach_warned`. The operation is
   never sized down silently. With `limits: "enforce"` the entry is refused and recorded as a
-  `MissedEntry` with reason `limit_breach`.
+  `MissedEntry` with reason `limit_breach`. A roll's own successor is checked the same way (#383):
+  under `enforce` the roll is refused and the operation is held, unrolled, with note
+  `roll_refused_limit_breach`; under `warn` the roll fills and the breach is recorded on the
+  successor, the same `limitBreaches` shape an entry's own breach already takes.
+  `maxOpenOperations` is exempt from a roll's own check either way, because a roll replaces one
+  operation with one — it can never be the operation that pushes the count over the limit.
 - **Counterfactual P&L for "do not enter" (Q40; sharpens ADR-0005).** The untaken operation is
   entered with the backtest fill model at the first fill opportunity after the decision. If the
   decision answered a signal, the operation is then closed by that strategy version's exit rules
@@ -108,7 +113,10 @@ types in ADR-0013 encode; where a rule sharpens an earlier ADR it says so.
   both try an operation's exit rules in the strategy definition's own order; the first rule whose
   threshold or condition fires wins for that operation at that instant, and no further rule is
   evaluated. A strategy author controls precedence entirely by ordering the `exit` array; the
-  engine never picks the "best" of several rules that would fire together.
+  engine never picks the "best" of several rules that would fire together. A roll rule's own
+  `when` (#383) is evaluated for an operation only once no exit rule already fired for it at that
+  same instant: exit always wins the tie, the same discipline Q48 already gives the `exit` array's
+  own rules over each other, extended to the one adjustment kind that can also close the operation.
 - **`evaluateStrategy` always warns on a limit breach (Q49; permanent, not a #15 stopgap).**
   Unlike `runBacktest`, which takes `config.limits: LimitMode`, `evaluateStrategy` has no enforce
   mode: a signal is a proposal for a human to act on, so a risk-profile breach is always recorded
@@ -210,7 +218,10 @@ types in ADR-0013 encode; where a rule sharpens an earlier ADR it says so.
   rule in ADR-0013). There is no `MissedExit`: the type vocabulary has none, and a position that
   never closes inside the run is still fully accounted for by the `period_end` close. This is the
   conservative reading of "retried indefinitely" a hygiene-first backtester should default to,
-  since discarding an unfilled exit would silently understate risk.
+  since discarding an unfilled exit would silently understate risk. A pending roll's own fill
+  (#383, `resolvePendingRollFills`) is retried the same unlimited way, for the same reason: a leg
+  with no trade at the fill session's open stays pending until one exists, or `period.to` sweeps
+  the still-held, never-rolled operation closed with `period_end` instead.
 - **A stranded entry retry is finalized at `period.to`, not dropped (Q53; permanent, not a #16
   stopgap).** If the period ends while an entry fill is still being retried (no trade yet, fewer
   than three attempts made), the run records one `MissedEntry` with `reason: "no_trades"` and

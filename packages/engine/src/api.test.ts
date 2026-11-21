@@ -290,6 +290,8 @@ describe("closed vocabularies", () => {
       "candle_less_sessions_excluded",
       "warm_up_sessions_excluded",
       "adjustment_not_applied",
+      "roll_no_series_match",
+      "roll_refused_limit_breach",
     ]);
   });
 

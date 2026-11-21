@@ -70,11 +70,16 @@ export const implementedExitRuleKinds = [
 
 export const unsupportedExitRuleKinds = [] as const satisfies readonly ExitRule["kind"][];
 
-// roll (a strike/expiry adjustment mid-operation) is out of #23's scope: it needs its own
-// settlement-and-reopen semantics in runBacktest, tracked separately.
-export const unsupportedAdjustmentRuleKinds = [
+// #383: runBacktest applies a roll by closing the operation's option legs (fills, costs,
+// slippage, B3 fees) and reopening at the expiry/strikes resolveLegSelection picks for the
+// adjustment's own expiry/strikes fields, evaluated at the roll session (ADR-0013 roll
+// addendum); a stock leg carries forward untouched (ADR-0080).
+export const implementedAdjustmentRuleKinds = [
   "roll",
 ] as const satisfies readonly AdjustmentRule["kind"][];
+
+export const unsupportedAdjustmentRuleKinds =
+  [] as const satisfies readonly AdjustmentRule["kind"][];
 
 // #29 implements score() in full: the thesis claim's outcome is evaluated on the instrument's
 // nominal D1 close at the horizon session (close_above/close_below) or on the operation's own

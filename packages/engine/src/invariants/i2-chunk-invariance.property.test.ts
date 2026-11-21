@@ -2,7 +2,7 @@ import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import type { MarketView, RunBacktestInput } from "../api";
 import { runBacktest } from "../internal/run-backtest";
-import { longBacktestFixtureArbitrary } from "./arbitraries";
+import { longBacktestFixtureArbitrary, rollBacktestFixtureArbitrary } from "./arbitraries";
 
 describe("I2 Chunk-invariance", () => {
   it("any maxSessions split reproduces the same run as one uninterrupted call, sharpe included", () => {
@@ -64,6 +64,64 @@ describe("I2 Chunk-invariance", () => {
         },
       ),
       { numRuns: 8 },
+    );
+  }, 30_000);
+
+  // #383: `longBacktestFixtureArbitrary` above is stock-only
+  // (`adjustments: []`), so no I2 draw ever resumes with a `pendingRoll` in flight.
+  // `rollBacktestFixtureArbitrary` carries a covered call that rolls once; `maxSessions`'s own
+  // range is wide enough to sometimes cut before, exactly on, and after that roll's own fill
+  // session across the draws this test takes.
+  it("any maxSessions split reproduces the same run as one uninterrupted call, across a pending roll", () => {
+    fc.assert(
+      fc.property(
+        rollBacktestFixtureArbitrary,
+        fc.integer({ min: 3, max: 20 }),
+        (fixture, maxSessions) => {
+          const view: MarketView = {
+            calendar: fixture.calendar,
+            candles: fixture.candles,
+            corporateActions: [],
+            optionSeries: fixture.optionSeries,
+            optionPrices: fixture.optionPrices,
+            quotes: [],
+            macro: [],
+            dividendYields: [],
+            impliedVolatilityIndex: [],
+          };
+
+          const whole = runBacktest({ view, config: fixture.config });
+          expect(whole.ok).toBe(true);
+          if (!whole.ok || whole.value.status !== "complete") {
+            throw new Error("expected the uninterrupted run to complete");
+          }
+
+          let resume: RunBacktestInput["resume"] | undefined;
+          let last: ReturnType<typeof runBacktest> | null = null;
+          for (let iterations = 0; iterations < 40; iterations += 1) {
+            const step = runBacktest(
+              resume === undefined
+                ? { view, config: fixture.config, maxSessions }
+                : { view, config: fixture.config, maxSessions, resume },
+            );
+            expect(step.ok).toBe(true);
+            if (!step.ok) throw new Error("expected an ok result");
+            last = step;
+            if (step.value.status === "complete") break;
+            resume = step.value.checkpoint;
+          }
+          if (!last?.ok || last.value.status !== "complete") {
+            throw new Error("expected the chunked run to complete");
+          }
+
+          const stripTruncated = (run: (typeof whole.value)["run"]) => ({
+            ...run,
+            provenance: { ...run.provenance, truncated: [] },
+          });
+          expect(stripTruncated(last.value.run)).toEqual(stripTruncated(whole.value.run));
+        },
+      ),
+      { numRuns: 15 },
     );
   }, 30_000);
 });

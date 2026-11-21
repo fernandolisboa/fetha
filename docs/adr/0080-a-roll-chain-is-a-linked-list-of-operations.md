@@ -191,8 +191,9 @@ re-reading the file should never have to locale-parse it.
 - `rolled_from_operation_id` is included in account data export and deletion the same way every
   other `operations` column already is (`PortfolioDataExport`, `account/data-export.ts`): no
   separate LGPD wiring needed, since it is not a new table.
-- The backtester still ignores roll rules entirely (`adjustment_not_applied`, #383); this ADR
-  covers only the Carteira's own recording of a roll a human executed, never an automatic one.
+- The backtester now executes roll rules on its own (`runBacktest`, #383, ADR-0013's own
+  addendum for it); this ADR covers only the Carteira's own recording of a roll a human executed,
+  a separate code path that never calls into `runBacktest`.
 - `loadPortfolio` still silently drops an operation whose `openedAt` is after the mark session it
   is being valued at (ADR-0021's own guard against a mis-dated fill); a roll executed today,
   before the day's own candle has been ingested, can briefly hit that same gap for the new

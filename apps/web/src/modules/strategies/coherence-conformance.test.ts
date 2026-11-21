@@ -131,6 +131,23 @@ const fixtures: Fixture[] = [
     }),
     structure: optionStructure,
   },
+  {
+    name: "option-legged definition whose roll rule's strikes.length does not match distinct ranks",
+    definition: baseDefinition({
+      structureId: "covered_call",
+      strikes: [{ kind: "moneyness", percent: decimalString("0") }],
+      expiry: { kind: "business_days", min: 5, max: 10 },
+      adjustments: [
+        {
+          kind: "roll",
+          when: { kind: "days_before_expiry", businessDays: 3 },
+          expiry: { kind: "business_days", min: 20, max: 25 },
+          strikes: [],
+        },
+      ],
+    }),
+    structure: optionStructure,
+  },
 ];
 
 describe("coherence conformance: contracts vs engine", () => {

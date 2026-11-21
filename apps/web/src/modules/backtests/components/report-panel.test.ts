@@ -112,7 +112,13 @@ describe("generalNotesFor", () => {
     expect(generalNotesFor(run)).toEqual([note("stale_price")]);
   });
 
-  it("includes adjustment_not_applied in the general notes panel (#377)", () => {
+  it("includes roll_no_series_match in the general notes panel (#383)", () => {
+    expect(surfacedNoteCodes).not.toContain("roll_no_series_match");
+    const run = runWithNotes([note("roll_no_series_match")]);
+    expect(generalNotesFor(run)).toEqual([note("roll_no_series_match")]);
+  });
+
+  it("includes adjustment_not_applied in the general notes panel (#377, retired by #383 but still parseable)", () => {
     expect(surfacedNoteCodes).not.toContain("adjustment_not_applied");
     const run = runWithNotes([note("adjustment_not_applied")]);
     expect(generalNotesFor(run)).toEqual([note("adjustment_not_applied")]);

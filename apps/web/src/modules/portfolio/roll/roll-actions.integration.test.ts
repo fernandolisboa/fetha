@@ -1,3 +1,4 @@
+import { eq, like } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CurrentUser } from "@/modules/auth";
 import type { Database } from "@/db/client";
@@ -9,7 +10,12 @@ import { user } from "@/modules/auth/schema";
 import { cotahistStockRowSchema } from "@/modules/market-data/adapters/cotahist/schema";
 import { upsertDailyCandles } from "@/modules/market-data/repositories/candle-repository";
 import { ensureMonthlyPartition } from "@/modules/market-data/repositories/partitions";
-import { optionDailyPrices, optionSeries, tradingSessions } from "@/modules/market-data/schema";
+import {
+  candles,
+  optionDailyPrices,
+  optionSeries,
+  tradingSessions,
+} from "@/modules/market-data/schema";
 
 let currentUser: CurrentUser | null = null;
 
@@ -55,9 +61,18 @@ function businessDays(startIso: string, count: number): string[] {
   return days;
 }
 
+// Widened from 3 hex characters (#383, existing bug on main from #388): a 3-character random
+// suffix collided on `option_series_pkey` under CI's own repeated runs (4096 possible
+// underlyings, never cleaned up below until this same fix). 7 is the most this can take:
+// `cotahistStockRowSchema`'s own `tickerSchema` (`@fetha/contracts`) caps a ticker at 12
+// characters, and the longest derived ticker below appends a 3-character suffix
+// (`F30`/`G30`/`F32`) to `Z` + `label` (1 character, every call site) + this random part, so
+// `1 + 1 + 7 + 3 = 12` is the ceiling, not the `text` column itself, which has no length limit.
 function uniqueTicker(label: string): string {
-  return `Z${label}${crypto.randomUUID().replace(/-/g, "").slice(0, 3).toUpperCase()}`;
+  return `Z${label}${crypto.randomUUID().replace(/-/g, "").slice(0, 7).toUpperCase()}`;
 }
+
+const seededUnderlyings: string[] = [];
 
 const SESSIONS = businessDays("2026-11-16", 45);
 const OPENED_SESSION = SESSIONS[0] ?? "";
@@ -83,6 +98,7 @@ interface Market {
 async function seedMarket(options: { skipCurrentPrice?: boolean } = {}): Promise<Market> {
   const db = getDb();
   const underlying = uniqueTicker("U");
+  seededUnderlyings.push(underlying);
   const currentTicker = `${underlying}F30`;
   const nextTicker = `${underlying}G30`;
   const closedTicker = `${underlying}F32`;
@@ -190,6 +206,16 @@ afterEach(async () => {
   const db = getDb();
   for (const email of createdEmails.splice(0)) {
     await deleteTestUser(db, email);
+  }
+  // Deletes every option series, daily price and candle this run's own `seedMarket` calls
+  // seeded, keyed by the same `uniqueTicker`-derived underlying prefix (#383, existing bug on
+  // main from #388): left behind otherwise, a later run's own tickers never
+  // collide with these (widened above), but reference data never cleaned up still accumulates
+  // across every CI run against the same database.
+  for (const underlying of seededUnderlyings.splice(0)) {
+    await db.delete(optionDailyPrices).where(like(optionDailyPrices.ticker, `${underlying}%`));
+    await db.delete(optionSeries).where(eq(optionSeries.underlying, underlying));
+    await db.delete(candles).where(eq(candles.ticker, underlying));
   }
 });
 
