@@ -5,7 +5,6 @@ import { z } from "zod";
 import {
   confidenceSchema,
   decimalStringSchema,
-  sessionDateSchema,
   tickerSchema,
   type Confidence,
   type ContemplatedLeg,
@@ -19,10 +18,15 @@ import {
   type ThesisClaim,
   type Ticker,
 } from "@fetha/contracts";
-import { engine, type LegInput, type OperationPricing, type OptionRight } from "@fetha/engine";
+import {
+  engine,
+  type LegInput,
+  type MarketView,
+  type OperationPricing,
+  type OptionRight,
+} from "@fetha/engine";
 
 import { getDb } from "@/db/client";
-import { nowInstant } from "@/lib/instant";
 import {
   AccountRateLimitExceededError,
   enforceAccountRateLimit,
@@ -38,8 +42,9 @@ import {
 } from "@/modules/decisions";
 import {
   buildOperationMarketView,
-  latestSessionOnOrBefore,
+  latestCandle,
   nthSessionBefore,
+  tradingSessionForDate,
 } from "@/modules/market-data";
 import {
   countLiveOpenOperations,
@@ -59,6 +64,7 @@ import {
 import { ivDisplayFromLabel, ivRegimeFromReading, type IvDisplay } from "./iv-regime";
 import { planFingerprint } from "./fingerprint";
 import { filterToMonthlyExpiries } from "./monthly-expiry";
+import { filterToTradedSeries } from "./traded-series";
 import { legSelectionFor } from "./plan-selection";
 import { PlanRulesRepository } from "./plan-rules-repository";
 import { limitPriceForLeg } from "./limit-price";
@@ -109,25 +115,35 @@ interface ResolvedTarget {
   underlying: Ticker;
   view: PlanView | null;
   ivDisplay: IvDisplay;
+  session: PricingSession;
+  // Already built when `resolveFromView` needed it for its own IV reading (round 3 review
+  // "build the market view once per request"); `buildPlan` reuses it instead of asking
+  // `buildOperationMarketView` a second time. Undefined for a suggestion-origin target, which
+  // never needed one of its own — `buildPlan` builds it fresh there, exactly as before.
+  marketView: MarketView | undefined;
 }
 
 type ResolveOutcome =
   { ok: true; target: ResolvedTarget } | { ok: false; reason: "no_data" | "no_recipe" };
 
-// The session every price in a plan comes from (round 2 review): the latest trading session
-// already ingested as of now, not "now" itself — the same anchor the radar and the analysis
-// horizon (`resolveOutlookHorizon`) price against, so a build during a trading day still prices
-// at the last close instead of refusing every leg as stale. `at` is that session's own close
-// instant, so the engine's own "session of `at`" resolves to this same session.
+// The session every price in a plan comes from (round 2 review, refined round 3): the newest
+// session this underlying actually has an ingested candle for, not the newest closed session on
+// the calendar — between a session's close and the nightly ingestion finishing (or after a failed
+// ingestion run), the calendar already considers that session closed but no price for it exists
+// yet, which would mark every leg stale against a close nothing was ever priced at. The same
+// anchor `apps/web/src/modules/radar/e2e-seed.ts` resolves a session by. `at` is that session's
+// own close instant, so the engine's own "session of `at`" resolves to this same session.
 interface PricingSession {
   date: SessionDate;
   at: Instant;
 }
 
-async function resolvePricingSession(): Promise<PricingSession | null> {
-  const session = await latestSessionOnOrBefore(getDb(), new Date());
-  if (!session) return null;
-  return { date: sessionDateSchema.parse(session.date), at: nowInstant(session.close) };
+async function resolvePricingSessionFor(underlying: Ticker): Promise<PricingSession | null> {
+  const candle = await latestCandle(getDb(), underlying);
+  if (!candle) return null;
+  const trading = await tradingSessionForDate(getDb(), candle.session);
+  if (!trading) return null;
+  return { date: trading.date, at: trading.close };
 }
 
 function resolveStructure(
@@ -148,15 +164,13 @@ function resolveStructure(
 // view and today's IV regime, the same matching `apps/web/src/modules/plans/select-recipe.ts`
 // is tested against. Distinguishes a data gap ("no_data": no reading for this ticker today)
 // from the view admitting no recipe at all ("no_recipe": round 1 review item 2).
-async function resolveFromView(
-  underlyingInput: string,
-  view: PlanView,
-  session: PricingSession,
-): Promise<ResolveOutcome> {
+async function resolveFromView(underlyingInput: string, view: PlanView): Promise<ResolveOutcome> {
   const parsed = tickerSchema.safeParse(underlyingInput);
   if (!parsed.success) return { ok: false, reason: "no_data" };
   const underlying = parsed.data;
 
+  const session = await resolvePricingSessionFor(underlying);
+  if (!session) return { ok: false, reason: "no_data" };
   const { at } = session;
   const marketView = await buildOperationMarketView(getDb(), underlying, at);
   const reading = await engine.assetReading({ view: marketView, ticker: underlying, at });
@@ -178,6 +192,8 @@ async function resolveFromView(
       underlying,
       view,
       ivDisplay: ivDisplayFromLabel(label),
+      session,
+      marketView,
     },
   };
 }
@@ -188,6 +204,8 @@ async function resolveFromSuggestion(suggestionId: string): Promise<ResolveOutco
   try {
     const suggestion = await getSuggestion(suggestionId);
     const underlying = tickerSchema.parse(suggestion.underlying);
+    const session = await resolvePricingSessionFor(underlying);
+    if (!session) return { ok: false, reason: "no_data" };
     return {
       ok: true,
       target: {
@@ -202,6 +220,8 @@ async function resolveFromSuggestion(suggestionId: string): Promise<ResolveOutco
         // The summary for a suggestion-origin plan never names an IV regime (`t.summary.
         // fromSuggestion` has no `{ivRegime}` placeholder), so this value is unused.
         ivDisplay: "any",
+        session,
+        marketView: undefined,
       },
     };
   } catch (error) {
@@ -310,14 +330,21 @@ async function priceLot(
 // no number of its own). Recomputed from scratch on every call, including right before a save,
 // so nothing persisted was ever only client-trusted. Falls back to the declared default risk
 // profile (docs/adr/0075) when the user has none, the same as every other feature that needs one.
-// Prices at `session`'s own close instant, not "now" (round 2 review): during a trading day
-// "now" has no price of its own yet, so pricing at it would mark every leg stale. `session` is
-// resolved once by the caller and is the same session `resolveFromView` read its IV regime at,
-// so this never calls `engine.assetReading` a second time.
-async function buildPlan(target: ResolvedTarget, session: PricingSession): Promise<BuiltPlan> {
-  const { at } = session;
-  const marketView = filterToMonthlyExpiries(
-    await buildOperationMarketView(getDb(), target.underlying, at),
+// Prices at `target.session`'s own close instant, not "now" and not merely the latest closed
+// calendar session (round 2 review, refined round 3): see `resolvePricingSessionFor`. Reuses
+// `target.marketView` when the resolve step already built one (the view path) instead of asking
+// `buildOperationMarketView` a second time for the same underlying and instant. Beyond the
+// monthly-expiry filter, also narrows to series that actually traded at that same session
+// (round 3 review, `filterToTradedSeries`): the engine's own moneyness rule can then only pick a
+// strike something traded that close, so a leg being `stale` or priceless becomes structurally
+// unlikely rather than something caught only after the fact.
+async function buildPlan(target: ResolvedTarget): Promise<BuiltPlan> {
+  const { at, date } = target.session;
+  const marketView = filterToTradedSeries(
+    filterToMonthlyExpiries(
+      target.marketView ?? (await buildOperationMarketView(getDb(), target.underlying, at)),
+    ),
+    date,
   );
 
   const riskProfile = (await getCurrentRiskProfile()) ?? DEFAULT_RISK_PROFILE;
@@ -370,7 +397,7 @@ async function buildPlan(target: ResolvedTarget, session: PricingSession): Promi
     underlying: target.underlying,
     view: target.view,
     ivDisplay: target.ivDisplay,
-    priceSessionDate: session.date,
+    priceSessionDate: target.session.date,
     riskLimitCentavos: limitCentavos,
     pricingForLots,
     sessionsBeforeExpiry: (businessDays) => sessionsByDays.get(businessDays) ?? null,
@@ -417,13 +444,10 @@ const saveInputSchema = z.union([
 ]);
 export type SavePlanActionInput = z.infer<typeof saveInputSchema>;
 
-async function resolveTarget(
-  input: BuildPlanActionInput,
-  session: PricingSession,
-): Promise<ResolveOutcome> {
+async function resolveTarget(input: BuildPlanActionInput): Promise<ResolveOutcome> {
   return input.kind === "suggestion"
     ? resolveFromSuggestion(input.suggestionId)
-    : resolveFromView(input.underlying, input.view, session);
+    : resolveFromView(input.underlying, input.view);
 }
 
 const BUILD_RATE_LIMIT = { windowSeconds: 60, max: 60 };
@@ -443,12 +467,9 @@ export async function buildPlanAction(input: unknown): Promise<BuildPlanOutcome>
       throw error;
     }
 
-    const session = await resolvePricingSession();
-    if (!session) return { status: "error", error: "no_data" };
-
-    const resolved = await resolveTarget(parsed.data, session);
+    const resolved = await resolveTarget(parsed.data);
     if (!resolved.ok) return { status: "error", error: resolved.reason };
-    const built = await buildPlan(resolved.target, session);
+    const built = await buildPlan(resolved.target);
     return toOutcome(built);
   });
 }
@@ -515,13 +536,10 @@ export async function savePlanAction(input: unknown): Promise<SavePlanResult> {
       throw error;
     }
 
-    const session = await resolvePricingSession();
-    if (!session) return { status: "error", error: "unpriceable" };
-
-    const resolved = await resolveTarget(parsed.data, session);
+    const resolved = await resolveTarget(parsed.data);
     if (!resolved.ok) return { status: "error", error: resolved.reason };
     const target = resolved.target;
-    const built = await buildPlan(target, session);
+    const built = await buildPlan(target);
     if (!built.result.ok) {
       const outcome = toOutcome(built);
       return outcome.status === "error" ? outcome : { status: "error", error: "unpriceable" };
@@ -559,7 +577,7 @@ export async function savePlanAction(input: unknown): Promise<SavePlanResult> {
           structureId: plan.structureId,
           underlying: plan.underlying,
           legs,
-          session: session.date,
+          session: target.session.date,
           netPremiumCentavos: plan.netPremiumCentavos,
           maxLossCentavos: plan.maxLossCentavos === "unbounded" ? null : plan.maxLossCentavos,
           maxGainCentavos: plan.maxGainCentavos === "unbounded" ? null : plan.maxGainCentavos,
@@ -589,7 +607,7 @@ export async function savePlanAction(input: unknown): Promise<SavePlanResult> {
             structureId: plan.structureId,
             structureName: target.structureName,
             legs,
-            session: session.date,
+            session: target.session.date,
             netPremiumCentavos: plan.netPremiumCentavos,
             maxLossCentavos: plan.maxLossCentavos === "unbounded" ? null : plan.maxLossCentavos,
             maxGainCentavos: plan.maxGainCentavos === "unbounded" ? null : plan.maxGainCentavos,

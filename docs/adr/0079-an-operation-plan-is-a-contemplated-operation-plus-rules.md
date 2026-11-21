@@ -184,6 +184,35 @@ b3-instruments/2026-09-18.csv` lists real PETR4 monthly series expiring 2026-11-
   resolved), so the plan page reads it from the build result instead of fetching the risk profile
   a second time of its own.
 
+## Addendum (round 3 review): anchor to the newest ingested candle, not the newest closed session
+
+The round 2 fix anchored pricing to `latestSessionOnOrBefore` — the newest session the calendar
+already considers closed. That is still wrong for the owner's actual usage (mostly evenings,
+BRT): between a session's close and the nightly ingestion finishing, or after a failed ingestion
+run, the calendar already marks that session closed while no price for it has landed yet, so
+pricing at it still marks every leg stale. `resolvePricingSessionFor` now anchors to the newest
+session this underlying actually has an ingested daily candle for (`latestCandle`, then that
+candle's own session resolved to a `TradingSession` via `tradingSessionForDate`) — the same
+anchor `apps/web/src/modules/radar/e2e-seed.ts` already resolves a session by for exactly this
+reason. Both the view and the suggestion paths resolve it, each against its own underlying
+(`resolveFromView` from the parsed ticker, `resolveFromSuggestion` from the suggestion's own
+underlying), and `buildPlan` reads it off the resolved target rather than resolving its own.
+
+While there, `resolveFromView` and `buildPlan` had both called `buildOperationMarketView` for the
+same underlying and instant; `resolveFromView` now carries the view it built on the resolved
+target, and `buildPlan` reuses it (still filtering it to monthly expiries before pricing) instead
+of asking for it twice. A suggestion-origin target never built one of its own, so `buildPlan`
+still builds it fresh there, unchanged from round 2.
+
+Finally, a real chain's liquidity is uneven even on a session with live data (the e2e fixtures'
+own PETR4 chain only has some strikes actually trade a given close): `filterToTradedSeries`
+(`traded-series.ts`) narrows the view's option chain a second time, beyond the monthly filter, to
+tickers with at least one trade recorded (`OptionDayPrice.trades > 0`) at the anchor session
+itself — before the engine's own moneyness rule ever runs, so a leg's selected strike can never be
+one nothing traded at that close. `generate-plan.ts`'s `stale`/`price === null` refusal stays, but
+now as a guard against something structurally unlikely rather than the only thing standing between
+a thin chain and a bad plan.
+
 ## Alternatives considered
 
 - **One new table carrying the full operation (structure, legs, pricing) plus the rules.** Forks

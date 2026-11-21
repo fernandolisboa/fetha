@@ -49,6 +49,12 @@ const CALENDAR = [
 ];
 const SERIES_ASOF = "2020-01-01T00:00:00.000Z";
 
+// Mutable so a test can simulate the newest *ingested* session trailing the newest *closed*
+// calendar session (round 3 review): the calendar above always has 2027-01-15 as its latest
+// entry, but `latestCandle` can point at an earlier one, and `tradingSessionForDate` echoes
+// back whichever date it is asked to resolve — the same session a candle names.
+let candleSession = "2027-01-02";
+
 vi.mock("@/modules/market-data", async () => {
   const actual =
     await vi.importActual<typeof import("@/modules/market-data")>("@/modules/market-data");
@@ -79,17 +85,47 @@ vi.mock("@/modules/market-data", async () => {
             asOf: SERIES_ASOF,
           },
         ],
-        optionPrices: [],
+        optionPrices: [
+          {
+            ticker: "PETR4K36",
+            session: candleSession,
+            asOf: `${candleSession}T20:00:00.000Z`,
+            average: "1.500000",
+            close: "1.500000",
+            trades: 10,
+            tradedQuantity: 1000,
+          },
+          {
+            ticker: "PETR4K38",
+            session: candleSession,
+            asOf: `${candleSession}T20:00:00.000Z`,
+            average: "0.800000",
+            close: "0.800000",
+            trades: 10,
+            tradedQuantity: 1000,
+          },
+        ],
         quotes: [],
         macro: [],
         dividendYields: [],
         impliedVolatilityIndex: [],
       }),
-    latestSessionOnOrBefore: () =>
+    latestCandle: () =>
       Promise.resolve({
-        date: "2027-01-02",
-        open: new Date("2027-01-02T13:00:00.000Z"),
-        close: new Date("2027-01-02T20:00:00.000Z"),
+        ticker: "PETR4",
+        session: candleSession,
+        asOf: `${candleSession}T20:00:00.000Z`,
+        open: "35.000000",
+        high: "36.500000",
+        low: "34.500000",
+        close: "36.000000",
+        tradedQuantity: "1000000",
+      }),
+    tradingSessionForDate: (_db: unknown, date: string) =>
+      Promise.resolve({
+        date,
+        open: `${date}T13:00:00.000Z`,
+        close: `${date}T20:00:00.000Z`,
       }),
     nthSessionBefore: () =>
       Promise.resolve({
@@ -228,6 +264,7 @@ const createdEmails: string[] = [];
 afterEach(async () => {
   currentUser = null;
   priceOperationCalls.splice(0);
+  candleSession = "2027-01-02";
   const db = getDb();
   for (const email of createdEmails.splice(0)) {
     await deleteTestUser(db, email);
@@ -266,6 +303,28 @@ describe("buildPlanAction", () => {
     expect(priceOperationCalls.length).toBeGreaterThan(0);
     for (const at of priceOperationCalls) {
       expect(at).toBe("2027-01-02T20:00:00.000Z");
+    }
+  });
+
+  // Round 3 review: the calendar's own newest session can already be closed (or even several
+  // sessions past) while the nightly ingestion is still running or has failed outright, so
+  // anchoring to "the newest closed calendar session" prices against a close nothing was ever
+  // ingested for. This simulates that gap directly: the newest ingested candle is for an earlier
+  // session than the calendar otherwise carries, and the build must still price at that candle's
+  // own session, not refuse.
+  it("prices at the newest ingested candle's session even when the calendar has a later one closed", async () => {
+    await ensureBullCallSpreadStructure();
+    const email = uniqueEmail("ingestion-lag");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+    candleSession = "2027-01-10";
+
+    const outcome = await buildPlanAction({ kind: "view", underlying: "PETR4", view: "up" });
+
+    expect(outcome.status).toBe("ok");
+    expect(priceOperationCalls.length).toBeGreaterThan(0);
+    for (const at of priceOperationCalls) {
+      expect(at).toBe("2027-01-10T20:00:00.000Z");
     }
   });
 });
