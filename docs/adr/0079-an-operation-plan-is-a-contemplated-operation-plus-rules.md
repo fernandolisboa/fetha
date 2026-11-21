@@ -251,18 +251,24 @@ Every number drag-to-adjust shows while the user is still touching a handle come
 `engine.priceOperation` — the engine is pure TypeScript with no I/O (ADR-0013), so it runs
 identically in the browser, against the same `MarketView`, pricing instant, risk profile and
 open-operation count the server already resolved and handed back in `BuildPlanOutcome.preview`.
-This preview is never saved and never shown as official: on release (a lot step, a strike step or
-an expiry chip, not on every pixel of a drag — the chart handle only calls back when the nearest
-traded strike under the pointer changes, never on every pixel, bounding how often this fires),
-`adjustPlanAction` reprices the exact same edit through the server's own two-rung, limit-price
-pricing (`priceExactLegs`, factored out of the existing `priceLot` so the auto-sized and the
-user-edited paths share one implementation), and only that reply ever becomes the plan's official
-numbers. `LatestRequestWins` (`apps/web/src/modules/plans/latest-wins.ts`) guards the one race
-this introduces: a slow reply to an earlier edit landing after a faster reply to a later one can
-never un-apply the newer edit. `savePlanAction` still re-derives and re-verifies the saved plan's
-own fingerprint from scratch before writing anything (CLAUDE.md principle 1): an edited save
-reprices the user's exact legs and lots again, server-side, rather than trusting the last
-`adjustPlanAction` reply either.
+`previewPlan` rebuilds its own legs through `legsFromTemplate` (`template-legs.ts`), the same
+function the server uses, so a preview's quantities carry the structure's own ratio rather than
+a flat `lots * 100`. This preview is never saved and never shown as official: on release (a lot
+step, a strike step or an expiry chip, not on every pixel of a drag — the chart handle only
+calls back when the nearest traded strike under the pointer changes, never on every pixel,
+bounding how often this fires), `adjustPlanAction` reprices the exact same edit through the
+server's own two-rung, limit-price pricing. That two-rung pricing (`reprice-legs.ts`) is two
+functions, not one: `priceFromProbe` turns an already-priced probe into the limit-price rung
+alone, and `priceExactLegs` probes a set of legs and then calls `priceFromProbe`. The auto-sized
+path's own `priceLot` already has a probe from resolving its `LegSelection` (`legSelectionFor`),
+so it calls `priceFromProbe` directly; the user-edited path's own concrete legs have no probe
+yet, so `buildEdited` calls `priceExactLegs`. Either way only one probe ever runs per lot count,
+and only the final reply ever becomes the plan's official numbers. `LatestRequestWins`
+(`apps/web/src/modules/plans/latest-wins.ts`) guards the one race this introduces: a slow reply
+to an earlier edit landing after a faster reply to a later one can never un-apply the newer edit.
+`savePlanAction` still re-derives and re-verifies the saved plan's own fingerprint from scratch
+before writing anything (CLAUDE.md principle 1): an edited save reprices the user's exact legs
+and lots again, server-side, rather than trusting the last `adjustPlanAction` reply either.
 
 ### The strike handle lives on the payoff chart's own price axis, not only in a range input
 
@@ -334,12 +340,25 @@ UI list key the drag-to-adjust screen renders now use.
 
 `validateStructuralAdjustment` (`validate-adjustment.ts`) checks the edit still conforms to that
 same template before any engine call: an exact leg count, each listed series' own `right`
-matching the template's role, one shared expiry, legs at the same strike rank (a box spread's own
-paired call/put) landing on the same strike, and strictly increasing strikes from one rank to the
-next — refusing a non-conforming edit with a typed `invalid_adjustment` rather than pricing and
-saving it under the recipe's structure anyway. The plan's own 20-50-session expiry window
-(`plan-selection.ts`) is enforced the same way, server-side, not only in which expiry chips the
-client renders (`isWithinPlanWindow`, `plan-window.ts`).
+matching the template's role and actually traded, one shared expiry, legs at the same strike rank
+(a box spread's own paired call/put) landing on the same strike, and strictly increasing strikes
+from one rank to the next — refusing a non-conforming edit with a typed `invalid_adjustment`
+rather than pricing and saving it under the recipe's structure anyway. The plan's own
+20-50-session expiry window (`plan-selection.ts`) is enforced the same way, server-side, not only
+in which expiry chips the client renders (`isWithinPlanWindow`, `plan-window.ts`).
+
+### The strike rank, not the leg, is the unit of a strike edit
+
+A straddle's call and put share one strike rank, and the server requires every leg at a rank to
+land on the same strike. Editing one of them at a time — the first pass's own per-leg handle and
+← → buttons — made every such edit refuse: moving the call left its put behind, moving the put
+left its call behind, and `validateStructuralAdjustment` rejects a rank split across two strikes
+either way. `leg-strikes.ts`'s `ranksOf` groups a structure's own option legs by `strikeRank`;
+the client then draws one chart handle and one row of ← → buttons per rank, not per leg
+(`commonSelectableStrikes`/`allStrikesForRank`: only a strike traded for every right present at
+that rank is offered), and resolves a rank's own new strike to every one of its legs' own tickers
+at once (`tickersForRank` in `plan-adjuster.tsx`) before previewing or committing — always
+all-or-nothing, the same shape `onExpirySelect`'s own remap already used for a whole plan.
 
 ## Alternatives considered
 

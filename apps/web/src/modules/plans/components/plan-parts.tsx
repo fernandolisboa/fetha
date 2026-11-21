@@ -17,9 +17,9 @@ export function StatBlock({ label, value }: { label: string; value: string }) {
   );
 }
 
-// `instrumentLabel` (round 4 review) names the underlying, not the option's own series ticker;
-// this still shows that series ticker as a second, muted line, for placing the order at the
-// broker, for an option leg only — a stock leg's own ticker is already the label.
+// `instrumentLabel` names the underlying, not the option's own series ticker; this still shows
+// that series ticker as a second, muted line, for placing the order at the broker, for an
+// option leg only — a stock leg's own ticker is already the label.
 export function InstrumentCell({
   leg,
   series,
@@ -46,7 +46,7 @@ export function riskUsedText(maxLoss: number | "unbounded", riskLimitCentavos: n
 
 // One real-money total per leg: a `decimal.js` multiplication of the limit price (a
 // `DecimalString`) by the lot's quantity, never a raw `Number()` on a price string
-// (CLAUDE.md principle 5 — round 1 review item 5).
+// (CLAUDE.md principle 5).
 export function legTotalCentavos(limitPrice: DecimalString, quantity: number): Centavos {
   return centavosSchema.parse(new Decimal(limitPrice).mul(100).mul(quantity).round().toNumber());
 }

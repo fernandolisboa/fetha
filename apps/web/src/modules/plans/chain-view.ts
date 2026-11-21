@@ -43,9 +43,8 @@ export function chainFromMonthlyView(
 
 // The chips for "next monthly expiries" (ticket #380): every distinct expiry in the monthly
 // chain that still has at least one traded series, inside the plan's own 20-50-session window
-// (round 4 review item 7: outside it, the exit horizon could land in the past or past the
-// plan's own ceiling) — closest first, capped at six so the row never wraps past what a
-// phone-width chip row can show.
+// (outside it, the exit horizon could land in the past or past the plan's own ceiling) —
+// closest first, capped at six so the row never wraps past what a phone-width chip row can show.
 const MAX_EXPIRY_CHIPS = 6;
 
 export function expiryOptionsFrom(

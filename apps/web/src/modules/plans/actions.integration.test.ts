@@ -48,10 +48,10 @@ function sessionRow(date: string): { date: string; open: Date; close: Date } {
   };
 }
 
-// A calendar long enough for the plan's own 20-50-session window check (round 4 review item 7)
-// to have something real to count against: the anchor session at index 0, "2027-01-05" just
-// inside index 3 (too near for the window-refusal test below), filler sessions in between, and
-// "2027-01-15" (every fixture's own expiry) landing at index 25 — inside the window.
+// A calendar long enough for the plan's own 20-50-session window check to have something real
+// to count against: the anchor session at index 0, "2027-01-05" just inside index 3 (too near
+// for the window-refusal test below), filler sessions in between, and "2027-01-15" (every
+// fixture's own expiry) landing at index 25 — inside the window.
 const CALENDAR = [
   sessionRow("2027-01-02"),
   ...Array.from({ length: 2 }, (_, index) => sessionRow(`2027-01-02-filler-near-${String(index)}`)),
@@ -65,9 +65,9 @@ const CALENDAR = [
 const SERIES_ASOF = "2020-01-01T00:00:00.000Z";
 
 // Mutable so a test can simulate the newest *ingested* session trailing the newest *closed*
-// calendar session (round 3 review): the calendar above always has 2027-01-15 as its latest
-// entry, but `latestCandle` can point at an earlier one, and `tradingSessionForDate` echoes
-// back whichever date it is asked to resolve — the same session a candle names.
+// calendar session: the calendar above always has 2027-01-15 as its latest entry, but
+// `latestCandle` can point at an earlier one, and `tradingSessionForDate` echoes back whichever
+// date it is asked to resolve — the same session a candle names.
 let candleSession = "2027-01-02";
 // Overrides the calendar for one test at a time (the expiry-outside-the-window case below):
 // a two-session calendar puts "2027-01-15" only one session ahead of the anchor, well under the
@@ -115,6 +115,17 @@ vi.mock("@/modules/market-data", async () => {
             style: "european",
             asOf: SERIES_ASOF,
           },
+          // A fourth, further-in-the-money strike (ticket #380): a traded strike below the
+          // recipe's own auto-sized choice, to drag a buy wing onto.
+          {
+            ticker: "PETR4K34",
+            underlying: "PETR4",
+            right: "call",
+            strike: "34.000000",
+            expiry: "2027-01-15",
+            style: "european",
+            asOf: SERIES_ASOF,
+          },
           // A put at the same strike as PETR4K36 (the role-mismatch test below) and a call of a
           // different, real monthly expiry (the mixed-expiry test below).
           {
@@ -132,6 +143,18 @@ vi.mock("@/modules/market-data", async () => {
             right: "call",
             strike: "36.000000",
             expiry: "2027-02-19",
+            style: "european",
+            asOf: SERIES_ASOF,
+          },
+          // A second put, at the same strike as PETR4K38 (the long-straddle rank-move test
+          // below): a straddle's call and put must share one strike, so moving its rank needs a
+          // traded put at the candidate strike too, not only a traded call.
+          {
+            ticker: "PETR4P38",
+            underlying: "PETR4",
+            right: "put",
+            strike: "38.000000",
+            expiry: "2027-01-15",
             style: "european",
             asOf: SERIES_ASOF,
           },
@@ -165,6 +188,15 @@ vi.mock("@/modules/market-data", async () => {
             tradedQuantity: 1000,
           },
           {
+            ticker: "PETR4K34",
+            session: candleSession,
+            asOf: `${candleSession}T20:00:00.000Z`,
+            average: "2.400000",
+            close: "2.400000",
+            trades: 10,
+            tradedQuantity: 1000,
+          },
+          {
             ticker: "PETR4P36",
             session: candleSession,
             asOf: `${candleSession}T20:00:00.000Z`,
@@ -179,6 +211,15 @@ vi.mock("@/modules/market-data", async () => {
             asOf: `${candleSession}T20:00:00.000Z`,
             average: "2.000000",
             close: "2.000000",
+            trades: 10,
+            tradedQuantity: 1000,
+          },
+          {
+            ticker: "PETR4P38",
+            session: candleSession,
+            asOf: `${candleSession}T20:00:00.000Z`,
+            average: "2.100000",
+            close: "2.100000",
             trades: 10,
             tradedQuantity: 1000,
           },
@@ -248,9 +289,12 @@ function lotsOf(legsInput: unknown): number {
 // own edited leg (e.g. PETR4K40) — rather than always returning the same two legs regardless of
 // input, so a test can tell an edited plan's legs apart from Fetha's own.
 const LAST_PRICE_BY_TICKER: Record<string, string> = {
+  PETR4K34: "2.400000",
   PETR4K36: "1.500000",
   PETR4K38: "0.800000",
   PETR4K40: "0.400000",
+  PETR4P36: "1.200000",
+  PETR4P38: "2.100000",
 };
 
 function okPricing(rawLegsInput: unknown): OperationPricing {
@@ -401,10 +445,10 @@ describe("buildPlanAction", () => {
     expect(typeof outcome.fingerprint).toBe("string");
   });
 
-  // Round 2 review, the accepted blocking item: a build made "during the next session" (real
-  // wall-clock time is long past the latest ingested close here) must still price at the latest
-  // ingested close, not at `nowInstant()` — otherwise every leg's own-session price looks stale
-  // against a session that has not closed yet, and the build always refuses with "stale_prices".
+  // A build made "during the next session" (real wall-clock time is long past the latest
+  // ingested close here) must still price at the latest ingested close, not at `nowInstant()`
+  // — otherwise every leg's own-session price looks stale against a session that has not
+  // closed yet, and the build always refuses with "stale_prices".
   it("prices every leg at the latest ingested close, not at the real current instant", async () => {
     await ensureBullCallSpreadStructure();
     const email = uniqueEmail("prices-at-close");
@@ -420,8 +464,8 @@ describe("buildPlanAction", () => {
     }
   });
 
-  // Round 3 review: the calendar's own newest session can already be closed (or even several
-  // sessions past) while the nightly ingestion is still running or has failed outright, so
+  // The calendar's own newest session can already be closed (or even several sessions past)
+  // while the nightly ingestion is still running or has failed outright, so
   // anchoring to "the newest closed calendar session" prices against a close nothing was ever
   // ingested for. This simulates that gap directly: the newest ingested candle is for an earlier
   // session than the calendar otherwise carries, and the build must still price at that candle's
@@ -468,9 +512,9 @@ describe("adjustPlanAction", () => {
     expect(edited.plan.lots).toBe(built.plan.lots);
   });
 
-  // The structure's own template is rebuilt wholesale from the user's listed tickers (round 4
-  // review, blocking item 2): a call-butterfly's middle (sold, ratio 2) leg must keep its own
-  // ratio under every edit, never collapse to a flat `lots * 100`.
+  // The structure's own template is rebuilt wholesale from the user's listed tickers (ticket
+  // #380): a call-butterfly's middle (sold, ratio 2) leg must keep its own ratio under every
+  // edit, never collapse to a flat `lots * 100`.
   it("rebuilds a call-butterfly's legs from the structure's own ratio, giving 200/400/200 at two lots", async () => {
     const email = uniqueEmail("butterfly-ratio");
     createdEmails.push(email);
@@ -496,25 +540,25 @@ describe("adjustPlanAction", () => {
     createdEmails.push(email);
     currentUser = await insertBareUser(email);
 
+    // Steps the lower wing from PETR4K36 to PETR4K34 (a lower, still-traded strike): only that
+    // leg's own ticker may change, the sold middle leg and the upper wing stay put, the 1/2/1
+    // ratio still holds at the new strikes, and the max gain stays bounded.
     const edited = await adjustPlanAction({
       kind: "view",
       underlying: "PETR4",
       view: "sideways",
-      legs: [{ ticker: "PETR4K36" }, { ticker: "PETR4K38" }, { ticker: "PETR4K40" }],
+      legs: [{ ticker: "PETR4K34" }, { ticker: "PETR4K38" }, { ticker: "PETR4K40" }],
       lots: 1,
     });
     expect(edited.status).toBe("ok");
     if (edited.status !== "ok") return;
     expect(edited.plan.legs.map(({ leg }) => leg.ticker)).toEqual([
-      "PETR4K36",
+      "PETR4K34",
       "PETR4K38",
       "PETR4K40",
     ]);
-
-    // Only the lowest wing moved; the sold middle leg and the upper wing's own tickers are
-    // untouched.
-    expect(edited.plan.legs[1]?.leg.ticker).toBe("PETR4K38");
-    expect(edited.plan.legs[2]?.leg.ticker).toBe("PETR4K40");
+    expect(edited.plan.legs.map(({ leg }) => leg.quantity)).toEqual([100, 200, 100]);
+    expect(edited.plan.maxGainCentavos).not.toBe("unbounded");
   });
 
   it("refuses equal strikes across adjacent ranks with invalid_adjustment", async () => {
@@ -606,6 +650,25 @@ describe("adjustPlanAction", () => {
       lots: 51,
     });
     expect(edited).toEqual({ status: "error", error: "invalid_adjustment" });
+  });
+
+  it("moves a long straddle's shared rank to a new strike end to end", async () => {
+    const email = uniqueEmail("straddle-rank-move");
+    createdEmails.push(email);
+    currentUser = await insertBareUser(email);
+
+    const edited = await adjustPlanAction({
+      kind: "view",
+      underlying: "PETR4",
+      view: "unsure",
+      legs: [{ ticker: "PETR4K38" }, { ticker: "PETR4P38" }],
+      lots: 1,
+    });
+
+    expect(edited.status).toBe("ok");
+    if (edited.status !== "ok") return;
+    expect(edited.plan.structureId).toBe("long-straddle");
+    expect(edited.plan.legs.map(({ leg }) => leg.ticker).sort()).toEqual(["PETR4K38", "PETR4P38"]);
   });
 
   it("refuses an expiry outside the plan's 20-50-session window with invalid_adjustment", async () => {

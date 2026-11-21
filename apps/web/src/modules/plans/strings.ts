@@ -8,9 +8,9 @@ const en = {
       unsure:
         "Fetha built this {structure} on {ticker} to fit the current, {ivRegime} volatility, since you have no view on direction.",
     },
-    // No volatility reading at all (an asset with too little history, ticket #379 round 4
-    // review): drops the volatility clause entirely instead of naming it "any", which read as a
-    // literal, nonsensical regime.
+    // No volatility reading at all (an asset with too little history, ticket #379): drops the
+    // volatility clause entirely instead of naming it "any", which read as a literal,
+    // nonsensical regime.
     fromViewNoIv: {
       up: "Fetha built this {structure} on {ticker} because you expect it to rise; there is not yet enough history to measure volatility.",
       down: "Fetha built this {structure} on {ticker} because you expect it to fall; there is not yet enough history to measure volatility.",

@@ -45,6 +45,13 @@ describe("sessionsAhead", () => {
     expect(sessionsAhead(calendar, at(dates, 0), "2099-01-01")).toBeNull();
     expect(sessionsAhead(calendar, "2099-01-01", at(dates, 1))).toBeNull();
   });
+
+  it("counts correctly even when the calendar is not already sorted by date", () => {
+    const shuffled = [calendar[2], calendar[0], calendar[1]].filter(
+      (session): session is TradingSession => session !== undefined,
+    );
+    expect(sessionsAhead(shuffled, at(dates, 0), at(dates, 2))).toBe(2);
+  });
 });
 
 describe("isWithinPlanWindow", () => {

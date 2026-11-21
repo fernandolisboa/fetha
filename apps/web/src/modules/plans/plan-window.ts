@@ -7,14 +7,17 @@ import { PLAN_MAX_SESSIONS_AHEAD, PLAN_MIN_SESSIONS_AHEAD } from "./plan-selecti
 // market view's own calendar (never a second DB round trip) — mirrors the engine's own
 // `business_days` window resolution (`resolve-leg-selection.ts`): a session's index in the
 // calendar minus the anchor's own index. Null when either date is not a listed session, or the
-// expiry is not strictly after the anchor.
+// expiry is not strictly after the anchor. The market view's own calendar is always built in
+// session order (`market-data`'s own ingestion), but this sorts its own copy by date first
+// rather than trusting that — an index comparison is only meaningful once it holds.
 export function sessionsAhead(
   calendar: readonly TradingSession[],
   anchor: SessionDate,
   expiry: SessionDate,
 ): number | null {
-  const anchorIndex = calendar.findIndex((session) => session.date === anchor);
-  const expiryIndex = calendar.findIndex((session) => session.date === expiry);
+  const sorted = [...calendar].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  const anchorIndex = sorted.findIndex((session) => session.date === anchor);
+  const expiryIndex = sorted.findIndex((session) => session.date === expiry);
   if (anchorIndex === -1 || expiryIndex === -1) return null;
   const sessionsAheadCount = expiryIndex - anchorIndex;
   return sessionsAheadCount > 0 ? sessionsAheadCount : null;

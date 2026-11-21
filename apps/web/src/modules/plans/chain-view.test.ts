@@ -6,9 +6,9 @@ import { chainFromMonthlyView, expiryOptionsFrom } from "./chain-view";
 import { PLAN_MAX_SESSIONS_AHEAD, PLAN_MIN_SESSIONS_AHEAD } from "./plan-selection";
 
 // A calendar long enough to carry the plan's own 20-50-session window past any of this test's
-// own expiries (`expiryOptionsFrom` now refuses a chip outside it, round 4 review item 7):
-// one session per calendar day starting at the anchor itself, so `session + N` days is always
-// exactly `N` sessions ahead of it.
+// own expiries (`expiryOptionsFrom` refuses a chip outside it): one session per calendar day
+// starting at the anchor itself, so `session + N` days is always exactly `N` sessions ahead of
+// it.
 function windowedCalendar(anchor: string, days: number): TradingSession[] {
   const start = new Date(`${anchor}T00:00:00.000Z`);
   return Array.from({ length: days }, (_, index) => {

@@ -51,8 +51,8 @@ export type GeneratePlanResult =
   | { ok: false; reason: "no_market_price" }
   | { ok: false; reason: "invalid_adjustment" };
 
-// A candidate lot's two rungs (ticket #379, round 1 review item 3/"size and report from limit
-// prices"): `probe` prices the structure at the market's own last price, read only to refuse a
+// A candidate lot's two rungs (ticket #379, "size and report from limit prices"): `probe`
+// prices the structure at the market's own last price, read only to refuse a
 // plan whose legs are stale or untraded and to derive the limit price for `final` — a second
 // `engine.priceOperation` call pricing the same legs with each leg's own limit price given
 // explicitly (`LegInput.price`, the engine's "given" price source), so a limit fill can never
@@ -71,17 +71,17 @@ export interface GeneratePlanInput {
   // Null: the plan came from a suggestion already matching today's conditions, not a stated
   // view (ticket #379).
   view: PlanView | null;
-  // The word the summary names today's volatility by (round 2 review): the caller computes
-  // this once, on the same reading it used to pick the recipe, and passes it straight
-  // through — this module never reads the market a second time for it.
+  // The word the summary names today's volatility by: the caller computes this once, on the
+  // same reading it used to pick the recipe, and passes it straight through — this module
+  // never reads the market a second time for it.
   ivDisplay: IvDisplay;
-  // The session whose close every price in this plan comes from (round 2 review item 1): named
-  // in the summary so the user knows prices are not live, and the same instant `pricingForLots`
-  // was asked to price at.
+  // The session whose close every price in this plan comes from: named in the summary so the
+  // user knows prices are not live, and the same instant `pricingForLots` was asked to price
+  // at.
   priceSessionDate: SessionDate;
   riskLimitCentavos: number;
-  // The caller is expected to memoize this (round 2 review "share one pricing cache"): this
-  // module calls it once per lot count it needs, trusting a repeat call is free.
+  // The caller is expected to memoize this ("share one pricing cache"): this module calls it
+  // once per lot count it needs, trusting a repeat call is free.
   pricingForLots: (lots: number) => Promise<LotPricing | null>;
   sessionsBeforeExpiry: (businessDays: number) => SessionDate | null;
 }
@@ -106,8 +106,8 @@ export function summaryFor(
         .replace("{ticker}", input.underlying) + priceClose
     );
   }
-  // No IV reading at all (round 4 review): names no regime, rather than the literal word "any",
-  // which read as a nonsensical volatility level rather than "we don't know".
+  // No IV reading at all: names no regime, rather than the literal word "any", which read as a
+  // nonsensical volatility level rather than "we don't know".
   if (input.ivDisplay === "any") {
     return (
       t.summary.fromViewNoIv[input.view]

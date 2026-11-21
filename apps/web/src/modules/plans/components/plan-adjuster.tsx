@@ -26,16 +26,20 @@ import {
   type BuildPlanActionInput,
   type BuildPlanOutcome,
   type PlanActionError,
+  type PlanLegSeries,
 } from "../actions";
 import type { PlanChainEntry } from "../chain-view";
 import {
-  allStrikesFor,
+  allStrikesForRank,
   boundedStrikes,
+  commonSelectableStrikes,
   rankBoundsFor,
+  ranksOf,
   remapToExpiry,
   selectableStrikes,
-  stepStrike,
+  stepStrikeValue,
   tickerAtStrike,
+  type RankGroup,
 } from "../leg-strikes";
 import { LatestRequestWins } from "../latest-wins";
 import { diffPlans, type PlanDiffLeg, type PlanSnapshot } from "../plan-diff";
@@ -66,36 +70,43 @@ function expiryOf(outcome: Ok): SessionDate | null {
   return first?.expiry ?? null;
 }
 
-// The adjustment round trip never sends role or side (ticket #380, blocking item 2/3): the
-// server rebuilds every leg from the structure's own template, keyed by this exact position
-// among the non-stock legs — a stock leg has no strike a user could have moved.
+// The adjustment round trip never sends role or side (ticket #380): the server rebuilds every
+// leg from the structure's own template, keyed by this exact position among the non-stock legs
+// — a stock leg has no strike a user could have moved.
 function toAdjustmentLegs(legs: readonly PlanDiffLeg[]): { ticker: Ticker }[] {
   return legs.filter((leg) => leg.role !== "stock").map((leg) => ({ ticker: leg.ticker }));
 }
 
-function legsWithChangeAt(
+// Applies every leg's own next ticker at once (ticket #380): a strike rank shared by more than
+// one right (a straddle's call and put) always moves together, never one leg at a time, so an
+// edit is always expressed as a full map of full-array index to its next ticker.
+function legsWithChanges(
   legs: readonly PlanDiffLeg[],
-  index: number,
-  nextTicker: Ticker,
+  updates: ReadonlyMap<number, Ticker>,
 ): PlanDiffLeg[] {
-  return legs.map((leg, i) => (i === index ? { ...leg, ticker: nextTicker } : leg));
+  return legs.map((leg, index) => {
+    const nextTicker = updates.get(index);
+    return nextTicker ? { ...leg, ticker: nextTicker } : leg;
+  });
 }
 
 const sideLabel = { buy: t.screen.orders.buy, sell: t.screen.orders.sell } as const;
 
 // Drag-to-adjust (ticket #380): wraps the read-only plan screen's own numbers, orders, chart and
 // rules with editable strike handles drawn directly on the payoff chart's own price axis
-// (`PayoffStrikeHandle`, `@/modules/portfolio/client`), the per-leg ← → buttons (the phone and
-// screen-reader alternative, not a fallback relegated to a second control — the handle's own
-// arrow keys call the exact same `onStrikeStep`), a lot stepper and expiry chips. A client-side
-// preview (`previewPlan`, the engine's own pure `priceOperation`) redraws the chart continuously
-// while dragging (`previewLegChange`, never hitting the server); `adjustPlanAction` then prices
-// the exact same edit on the server once, on release, a lot +/- press or an expiry chip — never
-// on every pixel of a drag — and only that reply ever becomes the plan's official numbers
-// (`current`) — guarded by `LatestRequestWins` so a slow reply from an earlier edit can never
-// overwrite a newer one. Every leg is identified by its own position in `plan.legs`, which
-// always mirrors `outcome.structure.legs`' own template order (round 4 review, blocking item 3):
-// never by role+side, which collides for two legs sharing both (a butterfly's own wings).
+// (`PayoffStrikeHandle`, `@/modules/portfolio/client`), the strike rank's own ← → buttons (the
+// phone and screen-reader alternative, not a fallback relegated to a second control — the
+// handle's own arrow keys call the exact same `onRankStep`), a lot stepper and expiry chips. A
+// strike rank — not a single leg — is the unit of a strike edit: legs sharing a rank (a
+// straddle's call and put, both at one strike) always move together, since the server requires
+// them on the same strike. A client-side preview (`previewPlan`, the engine's own pure
+// `priceOperation`) redraws the chart continuously while dragging (`previewRankChange`, never
+// hitting the server); `adjustPlanAction` then prices the exact same edit on the server once, on
+// release, a lot +/- press or an expiry chip — never on every pixel of a drag — and only that
+// reply ever becomes the plan's official numbers (`current`) — guarded by `LatestRequestWins` so
+// a slow reply from an earlier edit can never overwrite a newer one. Every leg is identified by
+// its own position in `plan.legs`, which always mirrors `outcome.structure.legs`' own template
+// order: never by role+side, which collides for two legs sharing both (a butterfly's own wings).
 export function PlanAdjuster({
   outcome,
   riskLimitCentavos,
@@ -110,6 +121,7 @@ export function PlanAdjuster({
   const [previewPricing, setPreviewPricing] = useState<OperationPricing | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<PlanActionError | null>(null);
+  const [adjustFailed, setAdjustFailed] = useState(false);
   const [expiryRemapFailed, setExpiryRemapFailed] = useState(false);
   const commitSequencer = useRef(new LatestRequestWins());
   const previewSequencer = useRef(new LatestRequestWins());
@@ -122,6 +134,7 @@ export function PlanAdjuster({
   async function commit(nextLegs: PlanDiffLeg[], lots: number) {
     setPending(true);
     setError(null);
+    setAdjustFailed(false);
     setExpiryRemapFailed(false);
     const requestId = commitSequencer.current.issue();
     try {
@@ -142,41 +155,88 @@ export function PlanAdjuster({
       } else {
         setError(next.error);
       }
+    } catch {
+      if (commitSequencer.current.isCurrent(requestId)) {
+        setPreviewPricing(null);
+        setAdjustFailed(true);
+      }
     } finally {
       if (commitSequencer.current.isCurrent(requestId)) setPending(false);
     }
   }
 
+  function clearPreview() {
+    previewSequencer.current.issue();
+    setPreviewPricing(null);
+  }
+
   function preview(nextLegs: PlanDiffLeg[], lots: number) {
     setPreviewPricing(null);
     const requestId = previewSequencer.current.issue();
-    void previewPlan(current.preview, nextLegs, lots).then((pricing) => {
+    void previewPlan(
+      current.preview,
+      current.structure,
+      current.plan.underlying,
+      nextLegs,
+      lots,
+    ).then((pricing) => {
       if (!previewSequencer.current.isCurrent(requestId)) return;
       if (pricing) setPreviewPricing(pricing);
     });
   }
 
-  function onStrikeStep(index: number, candidates: readonly PlanChainEntry[], direction: 1 | -1) {
-    if (pending) return;
-    const leg = legs[index];
-    if (!leg) return;
-    const nextTicker = stepStrike(candidates, leg.ticker, direction);
-    if (!nextTicker || nextTicker === leg.ticker) return;
-    applyLegChange(index, nextTicker);
+  // Resolves every leg of a rank to its own ticker at a shared next strike value, one per right
+  // present at that rank (a straddle's call and put move together) — null if any of them has no
+  // listed series there, so a rank edit is always all-or-nothing, never partial.
+  function tickersForRank(rank: RankGroup, strikeValue: number): Map<number, Ticker> | null {
+    if (!expiry) return null;
+    const updates = new Map<number, Ticker>();
+    for (const templateIndex of rank.legIndices) {
+      const fullIndex = optionFullIndices[templateIndex];
+      const right = optionTemplateLegs[templateIndex]?.role;
+      if (fullIndex === undefined || !right) return null;
+      const ticker = tickerAtStrike(selectableStrikes(chain, right, expiry), strikeValue);
+      if (!ticker) return null;
+      updates.set(fullIndex, ticker);
+    }
+    return updates;
   }
 
-  function applyLegChange(index: number, nextTicker: Ticker) {
-    const nextLegs = legsWithChangeAt(legs, index, nextTicker);
+  function seriesOfRank(rank: RankGroup): PlanLegSeries | null {
+    const templateIndex = rank.legIndices[0];
+    const fullIndex = templateIndex === undefined ? undefined : optionFullIndices[templateIndex];
+    const leg = fullIndex === undefined ? undefined : legs[fullIndex];
+    return leg ? (current.seriesByTicker[leg.ticker] ?? null) : null;
+  }
+
+  function currentStrikeOfRank(rank: RankGroup): number | null {
+    const series = seriesOfRank(rank);
+    return series ? Number(series.strike) : null;
+  }
+
+  function applyRankChange(rank: RankGroup, strikeValue: number) {
+    const updates = tickersForRank(rank, strikeValue);
+    if (!updates) return;
+    const nextLegs = legsWithChanges(legs, updates);
     preview(nextLegs, current.plan.lots);
     void commit(nextLegs, current.plan.lots);
   }
 
   // The chart handle's own continuous redraw while dragging (ticket #380): client preview only,
-  // never a server round trip — `onHandleCommit` (release) is what calls `applyLegChange`.
-  function previewLegChange(index: number, nextTicker: Ticker) {
-    const leg = legs[index];
-    if (!leg || nextTicker === leg.ticker) return;
-    preview(legsWithChangeAt(legs, index, nextTicker), current.plan.lots);
+  // never a server round trip — `onHandleCommit` (release) is what calls `applyRankChange`.
+  function previewRankChange(rank: RankGroup, strikeValue: number) {
+    const updates = tickersForRank(rank, strikeValue);
+    if (!updates) return;
+    preview(legsWithChanges(legs, updates), current.plan.lots);
+  }
+
+  function onRankStep(rank: RankGroup, candidates: readonly PlanChainEntry[], direction: 1 | -1) {
+    if (pending) return;
+    const currentValue = currentStrikeOfRank(rank);
+    if (currentValue === null) return;
+    const nextValue = stepStrikeValue(candidates, currentValue, direction);
+    if (nextValue === null || nextValue === currentValue) return;
+    applyRankChange(rank, nextValue);
   }
 
   function onLotsStep(direction: 1 | -1) {
@@ -187,9 +247,9 @@ export function PlanAdjuster({
     void commit(legs, nextLots);
   }
 
-  // All-or-nothing (round 4 review item 8): if even one leg cannot remap to the new expiry, the
-  // whole switch is refused and the plan stays on its current expiry, rather than saving a plan
-  // split across two expiries.
+  // All-or-nothing: if even one leg cannot remap to the new expiry, the whole switch is refused
+  // and the plan stays on its current expiry, rather than saving a plan split across two
+  // expiries.
   function onExpirySelect(nextExpiry: SessionDate) {
     if (pending || nextExpiry === expiry) return;
     setExpiryRemapFailed(false);
@@ -221,73 +281,90 @@ export function PlanAdjuster({
 
   const plan = current.plan;
 
-  // One rank bound per option leg (round 4 review item 4): a handle or a ← → button may never
-  // cross, or land on, the current strike of the rank immediately below or above this one.
   const optionTemplateLegs = optionLegsOf(current.structure);
   const optionFullIndices = legs.reduce<number[]>((acc, leg, index) => {
     if (leg.role !== "stock") acc.push(index);
     return acc;
   }, []);
-  const rankBounds = rankBoundsFor(optionTemplateLegs, (optionIndex) => {
-    const fullIndex = optionFullIndices[optionIndex];
-    const leg = fullIndex === undefined ? undefined : legs[fullIndex];
-    const series = leg ? current.seriesByTicker[leg.ticker] : undefined;
-    return series ? Number(series.strike) : null;
+  const ranks = ranksOf(optionTemplateLegs);
+
+  // One strike bound per rank (not per leg): a handle or a ← → button may never cross, or land
+  // on, the current strike of the rank immediately below or above this one.
+  const rankBounds = rankBoundsFor(ranks, (rankIndex) => {
+    const rank = ranks[rankIndex];
+    return rank ? currentStrikeOfRank(rank) : null;
   });
 
-  // One payoff-chart handle per option leg (ticket #380): the chart only ever sees numbers and
+  // One payoff-chart handle per strike rank (ticket #380), never per leg: a straddle's call and
+  // put, sharing a rank, move together under one handle. The chart only ever sees numbers and
   // ticks, every ticker lookup stays here. `onPreview`/`onCommit` resolve the chart's own
-  // snapped strike (already restricted to traded, in-bound candidates) back to its ticker
-  // through `tickerAtStrike`, then hand off to `previewLegChange`/`applyLegChange` — the exact
-  // functions the ← → buttons already call, never a second implementation.
-  const strikeHandles: PayoffStrikeHandle[] = optionFullIndices.flatMap(
-    (fullIndex, optionIndex) => {
-      const leg = legs[fullIndex];
-      if (!leg || !expiry) return [];
-      const right = rightOf(current, leg.ticker);
-      const series = current.seriesByTicker[leg.ticker];
-      if (!right || !series) return [];
-      const bound = rankBounds[optionIndex] ?? { lower: null, upper: null };
-      const tradedStrikes = boundedStrikes(
-        selectableStrikes(chain, right, expiry),
-        bound.lower,
-        bound.upper,
-      );
-      const allStrikes = allStrikesFor(chain, right, expiry);
-      if (allStrikes.length === 0) return [];
-      const values = allStrikes.map((entry) => Number(entry.strike));
-      return [
-        {
-          key: `leg-${String(fullIndex)}`,
-          ariaLabel: t.adjust.strikeLabel(sideLabel[leg.side], t.adjust.roleNames[leg.role]),
-          valueText: formatPriceBRL(series.strike),
-          value: Number(series.strike),
-          min: values[0] ?? Number(series.strike),
-          max: values.at(-1) ?? Number(series.strike),
-          // Dimmed when either untraded or outside this leg's own rank bound: both mean the same
-          // thing to a handle, "cannot land here" (round 4 review item 4).
-          ticks: allStrikes.map((entry) => ({
-            value: Number(entry.strike),
-            traded:
-              entry.traded &&
-              (bound.lower === null || Number(entry.strike) > bound.lower) &&
-              (bound.upper === null || Number(entry.strike) < bound.upper),
-          })),
-          onPreview: (nextValue) => {
-            const nextTicker = tickerAtStrike(tradedStrikes, nextValue);
-            if (nextTicker) previewLegChange(fullIndex, nextTicker);
-          },
-          onCommit: (nextValue) => {
-            const nextTicker = tickerAtStrike(tradedStrikes, nextValue);
-            if (nextTicker && nextTicker !== leg.ticker) applyLegChange(fullIndex, nextTicker);
-          },
-          onStep: (direction) => {
-            onStrikeStep(fullIndex, tradedStrikes, direction);
-          },
+  // snapped strike (already restricted to traded, in-bound candidates for every right at this
+  // rank) back to every leg's own ticker through `tickersForRank`, then hand off to
+  // `previewRankChange`/`applyRankChange` — the exact functions the ← → buttons already call,
+  // never a second implementation.
+  const strikeHandles: PayoffStrikeHandle[] = ranks.flatMap((rank, rankIndex) => {
+    if (!expiry) return [];
+    const rights = [
+      ...new Set(
+        rank.legIndices
+          .map((templateIndex) => optionTemplateLegs[templateIndex]?.role)
+          .filter((right): right is "call" | "put" => right !== undefined),
+      ),
+    ];
+    if (rights.length === 0) return [];
+    const series = seriesOfRank(rank);
+    if (!series) return [];
+    const currentValue = Number(series.strike);
+    const bound = rankBounds[rankIndex] ?? { lower: null, upper: null };
+    const tradedStrikes = boundedStrikes(
+      commonSelectableStrikes(chain, rights, expiry),
+      bound.lower,
+      bound.upper,
+    );
+    const allValues = allStrikesForRank(chain, rights, expiry);
+    if (allValues.length === 0) return [];
+    const label = rank.legIndices
+      .flatMap((templateIndex) => {
+        const fullIndex = optionFullIndices[templateIndex];
+        const leg = fullIndex === undefined ? undefined : legs[fullIndex];
+        return leg ? [t.adjust.strikeLabel(sideLabel[leg.side], t.adjust.roleNames[leg.role])] : [];
+      })
+      .join(" / ");
+    return [
+      {
+        key: `rank-${String(rank.strikeRank)}`,
+        ariaLabel: label,
+        valueText: formatPriceBRL(series.strike),
+        value: currentValue,
+        min: allValues[0] ?? currentValue,
+        max: allValues.at(-1) ?? currentValue,
+        // Dimmed when either untraded for one of the rank's own rights or outside this rank's
+        // own bound: both mean the same thing to a handle, "cannot land here".
+        ticks: allValues.map((value) => ({
+          value,
+          traded: tradedStrikes.some((entry) => Number(entry.strike) === value),
+        })),
+        onPreview: (nextValue) => {
+          if (nextValue === currentValue) {
+            clearPreview();
+            return;
+          }
+          previewRankChange(rank, nextValue);
         },
-      ];
-    },
-  );
+        onCommit: (nextValue) => {
+          if (nextValue === currentValue) {
+            clearPreview();
+            return;
+          }
+          applyRankChange(rank, nextValue);
+        },
+        onStep: (direction) => {
+          onRankStep(rank, tradedStrikes, direction);
+        },
+        onAbort: clearPreview,
+      },
+    ];
+  });
 
   const previewSource = previewPricing;
 
@@ -434,25 +511,41 @@ export function PlanAdjuster({
         )}
 
         {/* Mandatory phone/keyboard alternative to the chart's own strike handles below (ticket
-            #380), not a fallback: one per-leg row of ← → buttons, calling the exact same
-            `onStrikeStep` the chart handle's own arrow keys call. */}
+            #380), not a fallback: one row of ← → buttons per strike rank, calling the exact
+            same `onRankStep` the chart handle's own arrow keys call — a straddle's call and put
+            share one row, since they always move together. */}
         <div className="flex flex-col gap-3">
-          {optionFullIndices.map((fullIndex, optionIndex) => {
-            const leg = legs[fullIndex];
-            if (!leg) return null;
-            const right = rightOf(current, leg.ticker);
-            if (!right || !expiry) return null;
-            const bound = rankBounds[optionIndex] ?? { lower: null, upper: null };
+          {ranks.map((rank, rankIndex) => {
+            const rights = [
+              ...new Set(
+                rank.legIndices
+                  .map((templateIndex) => optionTemplateLegs[templateIndex]?.role)
+                  .filter((right): right is "call" | "put" => right !== undefined),
+              ),
+            ];
+            if (!expiry || rights.length === 0) return null;
+            const series = seriesOfRank(rank);
+            if (!series) return null;
+            const bound = rankBounds[rankIndex] ?? { lower: null, upper: null };
             const strikes = boundedStrikes(
-              selectableStrikes(chain, right, expiry),
+              commonSelectableStrikes(chain, rights, expiry),
               bound.lower,
               bound.upper,
             );
-            const index = strikes.findIndex((entry) => entry.ticker === leg.ticker);
-            const series = current.seriesByTicker[leg.ticker];
-            const label = t.adjust.strikeLabel(sideLabel[leg.side], t.adjust.roleNames[leg.role]);
+            const index = strikes.findIndex(
+              (entry) => Number(entry.strike) === Number(series.strike),
+            );
+            const label = rank.legIndices
+              .flatMap((templateIndex) => {
+                const fullIndex = optionFullIndices[templateIndex];
+                const leg = fullIndex === undefined ? undefined : legs[fullIndex];
+                return leg
+                  ? [t.adjust.strikeLabel(sideLabel[leg.side], t.adjust.roleNames[leg.role])]
+                  : [];
+              })
+              .join(" / ");
             return (
-              <div key={`leg-${String(fullIndex)}`} className="flex flex-col gap-1.5">
+              <div key={`rank-${String(rank.strikeRank)}`} className="flex flex-col gap-1.5">
                 <span className="text-muted-foreground text-[11px] tracking-[0.06em] uppercase">
                   {label}
                 </span>
@@ -464,7 +557,7 @@ export function PlanAdjuster({
                     aria-label={t.adjust.decreaseStrike}
                     disabled={pending || index <= 0}
                     onClick={() => {
-                      onStrikeStep(fullIndex, strikes, -1);
+                      onRankStep(rank, strikes, -1);
                     }}
                   >
                     ←
@@ -476,13 +569,13 @@ export function PlanAdjuster({
                     aria-label={t.adjust.increaseStrike}
                     disabled={pending || index === -1 || index >= strikes.length - 1}
                     onClick={() => {
-                      onStrikeStep(fullIndex, strikes, 1);
+                      onRankStep(rank, strikes, 1);
                     }}
                   >
                     →
                   </Button>
                   <span className="w-20 text-right font-mono text-[13px] tabular-nums">
-                    {series ? formatPriceBRL(series.strike) : "—"}
+                    {formatPriceBRL(series.strike)}
                   </span>
                 </div>
               </div>
@@ -493,6 +586,7 @@ export function PlanAdjuster({
         {pending && <Badge variant="secondary">{t.adjust.adjusting}</Badge>}
         {previewSource && !pending && <Badge variant="outline">{t.adjust.preview}</Badge>}
         {error && <ErrorNotice>{t.screen.errors[error]}</ErrorNotice>}
+        {adjustFailed && <ErrorNotice>{t.adjust.errors.adjust_failed}</ErrorNotice>}
         {expiryRemapFailed && <ErrorNotice>{t.adjust.errors.expiry_remap_failed}</ErrorNotice>}
       </section>
 

@@ -45,8 +45,8 @@ test("build a plan from a suggestion, save it, and decide on it from the portfol
   await page.getByRole("button", { name: "Salvar plano" }).click();
   await expect(page.getByText("Plano salvo.")).toBeVisible();
 
-  // The saved plan's own analysis entry point (round 2 review): the dialog trigger appears next
-  // to the save confirmation, and opening it offers to request a first analysis.
+  // The saved plan's own analysis entry point: the dialog trigger appears next to the save
+  // confirmation, and opening it offers to request a first analysis.
   await page.getByRole("button", { name: "Análise" }).click();
   await expect(page.getByRole("button", { name: "Pedir análise" })).toBeVisible();
   await page.keyboard.press("Escape");
@@ -60,8 +60,8 @@ test("build a plan from a suggestion, save it, and decide on it from the portfol
   await expect(row.getByText(/^Entrar · /)).toBeVisible();
 
   await page.goto("/diario");
-  // Loosened from an exact match (round 2 review): the summary now carries a trailing price-
-  // close clause with a live session date, so this asserts the stable prefix instead.
+  // The summary carries a trailing price-close clause with a live session date, so this
+  // asserts the stable prefix instead of an exact match.
   await expect(
     page.getByText(
       /A Fetha montou essa Trava de alta com calls em PETR4 a partir da sugestão de hoje\./,

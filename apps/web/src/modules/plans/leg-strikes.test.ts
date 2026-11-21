@@ -4,12 +4,16 @@ import { tickerSchema, type DecimalString, type SessionDate } from "@fetha/contr
 import type { PlanChainEntry } from "./chain-view";
 import {
   allStrikesFor,
+  allStrikesForRank,
   boundedStrikes,
+  commonSelectableStrikes,
   indexOfTicker,
   rankBoundsFor,
+  ranksOf,
   remapToExpiry,
   selectableStrikes,
   stepStrike,
+  stepStrikeValue,
   tickerAtStrike,
 } from "./leg-strikes";
 import type { OptionLegTemplate } from "./template-legs";
@@ -38,6 +42,7 @@ const CHAIN: PlanChainEntry[] = [
   entry("PETRC036", "36.000000", EXPIRY_A),
   entry("PETRC038", "38.000000", EXPIRY_A, "call", false),
   entry("PETRC040", "40.000000", EXPIRY_A),
+  entry("PETRP034", "34.000000", EXPIRY_A, "put"),
   entry("PETRP036", "36.000000", EXPIRY_A, "put"),
   entry("PETRC037", "37.000000", EXPIRY_B),
   entry("PETRC041", "41.000000", EXPIRY_B),
@@ -51,7 +56,7 @@ describe("selectableStrikes", () => {
 
   it("excludes the other option right", () => {
     const strikes = selectableStrikes(CHAIN, "put", EXPIRY_A);
-    expect(strikes.map((entry) => entry.ticker)).toEqual(["PETRP036"]);
+    expect(strikes.map((entry) => entry.ticker)).toEqual(["PETRP034", "PETRP036"]);
   });
 });
 
@@ -167,6 +172,75 @@ describe("rankBoundsFor", () => {
       { lower: null, upper: null },
       { lower: null, upper: null },
     ]);
+  });
+});
+
+describe("stepStrikeValue", () => {
+  const strikes = selectableStrikes(CHAIN, "call", EXPIRY_A);
+
+  it("moves to the next higher traded strike value", () => {
+    expect(stepStrikeValue(strikes, 34, 1)).toBe(36);
+  });
+
+  it("moves to the next lower traded strike value", () => {
+    expect(stepStrikeValue(strikes, 40, -1)).toBe(36);
+  });
+
+  it("clamps at either end", () => {
+    expect(stepStrikeValue(strikes, 40, 1)).toBe(40);
+    expect(stepStrikeValue(strikes, 34, -1)).toBe(34);
+  });
+
+  it("returns null for a value not in the list", () => {
+    expect(stepStrikeValue(strikes, 99, 1)).toBeNull();
+  });
+});
+
+describe("ranksOf", () => {
+  it("groups legs sharing a rank together, ascending by rank", () => {
+    const straddle: OptionLegTemplate[] = [
+      { role: "call", side: "buy", ratio: 1, strikeRank: 1 },
+      { role: "put", side: "buy", ratio: 1, strikeRank: 1 },
+    ];
+    expect(ranksOf(straddle)).toEqual([{ strikeRank: 1, legIndices: [0, 1] }]);
+  });
+
+  it("keeps a butterfly's three ranks apart, one leg each", () => {
+    const butterfly: OptionLegTemplate[] = [
+      { role: "call", side: "buy", ratio: 1, strikeRank: 1 },
+      { role: "call", side: "sell", ratio: 2, strikeRank: 2 },
+      { role: "call", side: "buy", ratio: 1, strikeRank: 3 },
+    ];
+    expect(ranksOf(butterfly)).toEqual([
+      { strikeRank: 1, legIndices: [0] },
+      { strikeRank: 2, legIndices: [1] },
+      { strikeRank: 3, legIndices: [2] },
+    ]);
+  });
+});
+
+describe("commonSelectableStrikes", () => {
+  it("keeps only strikes traded for every right given", () => {
+    const strikes = commonSelectableStrikes(CHAIN, ["call", "put"], EXPIRY_A);
+    expect(strikes.map((entry) => entry.ticker)).toEqual(["PETRC034", "PETRC036"]);
+  });
+
+  it("drops a strike traded for only one of the rights (a straddle's own call without a put, or vice versa)", () => {
+    const strikes = commonSelectableStrikes(CHAIN, ["call", "put"], EXPIRY_A);
+    expect(strikes.some((entry) => entry.ticker === "PETRC040")).toBe(false);
+  });
+
+  it("reduces to selectableStrikes for a single right", () => {
+    expect(commonSelectableStrikes(CHAIN, ["call"], EXPIRY_A)).toEqual(
+      selectableStrikes(CHAIN, "call", EXPIRY_A),
+    );
+  });
+});
+
+describe("allStrikesForRank", () => {
+  it("unions both rights' own strikes, traded or not", () => {
+    const values = allStrikesForRank(CHAIN, ["call", "put"], EXPIRY_A);
+    expect(values).toEqual([34, 36, 38, 40]);
   });
 });
 

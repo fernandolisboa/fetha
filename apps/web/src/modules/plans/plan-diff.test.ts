@@ -38,8 +38,8 @@ describe("diffPlans", () => {
   });
 
   it("tells apart two legs sharing the same role and side by their own template position", () => {
-    // A call-butterfly's two buy-call wings (ticket #380, blocking item 3): same role, same
-    // side, same strikeRank-adjacent pricing, but distinct template positions.
+    // A call-butterfly's two buy-call wings (ticket #380): same role, same side, same
+    // strikeRank-adjacent pricing, but distinct template positions.
     const original: PlanSnapshot = {
       lots: 1,
       legs: [

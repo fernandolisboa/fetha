@@ -19,11 +19,11 @@ export type PlanChange =
   | { kind: "lots"; from: number; to: number }
   | { kind: "leg"; role: LegRole; side: Side; from: Ticker; to: Ticker };
 
-// Legs are matched by their position in the structure's own template (round 4 review item 3),
-// never by role+side: two legs of the same role and side (a butterfly's own two buy-call wings)
-// would otherwise collide on both a React key and this diff — the structure's shape never
-// changes under an edit, only which listed ticker fills a given template slot does, and that
-// slot is exactly the array position every snapshot here is already built in.
+// Legs are matched by their position in the structure's own template (ADR-0079), never by
+// role+side: two legs of the same role and side (a butterfly's own two buy-call wings) would
+// otherwise collide on both a React key and this diff — the structure's shape never changes
+// under an edit, only which listed ticker fills a given template slot does, and that slot is
+// exactly the array position every snapshot here is already built in.
 export function diffPlans(original: PlanSnapshot, edited: PlanSnapshot): PlanChange[] {
   const changes: PlanChange[] = [];
   if (original.lots !== edited.lots) {

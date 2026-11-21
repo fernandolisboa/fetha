@@ -50,7 +50,18 @@ const CHAIN: PlanChainEntry[] = [
   entry("PETRC038", "38.000000"),
   entry("PETRP036", "36.000000", "put"),
   entry("PETRC037", "37.000000", "call", OTHER_EXPIRY),
+  { ...entry("PETRC040", "40.000000"), traded: false },
 ];
+
+const LONG_STRADDLE: Structure = structureSchema.parse({
+  id: "long-straddle",
+  name: "Straddle comprado",
+  expiry: "shared",
+  legs: [
+    { role: "call", side: "buy", ratio: 1, strikeRank: 1 },
+    { role: "put", side: "buy", ratio: 1, strikeRank: 1 },
+  ],
+});
 
 describe("validateStructuralAdjustment", () => {
   it("accepts a conforming butterfly with strictly increasing strikes", () => {
@@ -115,6 +126,26 @@ describe("validateStructuralAdjustment", () => {
       1,
     );
     expect(ok).toBe(false);
+  });
+
+  it("refuses an untraded leg even when its role, expiry and rank order all check out", () => {
+    const ok = validateStructuralAdjustment(
+      BULL_CALL_SPREAD,
+      CHAIN,
+      [tickerSchema.parse("PETRC034"), tickerSchema.parse("PETRC040")],
+      1,
+    );
+    expect(ok).toBe(false);
+  });
+
+  it("accepts a long straddle whose call and put share the same rank and strike", () => {
+    const ok = validateStructuralAdjustment(
+      LONG_STRADDLE,
+      CHAIN,
+      [tickerSchema.parse("PETRC036"), tickerSchema.parse("PETRP036")],
+      1,
+    );
+    expect(ok).toBe(true);
   });
 
   it("refuses lots above the cap", () => {

@@ -59,6 +59,11 @@ export interface PayoffStrikeHandle {
   // The ← → buttons' own step, reused verbatim for the handle's own arrow keys (never a second
   // implementation of "the next traded strike").
   onStep: (direction: 1 | -1) => void;
+  // Called when a drag is cancelled or its pointer capture is lost outside a normal release,
+  // never when the gesture simply ends where it started: the caller's own chance to drop a
+  // client-side preview that would otherwise never be cleared, since neither `onPreview` nor
+  // `onCommit` fires again for it.
+  onAbort?: () => void;
 }
 
 const MARGIN = { top: 12, right: 28, bottom: 28 };
@@ -259,6 +264,7 @@ function Chart({
     setDragPixel((prev) =>
       Object.fromEntries(Object.entries(prev).filter(([key]) => key !== handle.key)),
     );
+    handle.onAbort?.();
   }
 
   function onHandleKeyDown(handle: PayoffStrikeHandle, event: ReactKeyboardEvent) {
