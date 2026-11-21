@@ -289,7 +289,9 @@ describe("closed vocabularies", () => {
       "option_strike_derived_across_corporate_action",
       "candle_less_sessions_excluded",
       "warm_up_sessions_excluded",
+      "adjustment_not_applied",
       "roll_no_series_match",
+      "roll_refused_limit_breach",
     ]);
   });
 

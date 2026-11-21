@@ -86,6 +86,19 @@ export const ROLL_NO_SERIES_MATCH_NOTE: Note = {
     "a roll rule's when condition fired, but no series matched its expiry/strikes selection at that session; the operation was held without rolling",
 };
 
+// #383 round-1 review item 10: under `limits: "enforce"`, a roll proposal that breaches a
+// risk-profile limit (the successor's own exposure or premium, priced the same way an entry's
+// own proposal already is) is refused outright, the same "refused, not silently filled" reading
+// `finalizeMissedEntry`'s own `limit_breach` reason already gives an entry — the held operation
+// stays open, unrolled, rather than close into a successor the risk profile would have rejected
+// had it been a fresh entry. Under `warn`, the roll still fills and the breach is recorded on
+// `BacktestRun.limitBreaches` against the successor, the same as a warned entry.
+export const ROLL_REFUSED_LIMIT_BREACH_NOTE: Note = {
+  code: "roll_refused_limit_breach",
+  message:
+    "a roll rule's when condition fired, but the successor it would have opened breaches a risk-profile limit under enforce; the operation was held without rolling",
+};
+
 export function pushNoteOnce(notes: Note[], note: Note): void {
   if (!notes.some((n) => n.code === note.code)) notes.push(note);
 }

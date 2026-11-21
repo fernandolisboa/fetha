@@ -8,7 +8,14 @@ import type {
   StrategyDefinition,
   Structure,
 } from "@fetha/contracts";
-import type { BacktestConfig, Candle, StrategyVersion, TradingSession } from "../api";
+import type {
+  BacktestConfig,
+  Candle,
+  OptionDayPrice,
+  OptionSeries,
+  StrategyVersion,
+  TradingSession,
+} from "../api";
 import { assertDefined } from "../internal/invariant";
 
 const decimalString = (value: string): DecimalString => value as DecimalString;
@@ -242,3 +249,144 @@ export const longBacktestFixtureArbitrary: fc.Arbitrary<LongBacktestFixture> = f
       };
     },
   );
+
+const coveredCallRollStructure: Structure = {
+  id: "covered_call_roll_fixture",
+  name: "Covered call",
+  expiry: "shared",
+  legs: [
+    { role: "stock", side: "buy", ratio: 1 },
+    { role: "call", side: "sell", ratio: 1, strikeRank: 1 },
+  ] as LegTemplate[],
+};
+
+export type RollBacktestFixture = {
+  config: BacktestConfig;
+  calendar: TradingSession[];
+  candles: Candle[];
+  optionSeries: OptionSeries[];
+  optionPrices: OptionDayPrice[];
+  nearExpiry: string;
+  farExpiry: string;
+};
+
+// A covered call that rolls once partway through a long-enough calendar for a chunked
+// (I2) or cut-short (I1, I7) run to land before, exactly on, or after the roll's own fill
+// session (#383 round-1 review item 6): unlike `longBacktestFixtureArbitrary` above, this one
+// carries option legs and a roll rule, so the resumption plumbing those three invariants test is
+// exercised with a `pendingRoll` in flight, not only `pendingExits`/`pendingEntries`. The
+// underlying stays flat (no price-walk arbitrary): a roll's own series/strike selection already
+// has its own dedicated property coverage in roll-adjustment.property.test.ts, so this fixture
+// only needs the roll to reliably fire and fill, not to vary the market around it.
+export const rollBacktestFixtureArbitrary: fc.Arbitrary<RollBacktestFixture> = fc
+  .tuple(fc.integer({ min: 5_000, max: 50_000 }), fc.integer({ min: 0, max: 15 }))
+  .map(([declaredCapitalReais, extraDays]) => {
+    const sessionCount = 45 + extraDays;
+    const calendar: TradingSession[] = [];
+    const candles: Candle[] = [];
+    for (let i = 0; i < sessionCount; i += 1) {
+      const date = sessionAt(i);
+      calendar.push({ date, open: `${date}T13:00:00.000Z`, close: `${date}T20:00:00.000Z` });
+      candles.push({
+        ticker: "PETR4",
+        timeframe: "D1",
+        session: date,
+        asOf: `${date}T20:00:00.000Z`,
+        open: decimalString("10.00"),
+        high: decimalString("10.00"),
+        low: decimalString("10.00"),
+        close: decimalString("10.00"),
+        tradedQuantity: 1000,
+      });
+    }
+    const nearExpiry = assertDefined(calendar[15], "arbitraries: sessionCount > 15").date;
+    const farExpiry = assertDefined(calendar[35], "arbitraries: sessionCount > 35").date;
+    const firstAsOf = assertDefined(calendar[0], "arbitraries: non-empty calendar").open;
+
+    const optionSeries: OptionSeries[] = [
+      {
+        ticker: "PETR4C11",
+        underlying: "PETR4",
+        right: "call",
+        strike: decimalString("11.00"),
+        expiry: nearExpiry,
+        style: "european",
+        asOf: firstAsOf,
+      },
+      {
+        ticker: "PETR4C11F",
+        underlying: "PETR4",
+        right: "call",
+        strike: decimalString("11.00"),
+        expiry: farExpiry,
+        style: "european",
+        asOf: firstAsOf,
+      },
+    ];
+    const optionDayPrice = (ticker: string, session: TradingSession): OptionDayPrice => ({
+      ticker,
+      session: session.date,
+      asOf: session.close,
+      average: decimalString("1.00"),
+      close: decimalString("1.00"),
+      trades: 1,
+      tradedQuantity: 10,
+    });
+    const optionPrices: OptionDayPrice[] = [
+      ...calendar.slice(0, 16).map((s) => optionDayPrice("PETR4C11", s)),
+      ...calendar.slice(0, 36).map((s) => optionDayPrice("PETR4C11F", s)),
+    ];
+
+    const definition: StrategyDefinition = {
+      name: "covered call, rolled once",
+      timeframe: "D1",
+      structureId: "covered_call_roll_fixture",
+      entry: alwaysTrueEntry,
+      strikes: [{ kind: "nearest", price: decimalString("11.00") }],
+      expiry: { kind: "business_days", min: 1, max: 16 },
+      sizing: { kind: "fixed_fractional", fraction: decimalString("0.1") },
+      exit: [],
+      adjustments: [
+        {
+          kind: "roll",
+          when: { kind: "days_before_expiry", businessDays: 5 },
+          expiry: { kind: "business_days", min: 20, max: 25 },
+          strikes: [{ kind: "nearest", price: decimalString("11.00") }],
+        },
+      ],
+    };
+    const strategy: StrategyVersion = {
+      id: "v1",
+      definition,
+      structure: coveredCallRollStructure,
+    };
+    const first = assertDefined(calendar[0], "arbitraries: non-empty calendar");
+    const last = assertDefined(calendar.at(-1), "arbitraries: non-empty calendar");
+    const config: BacktestConfig = {
+      strategy,
+      universe: ["PETR4"],
+      period: { from: first.date, to: last.date },
+      initialCapital: centavos(declaredCapitalReais * 100_00),
+      costModel: {
+        b3FeeRate: decimalString("0.0005"),
+        brokerage: { stockPerOrder: centavos(100), optionPerOrder: centavos(0) },
+        optionSlippageRate: decimalString("0.01"),
+        incomeTaxRate: decimalString("0.15"),
+        monthlyStockSalesExemption: centavos(2_000_000_00),
+      },
+      riskProfile: {
+        declaredCapital: centavos(declaredCapitalReais * 100_00),
+        limits: {
+          maxLossPerOperation: decimalString("1"),
+          maxExposurePerOperation: decimalString("1"),
+          maxOpenOperations: 5,
+          maxPremiumBought: decimalString("1"),
+        },
+      },
+      limits: "enforce",
+      sizing: null,
+      walkForward: null,
+      seed: 1,
+    };
+    return { config, calendar, candles, optionSeries, optionPrices, nearExpiry, farExpiry };
+  });

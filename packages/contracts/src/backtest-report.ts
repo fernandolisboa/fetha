@@ -66,7 +66,11 @@ export const noteCodeSchema = z.enum([
   "option_strike_derived_across_corporate_action",
   "candle_less_sessions_excluded",
   "warm_up_sessions_excluded",
+  // Retired by #383: kept so a `backtest_runs` row persisted before engine 0.20.0 still parses;
+  // never emitted by the engine from that version on.
+  "adjustment_not_applied",
   "roll_no_series_match",
+  "roll_refused_limit_breach",
 ]);
 
 export const pricingModelSchema = z.enum(["bsm_continuous_yield"]);

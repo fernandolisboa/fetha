@@ -1,6 +1,7 @@
 import Decimal from "decimal.js";
 import type {
   AdjustmentRule,
+  Condition,
   DecimalString,
   ExitRule,
   Instant,
@@ -11,6 +12,7 @@ import {
   ENGINE_VERSION,
   type Candle,
   type CorporateActionFactor,
+  type EngineError,
   type Evaluation,
   type EvaluationOutcome,
   type EvaluationReason,
@@ -45,6 +47,7 @@ import {
 } from "./condition-evaluator";
 import { tradingCalendar } from "./data-window";
 import { CENTAVOS_PER_REAL, parseDecimal } from "./decimal";
+import { invalidInput as invalidInputError } from "./errors";
 import { computeIndicators } from "./indicators-computation";
 import { compareInstants, instantMs, isAfter, isAtOrBefore } from "./instant";
 import { assertDefined, assertPresent, invariant } from "./invariant";
@@ -141,6 +144,14 @@ function validateCoherence(
       "strikes.length must equal the number of distinct strike ranks",
     );
   }
+  for (const [index, rule] of definition.adjustments.entries()) {
+    if (rule.strikes.length !== distinctRanks) {
+      return invalidInput(
+        `strategy.definition.adjustments[${String(index)}].strikes`,
+        "a roll rule's strikes.length must equal the number of distinct strike ranks",
+      );
+    }
+  }
   return null;
 }
 
@@ -148,6 +159,15 @@ function validateCoherence(
 // a hand-rolled copy here previously skipped `series.underlying`,
 // `series.right` and `openedAt <= at`, so `evaluateStrategy` accepted an operation
 // `markToMarket` would reject.
+//
+// A general open operation's own legs need not mirror `strategy.structure.legs` one for one —
+// exit-rule evaluation works leg by leg, role by role, regardless of shape (deliberately
+// exercised by evaluate-strategy.test.ts's own "delta neutral" fixture, a two-stock-leg
+// operation evaluated against a one-leg stock structure) — so that is not checked here. A
+// strategy that declares a roll rule is narrower: `resolveRollTarget` indexes `op.legs[index]`
+// by the structure's own template index with no check of its own, so `checkRollLegConformance`
+// below guards that assumption once a roll is actually about to run for a given op (#383
+// round-1 review item 14), rather than reject every open operation's shape up front.
 function validateOpenOperations(input: EvaluateStrategyInput): Result<Evaluation> | null {
   const instrumentSet = new Set(input.instruments);
   const openOperations = input.openOperations ?? [];
@@ -165,6 +185,35 @@ function validateOpenOperations(input: EvaluateStrategyInput): Result<Evaluation
       `openOperations[${String(index)}]`,
     );
     if (coherenceError) return { ok: false, error: coherenceError };
+  }
+  return null;
+}
+
+// Guards `resolveRollTarget`'s own assumption that `op.legs[index]` lines up with
+// `structure.legs[index]`, one leg per template leg, same order, same role (#383 round-1 review
+// item 14): a malformed operation (wrong leg count or role order) fails with a typed
+// `invalid_input` here, rather than reach that unchecked index and throw an untyped assertion.
+function checkRollLegConformance(
+  op: Operation,
+  structure: EvaluateStrategyInput["strategy"]["structure"],
+): EngineError | null {
+  if (op.legs.length !== structure.legs.length) {
+    return invalidInputError(
+      "openOperations[].legs",
+      "an operation with a roll rule must have one leg per the strategy's own structure leg",
+    );
+  }
+  for (const [legIndex, leg] of op.legs.entries()) {
+    const template = assertDefined(
+      structure.legs[legIndex],
+      "evaluateStrategy: structure.legs.length was just checked to equal op.legs.length",
+    );
+    if (leg.role !== template.role) {
+      return invalidInputError(
+        `openOperations[].legs[${String(legIndex)}].role`,
+        "an operation with a roll rule must have each leg's role match the strategy's own structure leg, same order",
+      );
+    }
   }
   return null;
 }
@@ -435,11 +484,38 @@ function zeroBaseReasonFor(kind: "profit_target" | "stop_loss"): EvaluationReaso
   return kind === "profit_target" ? "profit_target_zero_base" : "stop_loss_zero_base";
 }
 
+// Shared by both the exit loop's own switch and evaluateWhenRule below (#383 round-1 review
+// item 8): a fired condition rule's own signal carries the indicator readings its own condition
+// tree referenced, the same way an entry signal's own `indicators` already does — duplicated
+// before this extraction, and already drifted once (the roll path's own `adjust` signal always
+// carried `indicators: []`, never this).
+function conditionIndicatorReadings(
+  condition: Condition,
+  rawIndicatorValues: IndicatorLookup<DecimalString | null>,
+): IndicatorReading[] {
+  const specs = dedupeIndicatorSpecs(collectSpecsFromCondition(condition));
+  return specs.map((spec) => ({
+    indicator: spec,
+    value: rawIndicatorValues.get(indicatorSpecKey(spec)) ?? null,
+  }));
+}
+
+type WhenRuleOutcome = {
+  fired: boolean;
+  unknown: boolean;
+  zeroBase: boolean;
+  notes: Note[];
+  indicators: IndicatorReading[];
+};
+
 // A roll rule's own `when` (#383) is itself an ExitRule, fired the same way an operation's own
 // exit rules are (evaluateNumericExitRule/evaluateCondition/businessDaysBeforeExpiry above) —
 // kept as its own small switch, rather than folded into the exit-rule loop above, so the exit
 // path above is untouched by this addendum: a roll never emits an "exit" signal, and an exit
-// rule never emits an "adjust" one, so the two stay independently testable.
+// rule never emits an "adjust" one, so the two stay independently testable. Returns the full
+// outcome shape evaluateNumericExitRule already does (zeroBase, notes) plus the condition case's
+// own indicator readings, so the caller can roll every one of them up exactly the way the exit
+// loop's own switch already does, instead of silently dropping them (round-1 review item 8).
 function evaluateWhenRule(
   rule: ExitRule,
   op: Operation,
@@ -450,7 +526,8 @@ function evaluateWhenRule(
   visibleFactors: readonly CorporateActionFactor[],
   session: SessionDate,
   ctx: ConditionContext,
-): { fired: boolean; unknown: boolean } {
+  rawIndicatorValues: IndicatorLookup<DecimalString | null>,
+): WhenRuleOutcome {
   switch (rule.kind) {
     case "profit_target":
     case "stop_loss": {
@@ -464,11 +541,24 @@ function evaluateWhenRule(
         visibleFactors,
         session,
       );
-      return { fired: outcome.fired, unknown: outcome.unknown };
+      return {
+        fired: outcome.fired,
+        unknown: outcome.unknown,
+        zeroBase: outcome.zeroBase,
+        notes: outcome.notes,
+        indicators: [],
+      };
     }
     case "condition": {
       const verdict = evaluateCondition(rule.condition, ctx);
-      return { fired: verdict === "true", unknown: verdict === "unknown" };
+      const fired = verdict === "true";
+      return {
+        fired,
+        unknown: verdict === "unknown",
+        zeroBase: false,
+        notes: [],
+        indicators: fired ? conditionIndicatorReadings(rule.condition, rawIndicatorValues) : [],
+      };
     }
     case "days_before_expiry": {
       // Coherence rejects a roll rule on a stock-only structure (validateCoherence above), so
@@ -478,67 +568,148 @@ function evaluateWhenRule(
         "evaluateStrategy: an operation with a roll rule always carries an expiry",
       );
       const remaining = businessDaysBeforeExpiry(view.calendar, at, expiry);
-      if (remaining === null) return { fired: false, unknown: true };
-      return { fired: remaining <= rule.businessDays, unknown: false };
+      // Same reasoning as the exit loop's own identical check above: `bases` already resolved
+      // a time to this same expiry, against this same `view.calendar` and `at`, for this op to
+      // reach the roll evaluation at all, so the lookup here cannot fail.
+      /* v8 ignore start */
+      if (remaining === null) {
+        return { fired: false, unknown: true, zeroBase: false, notes: [], indicators: [] };
+      }
+      /* v8 ignore stop */
+      return {
+        fired: remaining <= rule.businessDays,
+        unknown: false,
+        zeroBase: false,
+        notes: [],
+        indicators: [],
+      };
     }
   }
 }
 
 type RollTargetResolution =
-  { outcome: "resolved"; legs: Leg[] } | { outcome: "unknown" } | { outcome: "no_series_match" };
+  | { outcome: "resolved"; legs: Leg[] }
+  | { outcome: "unknown" }
+  | { outcome: "no_series_match" }
+  | { outcome: "error"; error: EngineError };
 
 // Resolves a fired roll's new legs (#383): the next eligible expiry and, per strike rank, the
 // series `resolveLegSelection` picks for the adjustment's own `expiry`/`strikes` fields —
 // the same seam an entry proposal's own strike/expiry selection already goes through — evaluated
-// at the roll session against the series visible then (no look-ahead). Every leg keeps the
-// held operation's own side and quantity (same right, side and ratio, ADR-0080): a roll never
-// resizes, it only moves strikes/expiry. A stock leg's `role` alone identifies it in
-// `resolveLegSelection`'s own result, so it is carried through by the held operation's own leg
-// at the same index, untouched, here; `runBacktest` is the one that actually keeps it out of the
-// roll's closing fills and rebases its cost basis onto the roll session (ADR-0080).
+// at the roll session against the series visible then (no look-ahead), excluding any series
+// whose own expiry is at or before the held operation's own expiry: without this, a roll rule
+// whose `expiry` window admits the operation's own series (or one older) rolls an operation into
+// itself, or into the past, every session its `when` keeps firing instead of moving it forward
+// exactly once (round-1 review item 5). Every leg keeps the held operation's own side and ratio
+// (ADR-0080): a roll never resizes the position by itself, only moves strikes/expiry — but a
+// corporate-action factor between the operation's own entry and this roll session already moved
+// its nominal quantity off the one the structure's ratio describes (ADR-0014 Q51's convention:
+// `Operation.legs` stay nominal, rebased at point of use), so an option leg's own new quantity is
+// rebased by that same `splitFactor` the caller already resolved for this op/session, the same
+// floor-plus-safety-guard every other rebase in this file already applies, never the untouched
+// nominal count a plain carry-forward would leave stale. A stock leg's `role` alone identifies it
+// in `resolveLegSelection`'s own result, so it is carried through by the held operation's own leg
+// at the same index, its own quantity untouched here; `runBacktest` is the one that actually
+// keeps it out of the roll's closing fills and rebases its own cost basis onto the roll session
+// (ADR-0080).
 function resolveRollTarget(
   view: MarketView,
   op: Operation,
   structure: EvaluateStrategyInput["strategy"]["structure"],
   rule: Extract<AdjustmentRule, { kind: "roll" }>,
   at: Instant,
+  splitFactor: Decimal,
 ): RollTargetResolution {
+  const conformanceError = checkRollLegConformance(op, structure);
+  if (conformanceError) return { outcome: "error", error: conformanceError };
+  const heldExpiry = assertPresent(
+    op.expiry,
+    "evaluateStrategy: a roll rule is rejected by coherence on a stock-only structure, so an operation it ever fires for always carries an expiry",
+  );
+  // Every check below mirrors the call site's own `/* v8 ignore */` on this same outcome
+  // (evaluateStrategy's main loop): `bases` already resolved this same op's spot and rates,
+  // against this same `view` and `at`, for it to reach the roll evaluation at all — a
+  // non-positive view.candles close is already rejected at validateViewContents, and a macro
+  // or dividend row past -100% is already rejected there too — so none of these can fail here.
+  /* v8 ignore start */
   const spotResult = resolveUnderlyingSpotOnSessionScale(view, op.underlying, at);
   if (!spotResult.ok || !spotResult.value) return { outcome: "unknown" };
   const spot = spotResult.value.spot;
+  if (!isPositiveDecimal(spot)) return { outcome: "unknown" };
   const rfResult = resolveRiskFreeRate(view.macro, at);
   if (!rfResult.ok) return { outcome: "unknown" };
   const divResult = resolveDividendYield(view.dividendYields, op.underlying, at);
   if (!divResult.ok) return { outcome: "unknown" };
+  /* v8 ignore stop */
+
+  const rollView: MarketView = {
+    ...view,
+    optionSeries: view.optionSeries.filter((series) => series.expiry > heldExpiry),
+  };
 
   const selection = resolveLegSelection({
     structure,
     underlying: op.underlying,
     strikes: rule.strikes,
     expiry: rule.expiry,
-    view,
+    view: rollView,
     at,
     spot,
     riskFreeRate: rfResult.value,
     dividendYield: divResult.value,
   });
-  if (!selection.ok) return { outcome: "no_series_match" };
+  if (!selection.ok) {
+    switch (selection.error.code) {
+      case "no_series_matches":
+      case "degenerate_strikes":
+        return { outcome: "no_series_match" };
+      // `insufficient_data` only comes from no calendar session at or before `at`, already
+      // ruled out the same way the spot/rate checks above are (ADR-0014 Q39's own reasoning,
+      // mirrored); `invalid_input` only comes from `rule.strikes.length` not matching the
+      // structure's own distinct ranks, already rejected by validateCoherence's own roll-rule
+      // check above, for this same `structure` and `rule.strikes`.
+      /* v8 ignore start */
+      case "insufficient_data":
+        return { outcome: "unknown" };
+      default:
+        return { outcome: "error", error: selection.error };
+      /* v8 ignore stop */
+    }
+  }
 
-  const legs: Leg[] = selection.legs.map((resolved, index) => {
+  const legs: Leg[] = [];
+  for (const [index, resolved] of selection.legs.entries()) {
     const opLeg = assertDefined(
       op.legs[index],
       "evaluateStrategy: resolveLegSelection returns one leg per structure leg, same order op.legs was built in",
     );
     if (resolved.role === "stock") {
-      return { role: "stock", side: opLeg.side, ticker: opLeg.ticker, quantity: opLeg.quantity };
+      legs.push({
+        role: "stock",
+        side: opLeg.side,
+        ticker: opLeg.ticker,
+        quantity: opLeg.quantity,
+      });
+      continue;
     }
-    return {
+    const rawEffectiveQuantity = new Decimal(opLeg.quantity).div(splitFactor);
+    const floored = rawEffectiveQuantity.floor().toNumber();
+    if (floored <= 0 || !Number.isSafeInteger(floored)) {
+      return {
+        outcome: "error",
+        error: invalidInputError(
+          `openOperations[?].legs[${String(index)}]`,
+          "a corporate-action factor since this operation's entry leaves this leg with no safe effective quantity to roll",
+        ),
+      };
+    }
+    legs.push({
       role: resolved.role,
       side: opLeg.side,
       ticker: resolved.series.ticker,
-      quantity: opLeg.quantity,
-    };
-  });
+      quantity: toQuantity(floored),
+    });
+  }
   return { outcome: "resolved", legs };
 }
 
@@ -1198,11 +1369,7 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
               case "condition": {
                 const verdict = evaluateCondition(rule.condition, ctx);
                 if (verdict === "true") {
-                  const ruleSpecs = dedupeIndicatorSpecs(collectSpecsFromCondition(rule.condition));
-                  const indicators: IndicatorReading[] = ruleSpecs.map((spec) => ({
-                    indicator: spec,
-                    value: rawIndicatorValues.get(indicatorSpecKey(spec)) ?? null,
-                  }));
+                  const indicators = conditionIndicatorReadings(rule.condition, rawIndicatorValues);
                   signals.push({
                     kind: "exit",
                     strategyVersionId: strategy.id,
@@ -1275,14 +1442,23 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
                 visibleFactors,
                 nominalCandle.session,
                 ctx,
+                rawIndicatorValues,
               );
+              for (const note of whenOutcome.notes) strikeAdjustmentCodes.add(note.code);
               if (whenOutcome.unknown) {
                 instantUnknown = true;
                 continue;
               }
+              if (
+                whenOutcome.zeroBase &&
+                zeroBaseReason === null &&
+                (rule.when.kind === "profit_target" || rule.when.kind === "stop_loss")
+              ) {
+                zeroBaseReason = zeroBaseReasonFor(rule.when.kind);
+              }
               if (!whenOutcome.fired) continue;
 
-              const target = resolveRollTarget(view, op, strategy.structure, rule, c);
+              const target = resolveRollTarget(view, op, strategy.structure, rule, c, splitFactor);
               // Shares its spot/rate resolution with `bases` above it (same view, `c` and
               // underlying), which already gated this op into the loop: this op's spot and
               // rates were already resolvable at this same instant, so this branch cannot
@@ -1296,6 +1472,9 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
               if (target.outcome === "no_series_match") {
                 strikeAdjustmentCodes.add(ROLL_NO_SERIES_MATCH_NOTE.code);
                 continue;
+              }
+              if (target.outcome === "error") {
+                return { ok: false, error: target.error };
               }
 
               const openOperationCountNow = openOperations.filter(
@@ -1346,7 +1525,7 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
                 timeframe,
                 at: c,
                 session: nominalCandle.session,
-                indicators: [],
+                indicators: whenOutcome.indicators,
                 operationId: op.id,
                 rule,
                 proposal: { legs: target.legs, pricing: rollPricing.value },

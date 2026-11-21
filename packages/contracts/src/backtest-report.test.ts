@@ -187,6 +187,17 @@ describe("backtestRunSchema", () => {
     expect(backtestRunSchema.parse(withNotes)).toEqual(withNotes);
   });
 
+  // #383: a row persisted by an engine before 0.20.0 can carry
+  // `adjustment_not_applied` (#377); the engine never emits it from 0.20.0 on, but the code
+  // stays in the schema's own vocabulary so such a row still parses.
+  it("parses a stored run carrying the retired adjustment_not_applied note code", () => {
+    const withLegacyNote = {
+      ...run,
+      notes: [{ code: "adjustment_not_applied", message: "x" }],
+    };
+    expect(backtestRunSchema.parse(withLegacyNote)).toEqual(withLegacyNote);
+  });
+
   it("rejects an operation with an unknown status", () => {
     const broken = {
       ...run,

@@ -2140,8 +2140,12 @@ describe("runBacktest — roll adjustments executed (#383)", () => {
     // The new operation's own stop/target bases are its own entry-priced bases (ADR-0014
     // Q50): closed at period_end, unmoved from its own entry (1.19, sold at 1.20 minus 1%
     // sell-side slippage, rounded to PRICE_SCALE) against the same flat 1.20 mark, plus its
-    // own 6-centavo entry fee: (1.20 - 1.19) * 100 * 100 = 100, + 6 = 106 of loss.
-    expect(reopened.pnl).toBe(centavos(-106));
+    // own 6-centavo entry fee: (1.20 - 1.19) * 100 * 100 = 100, + 6 = 106 of loss on the call
+    // leg, plus the carried stock leg's own original entry cost (150: 50 B3 fee + 100
+    // brokerage), carried into the successor's own entryCosts rather than dropped (review item
+    // 4) — this mark never trades the stock, so it changes this pnl figure, not cash/equity:
+    // 106 + 150 = 256 of loss.
+    expect(reopened.pnl).toBe(centavos(-256));
 
     const newCallLeg = reopened.legs.find((leg) => leg.role === "call");
     expect(newCallLeg?.ticker).toBe("PETR4C11F");
@@ -2194,10 +2198,11 @@ describe("runBacktest — roll adjustments executed (#383)", () => {
     expect(result.error.code).toBe("invalid_input");
   });
 
-  // The same pattern, isolated to the carried-forward stock leg instead: a single call
-  // contract keeps the option close's own rebase safe, but a much larger stock quantity
-  // overflows Number.isSafeInteger once rescaled by the same factor.
-  it("returns invalid_input, never throws, when a factor overflows the roll's own carried-forward stock leg", () => {
+  // A factor this extreme is caught earlier still: the near leg's own listed strike,
+  // rescaled by the same corporate action (ADR-0056), underflows to zero or negative before
+  // the roll's own close/carry rebase is ever reached — same guard, same error code, a
+  // session before resolvePendingRollFills's own leg-level checks would otherwise apply.
+  it("returns invalid_input, never throws, when a factor this extreme leaves a leg's own listed strike non-positive", () => {
     const days = businessDays(40);
     const nearExpiry = days[15] as string;
     const farExpiry = days[32] as string;
@@ -2313,6 +2318,97 @@ describe("runBacktest — roll adjustments executed (#383)", () => {
     expect(result.error.code).toBe("invalid_input");
   });
 
+  // Isolates the fourth overflow guard, at the roll's own fill (not evaluateStrategy's own
+  // signal-time check above, which a stock-free leg selection never reaches with no factor
+  // yet visible at the signal session): a factor ex-dated on the fill session alone rounds a
+  // bought leg's own rescaled entry quantity down to zero. A stock-free structure is used so
+  // no stock-leg check (which runs first) intercepts it.
+  it("returns invalid_input, never throws, when a fill-session-only factor rounds the roll's new entry quantity to zero", () => {
+    const days = businessDays(40);
+    const nearExpiry = days[15] as string;
+    const farExpiry = days[32] as string;
+    const calendar = days.map(session);
+    const longCallStructure: Structure = {
+      id: "long_call_roll_zero_round",
+      name: "Long call",
+      expiry: "shared",
+      legs: [{ role: "call", side: "buy", ratio: 1, strikeRank: 1 }] as LegTemplate[],
+    };
+    const config = baseConfig({
+      strategy: strategyVersion(
+        {
+          ...definition({
+            entry: closeAbove9,
+            exit: [],
+            adjustments: [
+              {
+                kind: "roll",
+                when: { kind: "days_before_expiry", businessDays: 5 },
+                expiry: { kind: "business_days", min: 20, max: 25 },
+                strikes: [{ kind: "nearest", price: decimalString("11.00") }],
+              },
+            ],
+            sizing: { kind: "fixed_fractional", fraction: decimalString("0.01") },
+          }),
+          structureId: "long_call_roll_zero_round",
+          strikes: [{ kind: "nearest", price: decimalString("11.00") }],
+          expiry: { kind: "business_days", min: 1, max: 16 },
+        },
+        longCallStructure,
+      ),
+      universe: ["PETR4"],
+      initialCapital: centavos(1_000_000),
+      riskProfile: {
+        declaredCapital: centavos(1_000_000),
+        limits: {
+          maxLossPerOperation: decimalString("1"),
+          maxExposurePerOperation: decimalString("1"),
+          maxOpenOperations: 5,
+          maxPremiumBought: decimalString("1"),
+        },
+      },
+      period: { from: days[0] as string, to: days[12] as string },
+    });
+    const fillSession = days[11] as string;
+    const roundToZeroFactor: CorporateActionFactor = {
+      ticker: "PETR4",
+      exDate: fillSession,
+      asOf: `${fillSession}T13:00:00.000Z`,
+      factor: decimalString("1000000"),
+    };
+    const view: MarketView = {
+      ...emptyView,
+      calendar,
+      corporateActions: [roundToZeroFactor],
+      candles: days.map((d) => candle("PETR4", d, "10.00", "10.00")),
+      optionSeries: [
+        callOrPutSeries(
+          "PETR4C11",
+          "call",
+          "11.00",
+          nearExpiry,
+          `${days[0] as string}T20:00:00.000Z`,
+        ),
+        callOrPutSeries(
+          "PETR4C11F",
+          "call",
+          "11.00",
+          farExpiry,
+          `${days[0] as string}T20:00:00.000Z`,
+        ),
+      ],
+      optionPrices: [
+        ...days.slice(0, 16).map((d) => optionDayPrice("PETR4C11", d, "1.00")),
+        ...days.slice(0, 33).map((d) => optionDayPrice("PETR4C11F", d, "1.20")),
+      ],
+    };
+
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("invalid_input");
+  });
+
   it("never carries the adjustment_not_applied note (removed, #383): capabilities reports roll as implemented", () => {
     const { config, view } = coveredCallRollFixture();
     const result = runBacktest({ view, config });
@@ -2321,12 +2417,14 @@ describe("runBacktest — roll adjustments executed (#383)", () => {
     expect(result.value.run.notes.map((n) => n.code)).not.toContain("adjustment_not_applied");
   });
 
-  it("settlement wins when a roll's own when only fires on or after the operation's own expiry session (ADR-0013 settlement interplay)", () => {
+  it("settlement wins when a roll's own when only fires on the operation's own expiry session, never a race at all (ADR-0013 settlement interplay)", () => {
     const { config, view, nearExpiry } = coveredCallRollFixture();
-    // businessDays: 0 means the when only fires on the expiry session itself — by then
-    // resolveExpiringOperations has already settled the operation this same session, before
-    // evaluateStrategy is ever asked about it again, so no roll signal can ever be queued for
-    // it: settlement wins automatically, never a race the implementation has to special-case.
+    // businessDays: 0 means the when only fires on the expiry session itself — but
+    // queueNextSignals (the only place a roll's own when is ever evaluated) runs after
+    // resolveExpiringOperations within that same session, so the operation is already gone
+    // from openOperations by then: no roll signal is ever queued, let alone raced against
+    // settlement. This is not the roll-beats-settlement race (see the businessDays: 1 test
+    // below); settlement wins here simply because the when never gets a chance to fire.
     const noRollInTime: BacktestConfig = {
       ...config,
       strategy: strategyVersion(
@@ -2356,6 +2454,597 @@ describe("runBacktest — roll adjustments executed (#383)", () => {
     expect(
       run.operations.some((op) => op.status === "closed" && op.closeReason.kind === "rolled"),
     ).toBe(false);
+  });
+
+  it("rolls instead of settling when a roll's own when fires one session before expiry, the genuine same-session race (ADR-0013 settlement interplay)", () => {
+    const { config, view, nearExpiry, days } = coveredCallRollFixture();
+    // businessDays: 1 fires the when at days[14] (one session before nearExpiry at
+    // days[15]), queuing a roll whose own fill attempt lands on days[15] itself —
+    // resolvePendingRollFills runs before resolveExpiringOperations within that same
+    // session, so the roll wins: the operation is rolled, never settled.
+    const rollBeatsSettlement: BacktestConfig = {
+      ...config,
+      strategy: strategyVersion(
+        {
+          ...config.strategy.definition,
+          adjustments: [
+            {
+              kind: "roll",
+              when: { kind: "days_before_expiry", businessDays: 1 },
+              expiry: { kind: "business_days", min: 15, max: 20 },
+              strikes: [{ kind: "nearest", price: decimalString("11.00") }],
+            },
+          ],
+        },
+        config.strategy.structure,
+      ),
+      period: { from: config.period.from, to: days[16] as string },
+    };
+
+    const result = runBacktest({ view, config: rollBeatsSettlement });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete") throw new Error("expected complete");
+    const { run } = result.value;
+
+    const rolled = run.operations.find(
+      (op) => op.status === "closed" && op.closeReason.kind === "rolled",
+    );
+    expect(rolled).toBeDefined();
+    expect(rolled?.closedAt).toBe(nearExpiry);
+    expect(run.operations.some((op) => op.status === "expired")).toBe(false);
+  });
+
+  // #383 round-1 review item 5 regression: a roll rule's own `expiry` window wide enough to
+  // admit the operation's own already-held series (or an even earlier one) used to roll an
+  // operation into itself, or into the past, every session its `when` kept firing — four
+  // self-rolls across this fixture's own period before the fix excluding any candidate expiry
+  // at or before the held one. With the fix, the roll fires exactly once, into the one series
+  // whose own expiry clears that bar.
+  it("rolls exactly once, not into itself repeatedly, when the roll rule's own expiry window is wide enough to admit the held series (#383 round-1 review item 5)", () => {
+    const days = businessDays(40);
+    const nearExpiry = days[15] as string;
+    const farExpiry = days[25] as string;
+    const calendar = days.map(session);
+    const costModel = {
+      b3FeeRate: decimalString("0.0005"),
+      brokerage: { stockPerOrder: centavos(100), optionPerOrder: centavos(0) },
+      optionSlippageRate: decimalString("0.01"),
+      incomeTaxRate: decimalString("0.15"),
+      monthlyStockSalesExemption: centavos(2_000_000_00),
+    };
+    const riskProfile = {
+      declaredCapital: centavos(1_000_000),
+      limits: {
+        maxLossPerOperation: decimalString("1"),
+        maxExposurePerOperation: decimalString("1"),
+        maxOpenOperations: 5,
+        maxPremiumBought: decimalString("1"),
+      },
+    };
+    const config = baseConfig({
+      strategy: strategyVersion(
+        {
+          ...definition({
+            entry: closeAbove9,
+            exit: [],
+            adjustments: [
+              {
+                kind: "roll",
+                when: { kind: "days_before_expiry", businessDays: 5 },
+                // Wide enough that, without the fix, the operation's own held series (or the
+                // candidate it has already rolled into) would itself re-qualify every session.
+                expiry: { kind: "business_days", min: 1, max: 30 },
+                strikes: [{ kind: "nearest", price: decimalString("11.00") }],
+              },
+            ],
+            sizing: { kind: "fixed_fractional", fraction: decimalString("0.09") },
+          }),
+          structureId: "covered_call_roll",
+          strikes: [{ kind: "nearest", price: decimalString("11.00") }],
+          expiry: { kind: "business_days", min: 1, max: 16 },
+        },
+        coveredCallStructure,
+      ),
+      universe: ["PETR4"],
+      initialCapital: centavos(1_000_000),
+      costModel,
+      riskProfile,
+      period: { from: days[0] as string, to: days[26] as string },
+    });
+    const view: MarketView = {
+      ...emptyView,
+      calendar,
+      candles: days.map((d) => candle("PETR4", d, "10.00", "10.00")),
+      optionSeries: [
+        callOrPutSeries(
+          "PETR4C11",
+          "call",
+          "11.00",
+          nearExpiry,
+          `${days[0] as string}T20:00:00.000Z`,
+        ),
+        callOrPutSeries(
+          "PETR4C11F",
+          "call",
+          "11.00",
+          farExpiry,
+          `${days[0] as string}T20:00:00.000Z`,
+        ),
+      ],
+      optionPrices: [
+        ...days.slice(0, 16).map((d) => optionDayPrice("PETR4C11", d, "1.00")),
+        ...days.slice(0, 26).map((d) => optionDayPrice("PETR4C11F", d, "1.20")),
+      ],
+    };
+
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete") throw new Error("expected complete");
+    const { run } = result.value;
+
+    const rolledOps = run.operations.filter(
+      (op) => op.status === "closed" && op.closeReason.kind === "rolled",
+    );
+    expect(rolledOps).toHaveLength(1);
+    // Exactly the near entry, near close, far open option slippage entries (100 each) — a
+    // fourth, fifth or sixth self-roll would each add 200 more (a close and a re-open).
+    expect(run.metrics.slippage).toBe(centavos(300));
+  });
+
+  // #383 round-1 review item 3 regression: the fixture is identical to `coveredCallRollFixture`
+  // except for a 1-for-2 grouping ex-dated between the operation's own entry and the roll's own
+  // fire session — the successor's own option quantity must still equal the closed operation's
+  // own (rebased) quantity, keeping the structure's 1:1 ratio to the carried stock leg, not the
+  // held operation's stale pre-grouping count.
+  it("rebases the successor's new option leg quantity by the factor since entry, keeping the structure's ratio to the carried stock (#383 round-1 review item 3)", () => {
+    const { config, view, days } = coveredCallRollFixture();
+    // A factor of 2 is a 1-for-2 grouping (reverse split): the effective count is the nominal
+    // count divided by the factor (ADR-0014 Q51), so 100 nominal units become 50 effective.
+    const groupingFactor: CorporateActionFactor = {
+      ticker: "PETR4",
+      exDate: days[3] as string,
+      asOf: `${days[3] as string}T13:00:00.000Z`,
+      factor: decimalString("2"),
+    };
+    const result = runBacktest({
+      view: { ...view, corporateActions: [groupingFactor] },
+      config,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete") throw new Error("expected complete");
+    const { run } = result.value;
+
+    const rolled = run.operations.find(
+      (op) => op.status === "closed" && op.closeReason.kind === "rolled",
+    );
+    const reopened = run.operations.find(
+      (op) => op.status === "closed" && op.closeReason.kind === "period_end",
+    );
+    if (rolled === undefined || reopened === undefined) throw new Error("expected both operations");
+
+    // The closed operation's own legs stay nominal at their original 100 (ADR-0014 Q51:
+    // `Operation.legs` is never rebased in place, only at point of use) even though only the
+    // grouped, effective 50 units actually traded on its own close fill. The successor's own
+    // legs are nominal at its own fresh entry instead — 50, the held quantity rebased by the
+    // factor since the original entry, not the stale pre-grouping 100.
+    const closedCallLeg = rolled.legs.find((leg) => leg.role === "call");
+    const newCallLeg = reopened.legs.find((leg) => leg.role === "call");
+    const carriedStockLeg = reopened.legs.find((leg) => leg.role === "stock");
+    expect(closedCallLeg?.quantity).toBe(quantity(100));
+    expect(newCallLeg?.quantity).toBe(quantity(50));
+    expect(carriedStockLeg?.quantity).toBe(quantity(50));
+    // The structure's own 1:1 ratio between the stock and call legs survives the grouping.
+    expect(newCallLeg?.quantity).toBe(carriedStockLeg?.quantity);
+  });
+
+  // #383 round-1 review item 4 regression: every operation's own pnl, summed, must equal the
+  // run's own equity change (initialCapital to the final equity point) whenever no tax is due —
+  // the carried stock leg's own entry cost, dropped before the fix, broke this identity. Extends
+  // the golden fixture one session further so the carried stock is actually sold (a profit_target
+  // exit on the successor), realizing the stock leg's own gain and taxing it.
+  it("sum(operations.pnl) equals the run's own equity change when no tax is due, and selling the carried stock later realizes its own stockGain (#383 round-1 review item 4)", () => {
+    const { config, view, days } = coveredCallRollFixture();
+
+    const noTaxResult = runBacktest({ view, config });
+    expect(noTaxResult.ok).toBe(true);
+    if (!noTaxResult.ok || noTaxResult.value.status !== "complete") {
+      throw new Error("expected complete");
+    }
+    const { run: noTaxRun } = noTaxResult.value;
+    expect(noTaxRun.taxes.every((t) => t.tax === 0)).toBe(true);
+    const totalPnl = noTaxRun.operations.reduce((sum, op) => sum + op.pnl, 0);
+    const firstEquity = config.initialCapital;
+    const lastEquity = noTaxRun.equityCurve.at(-1)?.equity ?? 0;
+    expect(totalPnl).toBe(lastEquity - firstEquity);
+
+    const withExitConfig: BacktestConfig = {
+      ...config,
+      strategy: strategyVersion(
+        {
+          ...config.strategy.definition,
+          exit: [{ kind: "profit_target", fractionOfPremium: decimalString("0.01") }],
+        },
+        config.strategy.structure,
+      ),
+      period: { from: config.period.from, to: days[20] as string },
+    };
+    // A flat premium never satisfies a profit_target base (ADR-0014 Q50, the successor's own
+    // entry-priced base): dropping the far leg's own premium after the roll, comfortably below
+    // its ~1.19 base, is what actually fires the exit and sells the carried stock leg with it.
+    const droppedDays = new Set(days.slice(17, 21));
+    const extendedView: MarketView = {
+      ...view,
+      optionPrices: [
+        ...view.optionPrices.filter(
+          (p) => !(p.ticker === "PETR4C11F" && droppedDays.has(p.session)),
+        ),
+        ...days.slice(17, 21).map((d) => optionDayPrice("PETR4C11F", d, "1.00")),
+      ],
+    };
+    const withExitResult = runBacktest({ view: extendedView, config: withExitConfig });
+    expect(withExitResult.ok).toBe(true);
+    if (!withExitResult.ok || withExitResult.value.status !== "complete") {
+      throw new Error("expected complete");
+    }
+    const { run: withExitRun } = withExitResult.value;
+    const stockSold = withExitRun.taxes.some((t) => t.stockGain !== 0);
+    expect(stockSold).toBe(true);
+  });
+
+  // #383 round-1 review item 10: a long call rolling into a far-dated series whose own
+  // premium alone breaches `maxPremiumBought` under `limits: "enforce"` is refused outright —
+  // the held operation stays open, unrolled, and the breach is recorded.
+  it("refuses a roll whose successor breaches maxPremiumBought under limits: enforce, and records the breach (#383 round-1 review item 10)", () => {
+    const days = businessDays(40);
+    const nearExpiry = days[15] as string;
+    const farExpiry = days[32] as string;
+    const calendar = days.map(session);
+    const longCallStructure: Structure = {
+      id: "long_call_roll",
+      name: "Long call",
+      expiry: "shared",
+      legs: [{ role: "call", side: "buy", ratio: 1, strikeRank: 1 }] as LegTemplate[],
+    };
+    const costModel = {
+      b3FeeRate: decimalString("0.0005"),
+      brokerage: { stockPerOrder: centavos(100), optionPerOrder: centavos(0) },
+      optionSlippageRate: decimalString("0.01"),
+      incomeTaxRate: decimalString("0.15"),
+      monthlyStockSalesExemption: centavos(2_000_000_00),
+    };
+    const config = baseConfig({
+      strategy: strategyVersion(
+        {
+          ...definition({
+            entry: closeAbove9,
+            exit: [],
+            adjustments: [
+              {
+                kind: "roll",
+                when: { kind: "days_before_expiry", businessDays: 5 },
+                expiry: { kind: "business_days", min: 20, max: 25 },
+                strikes: [{ kind: "nearest", price: decimalString("11.00") }],
+              },
+            ],
+            sizing: { kind: "fixed_fractional", fraction: decimalString("0.01") },
+          }),
+          structureId: "long_call_roll",
+          strikes: [{ kind: "nearest", price: decimalString("11.00") }],
+          expiry: { kind: "business_days", min: 1, max: 16 },
+        },
+        longCallStructure,
+      ),
+      universe: ["PETR4"],
+      initialCapital: centavos(1_000_000),
+      costModel,
+      riskProfile: {
+        declaredCapital: centavos(1_000_000),
+        limits: {
+          maxLossPerOperation: decimalString("1"),
+          maxExposurePerOperation: decimalString("1"),
+          maxOpenOperations: 5,
+          // The near leg's own premium (0.01) clears this; the far leg's own, ten times
+          // richer, does not.
+          maxPremiumBought: decimalString("0.10"),
+        },
+      },
+      limits: "enforce",
+      period: { from: days[0] as string, to: days[12] as string },
+    });
+    const view: MarketView = {
+      ...emptyView,
+      calendar,
+      candles: days.map((d) => candle("PETR4", d, "10.00", "10.00")),
+      optionSeries: [
+        callOrPutSeries(
+          "PETR4C11",
+          "call",
+          "11.00",
+          nearExpiry,
+          `${days[0] as string}T20:00:00.000Z`,
+        ),
+        callOrPutSeries(
+          "PETR4C11F",
+          "call",
+          "11.00",
+          farExpiry,
+          `${days[0] as string}T20:00:00.000Z`,
+        ),
+      ],
+      optionPrices: [
+        ...days.slice(0, 16).map((d) => optionDayPrice("PETR4C11", d, "1.00")),
+        // Richer than the near leg by far more than maxPremiumBought (0.10) allows, relative
+        // to a 1% sizing fraction of declared capital.
+        ...days.slice(0, 33).map((d) => optionDayPrice("PETR4C11F", d, "30.00")),
+      ],
+    };
+
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete") throw new Error("expected complete");
+    const { run } = result.value;
+
+    expect(
+      run.operations.some((op) => op.status === "closed" && op.closeReason.kind === "rolled"),
+    ).toBe(false);
+    expect(run.notes.some((n) => n.code === "roll_refused_limit_breach")).toBe(true);
+  });
+
+  // #383 round-1 review item 10 ("warn" branch of the same decision) and item 7 (coverage):
+  // a long call has no stock leg to carry forward at all, and closing/opening a bought leg
+  // (rather than every other fixture's sold call) exercises the roll's own "buy" side
+  // direction on both its close and its open fill. Under `warn`, the same breach the enforce
+  // test above refuses instead fills, with the breach recorded against the successor.
+  it("fills a roll with no stock leg under limits: warn, recording the breach against the successor", () => {
+    const days = businessDays(40);
+    const nearExpiry = days[15] as string;
+    const farExpiry = days[32] as string;
+    const calendar = days.map(session);
+    const longCallStructure: Structure = {
+      id: "long_call_roll_warn",
+      name: "Long call",
+      expiry: "shared",
+      legs: [{ role: "call", side: "buy", ratio: 1, strikeRank: 1 }] as LegTemplate[],
+    };
+    const costModel = {
+      b3FeeRate: decimalString("0.0005"),
+      brokerage: { stockPerOrder: centavos(100), optionPerOrder: centavos(0) },
+      optionSlippageRate: decimalString("0.01"),
+      incomeTaxRate: decimalString("0.15"),
+      monthlyStockSalesExemption: centavos(2_000_000_00),
+    };
+    const config = baseConfig({
+      strategy: strategyVersion(
+        {
+          ...definition({
+            entry: closeAbove9,
+            exit: [],
+            adjustments: [
+              {
+                kind: "roll",
+                when: { kind: "days_before_expiry", businessDays: 5 },
+                expiry: { kind: "business_days", min: 20, max: 25 },
+                strikes: [{ kind: "nearest", price: decimalString("11.00") }],
+              },
+            ],
+            sizing: { kind: "fixed_fractional", fraction: decimalString("0.01") },
+          }),
+          structureId: "long_call_roll_warn",
+          strikes: [{ kind: "nearest", price: decimalString("11.00") }],
+          expiry: { kind: "business_days", min: 1, max: 16 },
+        },
+        longCallStructure,
+      ),
+      universe: ["PETR4"],
+      initialCapital: centavos(1_000_000),
+      costModel,
+      riskProfile: {
+        declaredCapital: centavos(1_000_000),
+        limits: {
+          maxLossPerOperation: decimalString("1"),
+          maxExposurePerOperation: decimalString("1"),
+          maxOpenOperations: 5,
+          maxPremiumBought: decimalString("0.10"),
+        },
+      },
+      limits: "warn",
+      period: { from: days[0] as string, to: days[12] as string },
+    });
+    const view: MarketView = {
+      ...emptyView,
+      calendar,
+      candles: days.map((d) => candle("PETR4", d, "10.00", "10.00")),
+      optionSeries: [
+        callOrPutSeries(
+          "PETR4C11",
+          "call",
+          "11.00",
+          nearExpiry,
+          `${days[0] as string}T20:00:00.000Z`,
+        ),
+        callOrPutSeries(
+          "PETR4C11F",
+          "call",
+          "11.00",
+          farExpiry,
+          `${days[0] as string}T20:00:00.000Z`,
+        ),
+      ],
+      optionPrices: [
+        ...days.slice(0, 16).map((d) => optionDayPrice("PETR4C11", d, "1.00")),
+        ...days.slice(0, 33).map((d) => optionDayPrice("PETR4C11F", d, "30.00")),
+      ],
+    };
+
+    const result = runBacktest({ view, config });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete") throw new Error("expected complete");
+    const { run } = result.value;
+
+    const rolled = run.operations.find(
+      (op) => op.status === "closed" && op.closeReason.kind === "rolled",
+    );
+    expect(rolled).toBeDefined();
+    expect(rolled?.legs.some((leg) => leg.role === "stock")).toBe(false);
+    expect(run.limitBreaches.some((b) => b.limit === "maxPremiumBought")).toBe(true);
+    expect(run.notes.some((n) => n.code === "roll_refused_limit_breach")).toBe(false);
+  });
+
+  // #383 round-1 review item 7 (coverage): a grouping factor that does not divide the carried
+  // stock leg's own quantity evenly leaves a fractional residue, cash-settled rather than
+  // rounded into a share the operation was never granted.
+  it("cash-settles a residue left on the carried stock leg by a factor that does not divide its quantity evenly", () => {
+    const { config, view, days } = coveredCallRollFixture();
+    const oddFactor: CorporateActionFactor = {
+      ticker: "PETR4",
+      exDate: days[3] as string,
+      asOf: `${days[3] as string}T13:00:00.000Z`,
+      factor: decimalString("3"),
+    };
+    const result = runBacktest({
+      view: { ...view, corporateActions: [oddFactor] },
+      config,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete") throw new Error("expected complete");
+    const { run } = result.value;
+
+    const reopened = run.operations.find(
+      (op) => op.status === "closed" && op.closeReason.kind === "period_end",
+    );
+    expect(reopened).toBeDefined();
+    const carriedStockLeg = reopened?.legs.find((leg) => leg.role === "stock");
+    // 100 nominal units grouped 1-for-3: floor(100/3) = 33 effective, the residue (0.33...)
+    // cash-settled rather than carried as a fractional share.
+    expect(carriedStockLeg?.quantity).toBe(quantity(33));
+  });
+
+  it("returns invalid_input, never throws, when a grouping factor leaves the carried stock leg with no whole share", () => {
+    const { config, view, days } = coveredCallRollFixture();
+    // Ex-dated on the roll's own fill session, exactly as the sibling overflow tests above
+    // are, so this factor rescales only this fill's own legs and never an earlier session's
+    // mark (which would fail there instead, for an unrelated reason).
+    const extremeFactor: CorporateActionFactor = {
+      ticker: "PETR4",
+      exDate: days[11] as string,
+      asOf: `${days[11] as string}T13:00:00.000Z`,
+      factor: decimalString("150"),
+    };
+    const result = runBacktest({
+      view: { ...view, corporateActions: [extremeFactor] },
+      config,
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("invalid_input");
+  });
+
+  // #383 round-1 review item 7 (coverage): a roll's own close/open fill retries, same as a
+  // pending exit or entry, when a leg's own option price is not yet available at the session
+  // its `when` fired — here the far leg's own first listed price lags the fire session by one
+  // day — and fills the next session once it is.
+  it("retries the roll's own fill when a leg's price is not yet available at the first fill attempt", () => {
+    const { config, view, days } = coveredCallRollFixture();
+    // The `when` fires at the end of days[10] (5 business days before nearExpiry at
+    // days[15]), queuing the roll for its first fill attempt at days[11]'s open; removing
+    // the far leg's price for that one session, and that session alone, forces
+    // `resolvePendingRollFills` to skip it and retry at the next session instead.
+    const firstAttemptSession = days[11] as string;
+    const delayedView: MarketView = {
+      ...view,
+      optionPrices: view.optionPrices.filter(
+        (p) => !(p.ticker === "PETR4C11F" && p.session === firstAttemptSession),
+      ),
+    };
+    const extendedConfig = {
+      ...config,
+      period: { from: config.period.from, to: days[13] as string },
+    };
+    const result = runBacktest({ view: delayedView, config: extendedConfig });
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete") throw new Error("expected complete");
+    const { run } = result.value;
+
+    const rolled = run.operations.find(
+      (op) => op.status === "closed" && op.closeReason.kind === "rolled",
+    );
+    if (rolled === undefined) throw new Error("expected a rolled operation");
+    expect(rolled.closedAt).toBe(days[12]);
+  });
+
+  // #383 round-1 review item 7: `isValidPendingRoll`/`isValidLeg` guard a resumed
+  // checkpoint's own `state.pendingRolls`, a field that is only ever non-empty between the
+  // session a roll's `when` fires (queueNextSignals queues it) and the very next session
+  // (resolvePendingRollFills fills it) — this pauses exactly inside that one-session window.
+  it("resumes correctly across a checkpoint paused between a roll's own queuing and its fill", () => {
+    const { config, view, days } = coveredCallRollFixture();
+    const fireSession = days[10] as string;
+
+    const whole = runBacktest({ view, config });
+    expect(whole.ok).toBe(true);
+    if (!whole.ok || whole.value.status !== "complete") throw new Error("expected complete");
+
+    const paused = runBacktest({ view, config, maxSessions: 11 });
+    expect(paused.ok).toBe(true);
+    if (!paused.ok || paused.value.status !== "paused") throw new Error("expected paused");
+    const pausedState = paused.value.checkpoint.state as { pendingRolls: Record<string, unknown> };
+    expect(Object.keys(pausedState.pendingRolls)).toHaveLength(1);
+    expect(paused.value.checkpoint.cursor).toBe(fireSession);
+
+    const resumed = runBacktest({ view, config, resume: paused.value.checkpoint });
+    expect(resumed.ok).toBe(true);
+    if (!resumed.ok || resumed.value.status !== "complete") throw new Error("expected complete");
+
+    expect(resumed.value.run).toEqual(whole.value.run);
+  });
+
+  // Coverage: `entryCosts`/per-leg `entryCost` fall back to zero (never throw) when a
+  // resumed checkpoint's own `entryCosts` map is missing the rolled operation's own entry —
+  // `isValidCheckpointState` only checks the map's own shape, never that every open
+  // operation has its own entry in it, the same leniency every other op-closing path in this
+  // file already extends to a hand-edited checkpoint.
+  it("falls back to a zero entry cost, never throws, when a resumed checkpoint's entryCosts omits the rolling operation", () => {
+    const { config, view } = coveredCallRollFixture();
+    const paused = runBacktest({ view, config, maxSessions: 11 });
+    expect(paused.ok).toBe(true);
+    if (!paused.ok || paused.value.status !== "paused") throw new Error("expected paused");
+    const state = paused.value.checkpoint.state as {
+      pendingRolls: Record<string, unknown>;
+      entryCosts: Record<string, unknown>;
+    };
+    const [rollingOpId] = Object.keys(state.pendingRolls);
+    const entryCostsWithoutRollingOp = Object.fromEntries(
+      Object.entries(state.entryCosts).filter(([opId]) => opId !== rollingOpId),
+    );
+    const corruptedCheckpoint = {
+      ...paused.value.checkpoint,
+      state: { ...state, entryCosts: entryCostsWithoutRollingOp },
+    };
+    const resumed = runBacktest({ view, config, resume: corruptedCheckpoint });
+    expect(resumed.ok).toBe(true);
+  });
+
+  // Same leniency, one level deeper: the rolling operation's own entryCosts entry survives
+  // the resume, but a hand-edited checkpoint shortens it to fewer elements than the
+  // operation's own legs — each leg still falls back to a zero entry cost on its own, rather
+  // than reading past the array's own end.
+  it("falls back to a zero entry cost per leg, never throws, when a resumed checkpoint's entryCosts entry is shorter than the rolling operation's own legs", () => {
+    const { config, view } = coveredCallRollFixture();
+    const paused = runBacktest({ view, config, maxSessions: 11 });
+    expect(paused.ok).toBe(true);
+    if (!paused.ok || paused.value.status !== "paused") throw new Error("expected paused");
+    const state = paused.value.checkpoint.state as {
+      pendingRolls: Record<string, unknown>;
+      entryCosts: Record<string, unknown[]>;
+    };
+    const [rollingOpId] = Object.keys(state.pendingRolls);
+    const shortenedEntryCosts = { ...state.entryCosts, [rollingOpId as string]: [] };
+    const corruptedCheckpoint = {
+      ...paused.value.checkpoint,
+      state: { ...state, entryCosts: shortenedEntryCosts },
+    };
+    const resumed = runBacktest({ view, config, resume: corruptedCheckpoint });
+    expect(resumed.ok).toBe(true);
   });
 });
 
@@ -2853,6 +3542,35 @@ describe("runBacktest — tax deduction timing and month bookkeeping", () => {
       (valid: object) => ({
         ...valid,
         hasCandle: (valid as { hasCandle: unknown[] }).hasCandle.slice(0, -1),
+      }),
+    ],
+    ["pendingRolls is not a plain object", (valid: object) => ({ ...valid, pendingRolls: "nope" })],
+    [
+      "a pendingRolls entry's newLegs has a leg with a non-integer quantity",
+      (valid: object) => ({
+        ...valid,
+        pendingRolls: {
+          "op-1": {
+            newLegs: [{ role: "call", side: "sell", ticker: "PETR4C11F", quantity: "nope" }],
+            maxLoss: 0,
+            limitBreaches: [],
+            signalSession: "2024-01-02",
+          },
+        },
+      }),
+    ],
+    [
+      "a pendingRolls entry's limitBreaches is not an array",
+      (valid: object) => ({
+        ...valid,
+        pendingRolls: {
+          "op-1": {
+            newLegs: [],
+            maxLoss: 0,
+            limitBreaches: "nope",
+            signalSession: "2024-01-02",
+          },
+        },
       }),
     ],
   ])(

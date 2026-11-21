@@ -11,7 +11,11 @@ import type {
 } from "../api";
 import { runBacktest } from "../internal/run-backtest";
 import { centavos, decimalString } from "../test/support";
-import { BACKTEST_FIXTURE_SESSIONS, longBacktestFixtureArbitrary } from "./arbitraries";
+import {
+  BACKTEST_FIXTURE_SESSIONS,
+  longBacktestFixtureArbitrary,
+  rollBacktestFixtureArbitrary,
+} from "./arbitraries";
 
 const monthKeyOf = (date: string): string => date.slice(0, 7);
 
@@ -275,4 +279,66 @@ describe("I7 Prefix-consistency", () => {
     expect(shortAtCut.cash).toBe(fullAtCut.cash - earlyTax);
     expect(shortAtCut.equity).toBe(fullAtCut.equity - earlyTax);
   });
+
+  // #383 round-1 review item 6: `longBacktestFixtureArbitrary` above is stock-only, so no I7
+  // draw ever cuts a run with a `pendingRoll` in flight. `rollBacktestFixtureArbitrary` carries a
+  // covered call that rolls once partway through; `cutIndex`'s own range is wide enough to
+  // sometimes land before, exactly on, and after that roll's own fill session.
+  it("a run stopped at session D agrees with the full run up to and including D, across a pending roll", () => {
+    fc.assert(
+      fc.property(
+        rollBacktestFixtureArbitrary,
+        fc.integer({ min: 1, max: 42 }),
+        (fixture, cutIndex) => {
+          const view: MarketView = {
+            calendar: fixture.calendar,
+            candles: fixture.candles,
+            corporateActions: [],
+            optionSeries: fixture.optionSeries,
+            optionPrices: fixture.optionPrices,
+            quotes: [],
+            macro: [],
+            dividendYields: [],
+            impliedVolatilityIndex: [],
+          };
+
+          const cutSession = fixture.calendar[cutIndex];
+          if (!cutSession) throw new Error("test setup: cutIndex within the calendar");
+
+          const fullResult = runBacktest({ view, config: fixture.config });
+          const shortResult = runBacktest({
+            view,
+            config: {
+              ...fixture.config,
+              period: { ...fixture.config.period, to: cutSession.date },
+            },
+          });
+          expect(fullResult.ok).toBe(true);
+          expect(shortResult.ok).toBe(true);
+          if (!fullResult.ok || fullResult.value.status !== "complete") {
+            throw new Error("expected the full run to complete");
+          }
+          if (!shortResult.ok || shortResult.value.status !== "complete") {
+            throw new Error("expected the short run to complete");
+          }
+
+          const fullRun = fullResult.value.run;
+          const shortRun = shortResult.value.run;
+
+          expect(shortRun.equityCurve.slice(0, cutIndex)).toEqual(
+            fullRun.equityCurve.slice(0, cutIndex),
+          );
+          const shortAtCut = shortRun.equityCurve[cutIndex];
+          const fullAtCut = fullRun.equityCurve[cutIndex];
+          if (!shortAtCut || !fullAtCut) throw new Error("test setup: both curves reach cutIndex");
+          const earlyTax = earlyTaxAtCut(shortRun.taxes, cutSession.date, fixture.calendar);
+          expect(shortAtCut.cash).toBe(fullAtCut.cash - earlyTax);
+          expect(shortAtCut.equity).toBe(fullAtCut.equity - earlyTax);
+          const fillsUpToCut = fullRun.fills.filter((f) => f.session <= cutSession.date);
+          expect(shortRun.fills).toEqual(fillsUpToCut);
+        },
+      ),
+      { numRuns: 15 },
+    );
+  }, 30_000);
 });

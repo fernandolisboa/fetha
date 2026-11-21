@@ -80,7 +80,7 @@ import type {
   Timeframe,
 } from "@fetha/contracts";
 
-export const ENGINE_VERSION = "0.19.0";
+export const ENGINE_VERSION = "0.20.0";
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: EngineError };
 
@@ -154,7 +154,12 @@ export type NoteCode =
   | "option_strike_derived_across_corporate_action"
   | "candle_less_sessions_excluded"
   | "warm_up_sessions_excluded"
-  | "adjustment_not_applied";
+  // Retired by #383: a stored `backtest_runs` row from before 0.20.0 can still carry this code
+  // (ADR-0013's #383 addendum), so it stays parseable; `runBacktest` never emits it from 0.20.0
+  // on, having replaced it with the narrower `roll_no_series_match` below.
+  | "adjustment_not_applied"
+  | "roll_no_series_match"
+  | "roll_refused_limit_breach";
 export const noteCodes = [
   "european_pricing",
   "dividend_yield_defaulted",
@@ -185,6 +190,8 @@ export const noteCodes = [
   "candle_less_sessions_excluded",
   "warm_up_sessions_excluded",
   "adjustment_not_applied",
+  "roll_no_series_match",
+  "roll_refused_limit_breach",
 ] as const satisfies readonly NoteCode[];
 
 export type Note = { code: NoteCode; message: string };
@@ -3404,6 +3411,13 @@ selection instead of the definition's. The closed operation's `closeReason` is
 Both fields were already part of `Operation`/`CloseReason` (added, unused, by #377 part 1) —
 reserved exactly for this.
 
+- **`evaluateStrategy` itself now emits `adjust` signals, not just `runBacktest`'s own report.**
+  A roll rule's `when` is evaluated by `evaluateStrategy` for every open operation passed to it,
+  the same per-session, per-operation evaluation its exit rules already get; firing produces a
+  `Signal` of kind `"adjust"` carrying the resolved successor's legs, the same shape an `"entry"`
+  signal's own `proposal` already takes. `runBacktest` is simply the first caller that acts on it
+  by actually filling the roll; the inbox-facing signal exists independently of that, the same way
+  an `"exit"` signal already does.
 - **Target resolution mirrors ADR-0080, not the real-portfolio roll it describes.** ADR-0080 rolls
   a real position leg by leg to the next monthly expiry, nearest strike, by hand. A backtested
   roll has no hand on it: it resolves the new legs by calling `resolveLegSelection` with the roll
@@ -3425,17 +3439,26 @@ reserved exactly for this.
   price the first time an exit rule reads them, never against the closed operation's. A roll is a
   fresh position economically (a new series, usually a new strike), so a base carried over from the
   old one would compare today's premium against a price that was never paid for what is now held.
+  The carried-forward stock leg is the one deliberate exception: its own cost basis moves into the
+  successor's `entryCosts` unchanged (round-1 review item 4), not reset to zero, because the
+  covered call's stock leg never actually re-entered — a profit_target or stop_loss on the
+  successor still measures against the whole position's own combined basis, stock and option leg
+  together, the same single-position reading ADR-0080 already gives a hand-rolled covered call.
 - **Roll beats settlement when both are live on the same session; otherwise settlement wins.** A
   roll's own `when` (typically `days_before_expiry`) fires before expiry by construction, so in the
   ordinary case there is nothing left to settle once it fires — the operation is already closed and
-  reopened days before its series would ever reach expiry. The two can still coincide at the edges
-  (a `when` that only fires at `businessDays: 0`, or a rule that never fires before the series
-  actually expires): `runBacktest`'s main session loop resolves pending rolls
-  (`resolvePendingRollFills`) immediately after pending exits and strictly before expiring
-  operations are settled (`resolveExpiringOperations`), the same ordering the loop already gives
-  exits over settlement. A roll that never got the chance to fire before its series' own expiry
-  settles instead, same as an operation with no adjustment rule at all — there is no operation left
-  open for `resolvePendingRollFills` to act on by the time settlement runs.
+  reopened days before its series would ever reach expiry. The two can still coincide at the edges:
+  a `when` that fires at `businessDays: 1` queues a roll on the session right before expiry, whose
+  fill attempt (`resolvePendingRollFills`) then lands on the expiry session itself, immediately
+  after pending exits and strictly before expiring operations are settled
+  (`resolveExpiringOperations`) — the same ordering the loop already gives exits over settlement,
+  so the roll wins the race and the operation never reaches settlement at all. A `when` of
+  `businessDays: 0`, by contrast, never races anything: `queueNextSignals` (where a roll's own
+  `when` is ever evaluated) runs after `resolveExpiringOperations` within the same session, so an
+  operation whose series expires that same session is already gone from `openOperations` by the
+  time a `businessDays: 0` rule would have fired for it — settlement wins by construction, not by
+  resolving a tie. A rule that never fires before its own series actually expires settles the same
+  way, for the unrelated reason that no pending roll was ever queued for it to fill.
 - **`capabilities().adjustmentRules` now reports `roll`; `unsupportedAdjustmentRuleKinds` is empty.**
   `implementedAdjustmentRuleKinds`/`unsupportedAdjustmentRuleKinds` in `vocabularies.ts` follow the
   same split `implementedExitRuleKinds`/`unsupportedExitRuleKinds` already established, and the

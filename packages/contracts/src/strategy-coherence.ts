@@ -74,5 +74,15 @@ export function checkStrategyCoherence(
     };
   }
 
+  for (const [index, rule] of definition.adjustments.entries()) {
+    if (rule.strikes.length !== distinctRanks) {
+      return {
+        ok: false,
+        path: `adjustments[${String(index)}].strikes`,
+        message: "a roll rule's strikes.length must equal the number of distinct strike ranks",
+      };
+    }
+  }
+
   return { ok: true };
 }

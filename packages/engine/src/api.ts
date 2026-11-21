@@ -96,7 +96,12 @@ export type NoteCode =
   | "option_strike_derived_across_corporate_action"
   | "candle_less_sessions_excluded"
   | "warm_up_sessions_excluded"
-  | "roll_no_series_match";
+  // Retired by #383: a stored `backtest_runs` row from before 0.20.0 can still carry this code
+  // (ADR-0013's #383 addendum), so it stays parseable; `runBacktest` never emits it from 0.20.0
+  // on, having replaced it with the narrower `roll_no_series_match` below.
+  | "adjustment_not_applied"
+  | "roll_no_series_match"
+  | "roll_refused_limit_breach";
 export const noteCodes = [
   "european_pricing",
   "dividend_yield_defaulted",
@@ -126,7 +131,9 @@ export const noteCodes = [
   "option_strike_derived_across_corporate_action",
   "candle_less_sessions_excluded",
   "warm_up_sessions_excluded",
+  "adjustment_not_applied",
   "roll_no_series_match",
+  "roll_refused_limit_breach",
 ] as const satisfies readonly NoteCode[];
 
 export type Note = { code: NoteCode; message: string };
