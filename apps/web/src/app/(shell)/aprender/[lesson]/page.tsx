@@ -7,7 +7,6 @@ import {
   getMyLessonPage,
   LessonBlocks,
   LevelSection,
-  publicQuiz,
   QuizForm,
 } from "@/modules/learning";
 import { PageHeader } from "@/modules/shell";
@@ -29,7 +28,8 @@ export default async function LessonPage({ params }: { params: Promise<{ lesson:
   if (!page) {
     notFound();
   }
-  const { lesson, examples, progress, position, totalLessons, nextLessonId, levelGroup } = page;
+  const { lesson, quiz, examples, progress, position, totalLessons, nextLessonId, levelGroup } =
+    page;
 
   const overline = `${levelGroup?.title ?? ""} · Lição ${String(position + 1)} de ${String(totalLessons)}`;
 
@@ -42,11 +42,7 @@ export default async function LessonPage({ params }: { params: Promise<{ lesson:
           <div className="flex min-w-0 flex-col gap-8">
             <LessonBlocks blocks={lesson.blocks} examples={examples} />
             <div className="max-w-[72ch]">
-              <QuizForm
-                lessonId={lesson.id}
-                questions={publicQuiz(lesson, "pt", examples)}
-                nextLessonId={nextLessonId}
-              />
+              <QuizForm lessonId={lesson.id} questions={quiz} nextLessonId={nextLessonId} />
             </div>
           </div>
 

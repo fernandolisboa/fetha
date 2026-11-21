@@ -8,11 +8,10 @@ export { ViewSwitch, type LessonsView } from "./components/view-switch";
 export { LessonProgressDataExport } from "./data-export";
 export { submitLessonQuizAction, type SubmitLessonQuizResult } from "./actions";
 export { getLessonQuizAnswersForE2E, type LessonQuizAnswerForE2E } from "./e2e-support";
-export { type PublicQuizOption, type PublicQuizQuestion, publicQuiz } from "./grading";
 export {
   getMyLessonPage,
   getMyLessonsOverview,
   type LessonPage,
   type LessonsOverview,
 } from "./queries";
-export { learningStrings, t } from "./strings";
+export { t } from "./strings";

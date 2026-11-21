@@ -4,6 +4,7 @@ import { getDb } from "@/db/client";
 import { forCurrentUser } from "@/modules/auth";
 
 import { getLesson, jornadaOrder, type PlacedLesson } from "./catalog";
+import { publicQuiz, type PublicQuizQuestion } from "./grading";
 import {
   jornadaGroups,
   nextLesson,
@@ -42,6 +43,7 @@ export const getMyLessonsOverview = cache(async (): Promise<LessonsOverview> => 
 
 export interface LessonPage {
   lesson: PlacedLesson;
+  quiz: PublicQuizQuestion[];
   examples: IllustrativeExamples;
   progress: ProgressByLessonId;
   position: number;
@@ -50,7 +52,9 @@ export interface LessonPage {
   levelGroup: LevelGroup | undefined;
 }
 
-// The one read model `/aprender/[lesson]` renders from.
+// The one read model `/aprender/[lesson]` renders from: the page never calls
+// `publicQuiz` or sees the raw lesson's `correctOptionId` itself, only the
+// already-resolved, already-stripped quiz this query builds.
 export const getMyLessonPage = cache(async (id: string): Promise<LessonPage | null> => {
   const lessonContent = getLesson(id);
   if (!lessonContent) return null;
@@ -69,6 +73,7 @@ export const getMyLessonPage = cache(async (id: string): Promise<LessonPage | nu
 
   return {
     lesson,
+    quiz: publicQuiz(lesson, "pt", examples),
     examples,
     progress,
     position,
