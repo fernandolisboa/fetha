@@ -15,8 +15,8 @@ const session = (value: string) => sessionDateSchema.parse(value);
 
 function baseInputs(overrides: Partial<PlanSignalInputs> = {}): PlanSignalInputs {
   return {
-    netPremiumCentavos: centavos(1000),
-    maxLossCentavos: centavos(5000),
+    premiumBaseCentavos: centavos(1000),
+    maxLossBaseCentavos: centavos(5000),
     unrealizedPnlCentavos: centavos(0),
     exitRules: [],
     roll: { applies: false, session: null },
@@ -63,12 +63,30 @@ describe("firedPlanSignalKinds", () => {
     expect(fired).toEqual([]);
   });
 
+  // Review round 2, #381: a short call sold at 1,00 (100 shares, premium received 100,00) with a
+  // 2x stop against the entry-priced base — unbounded max loss, so the base falls back to the
+  // (absolute) premium, 10 000 centavos. The threshold is exactly −20 000 centavos of unrealized
+  // P&L: a mark of 3,00 (a loss of 200,00) reaches it, a mark of 2,99 (a loss of 199,00) does not.
+  it("a short call's 2x stop fires at a 200,00 loss and not at 199,00", () => {
+    const shortCallInputs = (lossCentavos: number) =>
+      baseInputs({
+        exitRules: [
+          { rule: { kind: "stop_loss", multipleOfMaxLoss: decimal("2") }, session: null },
+        ],
+        premiumBaseCentavos: centavos(10_000),
+        maxLossBaseCentavos: "unbounded",
+        unrealizedPnlCentavos: centavos(-lossCentavos),
+      });
+    expect(firedPlanSignalKinds(shortCallInputs(20_000))).toEqual(["stop_hit"]);
+    expect(firedPlanSignalKinds(shortCallInputs(19_900))).toEqual([]);
+  });
+
   it("falls back to the premium base as the max-loss base for an unbounded max loss", () => {
     const fired = firedPlanSignalKinds(
       baseInputs({
         exitRules: [stopLossRule],
-        maxLossCentavos: "unbounded",
-        netPremiumCentavos: centavos(1000),
+        maxLossBaseCentavos: "unbounded",
+        premiumBaseCentavos: centavos(1000),
         unrealizedPnlCentavos: centavos(-500),
       }),
     );
@@ -79,7 +97,7 @@ describe("firedPlanSignalKinds", () => {
     const fired = firedPlanSignalKinds(
       baseInputs({
         exitRules: [profitTargetRule],
-        netPremiumCentavos: centavos(0),
+        premiumBaseCentavos: centavos(0),
         unrealizedPnlCentavos: centavos(1000),
       }),
     );
@@ -90,7 +108,7 @@ describe("firedPlanSignalKinds", () => {
     const fired = firedPlanSignalKinds(
       baseInputs({
         exitRules: [stopLossRule],
-        maxLossCentavos: centavos(0),
+        maxLossBaseCentavos: centavos(0),
         unrealizedPnlCentavos: centavos(-100000),
       }),
     );
@@ -109,6 +127,34 @@ describe("firedPlanSignalKinds", () => {
       baseInputs({ roll: { applies: false, session: session("2026-11-01") } }),
     );
     expect(fired).toEqual([]);
+  });
+
+  it("fires expiry_near once today's session reaches a days_before_expiry rule's own session", () => {
+    const rule: ResolvedExitRule = {
+      rule: { kind: "days_before_expiry", businessDays: 5 },
+      session: session("2026-11-20"),
+    };
+    expect(firedPlanSignalKinds(baseInputs({ exitRules: [rule] }))).toEqual(["expiry_near"]);
+    const notYet = firedPlanSignalKinds(
+      baseInputs({ exitRules: [rule], todaySession: session("2026-11-19") }),
+    );
+    expect(notYet).toEqual([]);
+  });
+
+  it("never fires for a condition exit rule (no indicator evaluation in this nightly step)", () => {
+    const rule: ResolvedExitRule = {
+      rule: {
+        kind: "condition",
+        condition: {
+          kind: "compare",
+          left: { kind: "price", field: "close" },
+          comparator: "<",
+          right: { kind: "constant", value: decimal("30") },
+        },
+      },
+      session: null,
+    };
+    expect(firedPlanSignalKinds(baseInputs({ exitRules: [rule] }))).toEqual([]);
   });
 
   it("can fire more than one kind at once", () => {

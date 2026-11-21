@@ -25,6 +25,13 @@ import { planSignalKinds } from "./plan-signal-rules";
 // "Executei" turned this plan into: null until executed, then the composite
 // `(operation_id, user_id)` foreign key binds it to this same user's own operation (the `fills`
 // pattern) and the unique index caps it at one — a plan can execute at most once.
+//
+// Ungrouping that operation (`PortfolioRepository.ungroup`) unlinks the plan rather than failing:
+// the FK's `ON DELETE SET NULL ("operation_id")` names only that one referencing column, in
+// Postgres's column-list form (PG15+), so `user_id` is left alone instead of being nulled into a
+// `NOT NULL` violation. Drizzle's schema builder has no equivalent of that column-list form (only
+// a plain, all-columns `set null`), so the clause is hand-written into the migration SQL and
+// cannot be expressed here; this comment is the record of that gap (review round 2, #381).
 export const operationPlanRules = pgTable(
   "operation_plan_rules",
   {
@@ -44,6 +51,11 @@ export const operationPlanRules = pgTable(
     index("operation_plan_rules_user_id_created_at_idx").on(table.userId, table.createdAt),
     index("operation_plan_rules_contemplated_operation_id_idx").on(table.contemplatedOperationId),
     uniqueIndex("operation_plan_rules_operation_id_idx").on(table.operationId),
+    // `plan_signals.operation_plan_rules_id` below references this exact `(id, user_id)` pair
+    // (the `contemplated_operations`/`decisions` pattern): Postgres requires a unique
+    // constraint on exactly those two columns, which the primary key on `id` alone does not
+    // provide.
+    uniqueIndex("operation_plan_rules_id_user_id_idx").on(table.id, table.userId),
     foreignKey({
       columns: [table.contemplatedOperationId, table.userId],
       foreignColumns: [contemplatedOperations.id, contemplatedOperations.userId],

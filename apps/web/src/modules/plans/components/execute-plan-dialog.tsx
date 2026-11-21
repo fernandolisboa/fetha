@@ -40,6 +40,7 @@ export function ExecutePlanDialog({
   const [loading, setLoading] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [today, setToday] = useState("");
   const [session, setSession] = useState("");
   const [fills, setFills] = useState<FillDraft[]>([]);
   const labels = t.execute;
@@ -53,6 +54,7 @@ export function ExecutePlanDialog({
         .then((result) => {
           setLoading(false);
           if (result.status === "ok") {
+            setToday(result.today);
             setSession(result.today);
             setFills(
               result.legs.map((leg) => ({
@@ -85,7 +87,12 @@ export function ExecutePlanDialog({
       executePlanAction({
         contemplatedOperationId,
         session,
-        fills: fills.map((fill) => ({ ticker: fill.ticker, price: fill.price, costs: fill.costs })),
+        fills: fills.map((fill) => ({
+          ticker: fill.ticker,
+          quantity: fill.quantity,
+          price: fill.price,
+          costs: fill.costs,
+        })),
       })
         .then((result) => {
           setPending(false);
@@ -138,7 +145,7 @@ export function ExecutePlanDialog({
                 type="date"
                 required
                 value={session}
-                max={session}
+                max={today}
                 onChange={(event) => {
                   setSession(event.target.value);
                 }}
@@ -146,12 +153,32 @@ export function ExecutePlanDialog({
             </div>
             <div className="flex flex-col gap-3">
               {fills.map((fill, index) => (
-                <div key={fill.ticker} className="grid grid-cols-4 items-end gap-2">
-                  <div className="col-span-4 flex items-center justify-between text-[12px]">
+                <div key={fill.ticker} className="grid grid-cols-6 items-end gap-2">
+                  <div className="col-span-6 flex items-center justify-between text-[12px]">
                     <span className="font-mono uppercase">{fill.ticker}</span>
                     <span className="text-muted-foreground">
-                      {fill.side === "buy" ? labels.buy : labels.sell} · {fill.quantity}
+                      {fill.side === "buy" ? labels.buy : labels.sell}
                     </span>
+                  </div>
+                  <div className="col-span-2 flex flex-col gap-1">
+                    <Label htmlFor={`execute-quantity-${String(index)}`}>{labels.quantity}</Label>
+                    <Input
+                      id={`execute-quantity-${String(index)}`}
+                      required
+                      type="number"
+                      min={1}
+                      step={1}
+                      className="font-mono tabular-nums"
+                      value={fill.quantity}
+                      onChange={(event) => {
+                        const value = Number(event.target.value);
+                        setFills((previous) =>
+                          previous.map((row, rowIndex) =>
+                            rowIndex === index ? { ...row, quantity: value } : row,
+                          ),
+                        );
+                      }}
+                    />
                   </div>
                   <div className="col-span-2 flex flex-col gap-1">
                     <Label htmlFor={`execute-price-${String(index)}`}>{labels.price}</Label>

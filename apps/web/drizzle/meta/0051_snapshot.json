@@ -1,5 +1,5 @@
 {
-  "id": "0d1e0275-1377-4826-817b-72388861e557",
+  "id": "bbab1110-ae58-447b-b189-8352b82da8cd",
   "prevId": "77416888-21a7-494a-a161-989b443e17e2",
   "version": "7",
   "dialect": "postgresql",
@@ -3725,6 +3725,27 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "operation_plan_rules_id_user_id_idx": {
+          "name": "operation_plan_rules_id_user_id_idx",
+          "columns": [
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -3933,7 +3954,7 @@
       "checkConstraints": {
         "plan_signals_kind_check": {
           "name": "plan_signals_kind_check",
-          "value": "\"plan_signals\".\"kind\" in ('target_hit', 'stop_hit', 'roll_due')"
+          "value": "\"plan_signals\".\"kind\" in ('target_hit', 'stop_hit', 'roll_due', 'expiry_near')"
         }
       },
       "isRLSEnabled": false

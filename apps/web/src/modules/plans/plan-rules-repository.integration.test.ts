@@ -5,7 +5,7 @@ import { getDb } from "@/db/client";
 import { deleteTestUser } from "@/db/test/cleanup";
 import { user } from "@/modules/auth/schema";
 import { structures } from "@/modules/strategies/schema";
-import { contemplatedOperations } from "@/modules/portfolio/schema";
+import { contemplatedOperations, operations } from "@/modules/portfolio/schema";
 
 import { PlanRulesRepository } from "./plan-rules-repository";
 
@@ -139,6 +139,38 @@ describe("PlanRulesRepository isolation", () => {
         rules: fixtureRules(),
       }),
     ).rejects.toThrow();
+  });
+
+  it("cannot link a plan to another user's operation (write isolation, #381)", async () => {
+    await ensureStockStructure();
+    const db = getDb();
+    const emailA = uniqueEmail("cross-link-a");
+    const emailB = uniqueEmail("cross-link-b");
+    createdEmails.push(emailA, emailB);
+
+    const userA = await insertBareUser(emailA);
+    const userB = await insertBareUser(emailB);
+    const operationA = await insertContemplatedOperation(userA.id);
+    await new PlanRulesRepository(db, userA).save({
+      contemplatedOperationId: operationA,
+      recipeId: "bull-call-spread-low-iv",
+      rules: fixtureRules(),
+    });
+    const [operationB] = await db
+      .insert(operations)
+      .values({ userId: userB.id, underlying: "PETR4", status: "open", openedAt: "2027-01-02" })
+      .returning({ id: operations.id });
+    if (!operationB) throw new Error("failed to insert operation");
+
+    // The composite FK, not only this repository's own scoping, refuses it: `operation_id`
+    // alone could be forged by any authenticated caller, the pair `(operation_id, user_id)`
+    // cannot.
+    await expect(
+      new PlanRulesRepository(db, userA).linkOperation(operationA, operationB.id),
+    ).rejects.toThrow();
+
+    const stillUnlinked = await new PlanRulesRepository(db, userA).findByOperation(operationA);
+    expect(stillUnlinked?.operationId).toBeNull();
   });
 
   it("returns null and an empty list before any plan is saved", async () => {

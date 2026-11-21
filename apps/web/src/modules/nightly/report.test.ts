@@ -38,7 +38,13 @@ function baseOutcome(): NightlyJobOutcome {
     radar: null,
     suggestionScoring: { asOfSession: "2026-09-08", scored: 1, skipped: 2, errors: 1 },
     researchScoring: { asOfSession: "2026-09-08", scored: 4, skipped: 0, errors: 2 },
-    planSignalScoring: { usersEvaluated: 1, usersSkipped: 0, signalsWritten: 2, errors: 0 },
+    planSignalScoring: {
+      usersEvaluated: 1,
+      usersSkipped: 0,
+      signalsWritten: 2,
+      signalsCleared: 1,
+      errors: 0,
+    },
     analysisScoring: {
       asOfSession: "2026-09-08",
       usersScored: 0,
@@ -124,7 +130,13 @@ describe("buildNightlyRunReport", () => {
       analysisScoring: { analysesScored: 0, usersSkipped: 0, analysesSkipped: 0, errorCount: 1 },
       suggestionScoring: { scored: 1, skipped: 2, errorCount: 1 },
       researchScoring: { scored: 4, skipped: 0, errorCount: 2 },
-      planSignalScoring: { usersEvaluated: 1, usersSkipped: 0, signalsWritten: 2, errorCount: 0 },
+      planSignalScoring: {
+        usersEvaluated: 1,
+        usersSkipped: 0,
+        signalsWritten: 2,
+        signalsCleared: 1,
+        errorCount: 0,
+      },
       sentiment: {
         labels: {
           status: "ran",

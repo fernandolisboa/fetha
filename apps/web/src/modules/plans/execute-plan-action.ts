@@ -12,6 +12,7 @@ import {
 
 import { getDb } from "@/db/client";
 import { nowInstant } from "@/lib/instant";
+import { formatDecimal } from "@/lib/format/decimal";
 import { parseCentavosInput } from "@/lib/format/parse-money";
 import { todaySaoPauloDate } from "@/lib/today-sao-paulo";
 import {
@@ -27,17 +28,13 @@ import {
   tradingSessionForDate,
 } from "@/modules/market-data";
 import {
-  corporateActionsByUnderlying,
   OperationsRepository,
   parsePriceInput,
-  planOperation,
-  PortfolioRepository,
   priceOperationNow,
-  seriesByHolding,
+  recordFillsAsOperation,
   type ContemplatedOperation,
-  type FillRecord,
-  type GroupRefusal,
   type NewFill,
+  type RecordFillsAsOperationResult,
 } from "@/modules/portfolio";
 
 import { PlanRulesRepository } from "./plan-rules-repository";
@@ -59,9 +56,11 @@ export type PlanExecutionPrefillResult =
       today: SessionDate;
       legs: PrefillLeg[];
     }
-  | { status: "error"; error: "invalid" | "not_found" | "already_executed" };
+  | { status: "error"; error: "invalid" | "not_found" | "already_executed" | "rate_limited" };
 
 const idSchema = z.string().min(1).max(64);
+
+const PREFILL_RATE_LIMIT = { windowSeconds: 60, max: 60 };
 
 // What "Executei" opens the fill dialog with (ADR-0079 addendum, ticket #381): one row per plan
 // order — ticker, side and quantity straight from the saved plan's own legs, never trusted from
@@ -70,7 +69,9 @@ const idSchema = z.string().min(1).max(64);
 // calls), not the limit price the plan was built with: a saved plan stores only its totals
 // (`contemplated_operations`' net premium and max loss), never a per-leg price, so there is
 // nothing from the save itself to prefill with; the user still corrects every price to what
-// actually filled before saving.
+// actually filled before saving. Formatted pt-BR (review round 2, #381): `parsePriceInput` only
+// ever accepts pt-BR input, so a prefilled dot-decimal price could never itself be submitted
+// unedited.
 export async function planExecutionPrefillAction(
   input: unknown,
 ): Promise<PlanExecutionPrefillResult> {
@@ -80,6 +81,14 @@ export async function planExecutionPrefillAction(
   return withAuthenticatedAction(async () => {
     const user = await requireUser();
     const db = getDb();
+    try {
+      await enforceAccountRateLimit(db, user.email, "plans/prefill", PREFILL_RATE_LIMIT);
+    } catch (error) {
+      if (error instanceof AccountRateLimitExceededError) {
+        return { status: "error", error: "rate_limited" };
+      }
+      throw error;
+    }
 
     let operation: ContemplatedOperation;
     try {
@@ -98,19 +107,23 @@ export async function planExecutionPrefillAction(
       status: "ok",
       underlying: operation.underlying,
       today: todaySaoPauloDate(),
-      legs: operation.legs.map((leg) => ({
-        ticker: leg.ticker,
-        role: leg.role,
-        side: leg.side,
-        quantity: leg.quantity,
-        price: priceByTicker.get(leg.ticker) ?? null,
-      })),
+      legs: operation.legs.map((leg) => {
+        const price = priceByTicker.get(leg.ticker);
+        return {
+          ticker: leg.ticker,
+          role: leg.role,
+          side: leg.side,
+          quantity: leg.quantity,
+          price: price ? formatDecimal(price, 2) : null,
+        };
+      }),
     };
   });
 }
 
 const executeFillInputSchema = z.strictObject({
   ticker: tickerSchema,
+  quantity: z.coerce.number().int().positive().max(1_000_000_000),
   price: z.string(),
   costs: z.string(),
 });
@@ -133,28 +146,19 @@ export type ExecutePlanResult =
         | "index_stock_leg"
         | "not_a_session"
         | "rate_limited"
-        | "fills_unavailable"
-        | "operation_unavailable"
-        | GroupRefusal;
+        | Exclude<RecordFillsAsOperationResult, { ok: true }>["reason"];
     };
 
 const EXECUTE_RATE_LIMIT = { windowSeconds: 60, max: 20 };
 
-function provisionalFillRecords(newFills: readonly NewFill[]): FillRecord[] {
-  return newFills.map((fill, index) => ({
-    id: `provisional-${String(index)}`,
-    seq: index,
-    ticker: fill.ticker,
-    assetClass: fill.assetClass,
-    side: fill.side,
-    quantity: fill.quantity,
-    price: fill.price,
-    session: fill.session,
-    costsCentavos: fill.costsCentavos,
-    source: fill.source,
-    expiry: fill.expiry,
-    operationId: null,
-  }));
+// The transaction's own refusal (review round 2, #381): thrown, never returned, so a refused
+// grouping or a losing double-submit's failed link both abort the transaction outright — Drizzle
+// only rolls back on a thrown error, not on a returned value, so a `return` here would have left
+// the fills (and, on the link race, a second operation) committed on every refusal path.
+class ExecutePlanRefusedError extends Error {
+  constructor(public readonly reason: Exclude<ExecutePlanResult, { status: "ok" }>["error"]) {
+    super(`execute plan refused: ${reason}`);
+  }
 }
 
 // "Executei" on a saved plan (ADR-0079 addendum, ticket #381): one fill per plan order, grouped
@@ -232,7 +236,9 @@ export async function executePlanAction(input: unknown): Promise<ExecutePlanResu
         ticker: leg.ticker,
         assetClass: isStockLeg ? "stock" : "option",
         side: leg.side,
-        quantity: leg.quantity,
+        // Editable (review round 2, #381): the user corrects a partial fill's size here, not
+        // only its price; ticker and side stay the plan's own.
+        quantity: correction.quantity,
         price,
         session,
         costsCentavos: costs,
@@ -242,41 +248,31 @@ export async function executePlanAction(input: unknown): Promise<ExecutePlanResu
       });
     }
 
-    const series = await seriesByHolding(db, provisionalFillRecords(newFills));
-    const corporateActions = await corporateActionsByUnderlying(db, [operation.underlying]);
-    const portfolioRepo = new PortfolioRepository(db, user);
-
-    const result = await db.transaction(async (tx) => {
-      const { ids } = await portfolioRepo.insertFills(newFills, tx);
-      const grouped = await portfolioRepo.group(
-        null,
-        ids,
-        (fillRows) => {
-          const plan = planOperation(fillRows, series, corporateActions);
-          if (!plan.ok) return plan;
-          const { underlying, expiry, openedAt, status, closedAt } = plan.state;
-          return { ok: true, state: { underlying, expiry, openedAt, status, closedAt } };
-        },
-        tx,
-      );
-      if (!grouped.ok) return grouped;
-
-      const linked = await planRulesRepo.linkOperation(
-        contemplatedOperationId,
-        grouped.operationId,
-        tx,
-      );
-      if (!linked.ok) {
-        return { ok: false as const, reason: "already_executed" as const };
+    let operationId: string;
+    try {
+      operationId = await db.transaction(async (tx) => {
+        const recorded = await recordFillsAsOperation(db, tx, user, newFills);
+        if (!recorded.ok) {
+          throw new ExecutePlanRefusedError(recorded.reason);
+        }
+        const linked = await planRulesRepo.linkOperation(
+          contemplatedOperationId,
+          recorded.operationId,
+          tx,
+        );
+        if (!linked.ok) {
+          throw new ExecutePlanRefusedError("already_executed");
+        }
+        return recorded.operationId;
+      });
+    } catch (error) {
+      if (error instanceof ExecutePlanRefusedError) {
+        return { status: "error", error: error.reason };
       }
-      return grouped;
-    });
-
-    if (!result.ok) {
-      return { status: "error", error: result.reason };
+      throw error;
     }
 
     revalidatePath("/carteira");
-    return { status: "ok", operationId: result.operationId };
+    return { status: "ok", operationId };
   });
 }

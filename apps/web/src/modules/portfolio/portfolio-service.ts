@@ -22,7 +22,7 @@ import {
   type SettlementProposal,
 } from "@fetha/engine";
 
-import type { Database } from "@/db/client";
+import type { Database, Transaction } from "@/db/client";
 import { todaySaoPauloDate } from "@/lib/today-sao-paulo";
 import type { ScopedUser } from "@/lib/user-scoped-repository";
 import {
@@ -46,12 +46,18 @@ import {
   heldExpiry,
   planOperation,
   toEngineOperation,
+  type GroupRefusal,
   type OperationState,
   type SeriesByHolding,
   type SeriesFacts,
 } from "./operation-plan";
 import { entryPayoff, type EntryPayoff } from "./entry-payoff";
-import { PortfolioRepository, type FillRecord, type OperationRecord } from "./portfolio-repository";
+import {
+  PortfolioRepository,
+  type FillRecord,
+  type NewFill,
+  type OperationRecord,
+} from "./portfolio-repository";
 import { RiskProfileRepository } from "./risk-profile-repository";
 import { closingQuantities } from "./settlement-plan";
 
@@ -104,11 +110,16 @@ export interface PortfolioReadModel {
   fills: FillRecord[];
 }
 
+// Everything `seriesByHolding` reads off a fill: a stored `FillRecord` or a not-yet-inserted
+// `NewFill` share exactly this shape, so `recordFillsAsOperation` resolves series facts for a
+// fresh set of fills without faking a `FillRecord` (review round 2, #381).
+type SeriesLookupFill = Pick<FillRecord, "ticker" | "assetClass" | "expiry" | "session">;
+
 // Facts for every option fill's series, keyed by `holdingKey(ticker,
 // expiry)`: the expiry resolved when the fill was written (ADR-0021 item 3).
 export async function seriesByHolding(
   db: Database,
-  fills: readonly FillRecord[],
+  fills: readonly SeriesLookupFill[],
 ): Promise<Map<string, SeriesFacts>> {
   const optionFills = fills.filter((fill) => fill.assetClass === "option" && fill.expiry);
   const resolved = await optionSeriesForFills(db, optionFills);
@@ -473,4 +484,48 @@ export async function loadPortfolio(
     pendingSettlements,
     fills,
   };
+}
+
+function underlyingOfNewFill(fill: SeriesLookupFill, series: SeriesByHolding): string | null {
+  return fill.assetClass === "stock"
+    ? fill.ticker
+    : (series.get(holdingKey(fill.ticker, fill.expiry))?.underlying ?? null);
+}
+
+export type RecordFillsAsOperationResult =
+  | { ok: true; operationId: string }
+  | { ok: false; reason: "fills_unavailable" | "operation_unavailable" | GroupRefusal };
+
+// Portfolio's one entry point for turning a fresh, already-validated set of fills into one new
+// operation (review round 2, #381): resolves every fill's series and corporate-action facts,
+// inserts the fills and groups them into a new operation, all inside the caller's own
+// transaction. "Executei" is the only caller today, and it reaches none of `PortfolioRepository`,
+// `planOperation` or `seriesByHolding` directly anymore — this function is the seam.
+export async function recordFillsAsOperation(
+  db: Database,
+  tx: Transaction,
+  user: ScopedUser,
+  newFills: readonly NewFill[],
+): Promise<RecordFillsAsOperationResult> {
+  if (newFills.length === 0) {
+    return { ok: false, reason: "fills_unavailable" };
+  }
+  const series = await seriesByHolding(db, newFills);
+  const corporateActions = await corporateActionsByUnderlying(
+    db,
+    newFills.map((fill) => underlyingOfNewFill(fill, series)),
+  );
+  const repository = new PortfolioRepository(db, user);
+  const { ids } = await repository.insertFills(newFills, tx);
+  return repository.group(
+    null,
+    ids,
+    (fillRows) => {
+      const plan = planOperation(fillRows, series, corporateActions);
+      if (!plan.ok) return plan;
+      const { underlying, expiry, openedAt, status, closedAt } = plan.state;
+      return { ok: true, state: { underlying, expiry, openedAt, status, closedAt } };
+    },
+    tx,
+  );
 }

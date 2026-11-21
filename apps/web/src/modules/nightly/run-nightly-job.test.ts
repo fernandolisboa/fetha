@@ -80,7 +80,13 @@ describe("runNightlyJob", () => {
     evaluatePlanSignalsMock
       .mockReset()
       .mockImplementation(() =>
-        Promise.resolve({ usersEvaluated: 0, usersSkipped: 0, signalsWritten: 0, errors: 0 }),
+        Promise.resolve({
+          usersEvaluated: 0,
+          usersSkipped: 0,
+          signalsWritten: 0,
+          signalsCleared: 0,
+          errors: 0,
+        }),
       );
     scoreDueResearchMock
       .mockReset()
@@ -329,7 +335,13 @@ describe("runNightlyJob", () => {
     });
     evaluatePlanSignalsMock.mockImplementationOnce(() => {
       order.push("planSignals");
-      return Promise.resolve({ usersEvaluated: 1, usersSkipped: 0, signalsWritten: 2, errors: 0 });
+      return Promise.resolve({
+        usersEvaluated: 1,
+        usersSkipped: 0,
+        signalsWritten: 2,
+        signalsCleared: 0,
+        errors: 0,
+      });
     });
     const { runNightlyJob } = await import("./run-nightly-job");
     const outcome = await runNightlyJob(fakeDb);

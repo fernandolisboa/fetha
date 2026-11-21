@@ -193,9 +193,15 @@ export default async function PortfolioPage() {
                           const planRules = planRulesByOperation.get(operation.id);
                           if (!planRules) return null;
                           return planRules.operationId ? (
-                            <span className="text-muted-foreground text-xs">
+                            // PR #388's own operation page (`/carteira/operacoes/[id]`) is not
+                            // on `main` yet (review round 2, #381): this links to the portfolio
+                            // itself until it ships, the same fallback `PlanSignalsPanel` uses.
+                            <Link
+                              href="/carteira"
+                              className="text-muted-foreground text-xs underline"
+                            >
                               {plansT.execute.executed}
-                            </span>
+                            </Link>
                           ) : (
                             <ExecutePlanDialog contemplatedOperationId={operation.id} />
                           );

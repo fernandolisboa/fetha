@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray, notInArray } from "drizzle-orm";
 import { sessionDateSchema, type Instant, type SessionDate } from "@fetha/contracts";
 
 import type { Executor } from "@/db/client";
@@ -52,6 +52,32 @@ export class PlanSignalsRepository extends UserScopedRepository {
       })
       .returning({ id: planSignals.id });
     return inserted.length;
+  }
+
+  // Dedupe "while the condition persists" (review round 2, #381): a kind this run actually
+  // re-evaluated and found no longer firing is deleted, not left behind forever, so the panel
+  // only ever shows active alerts and a later re-fire of the same kind alerts again (the unique
+  // index that dedupes a condition still true tonight would otherwise silently dedupe a brand
+  // new occurrence of it too). Only `evaluatedKinds` are touched: a kind this run skipped
+  // (target/stop with no entry price to measure against) is left exactly as it was.
+  async clearStale(
+    operationId: string,
+    evaluatedKinds: readonly PlanSignalKind[],
+    firingKinds: readonly PlanSignalKind[],
+  ): Promise<number> {
+    if (evaluatedKinds.length === 0) return 0;
+    const deleted = await this.db
+      .delete(planSignals)
+      .where(
+        and(
+          eq(planSignals.userId, this.userId),
+          eq(planSignals.operationId, operationId),
+          inArray(planSignals.kind, [...evaluatedKinds]),
+          firingKinds.length > 0 ? notInArray(planSignals.kind, [...firingKinds]) : undefined,
+        ),
+      )
+      .returning({ id: planSignals.id });
+    return deleted.length;
   }
 
   async listMine(): Promise<PlanSignalListItem[]> {

@@ -57,6 +57,7 @@ const planSignalScoringReportSchema = z.object({
   usersEvaluated: z.number().int().nonnegative(),
   usersSkipped: z.number().int().nonnegative(),
   signalsWritten: z.number().int().nonnegative(),
+  signalsCleared: z.number().int().nonnegative(),
   errorCount: z.number().int().nonnegative(),
 });
 
@@ -195,6 +196,7 @@ export function buildNightlyRunReport(outcome: NightlyJobOutcome): NightlyRunRep
       usersEvaluated: outcome.planSignalScoring.usersEvaluated,
       usersSkipped: outcome.planSignalScoring.usersSkipped,
       signalsWritten: outcome.planSignalScoring.signalsWritten,
+      signalsCleared: outcome.planSignalScoring.signalsCleared,
       errorCount: outcome.planSignalScoring.errors,
     },
     sentiment: {

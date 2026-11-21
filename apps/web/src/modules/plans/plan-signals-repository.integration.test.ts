@@ -141,6 +141,32 @@ describe("PlanSignalsRepository isolation", () => {
     ).toBeNull();
   });
 
+  it("cannot write a signal against another user's plan or operation (#381)", async () => {
+    await ensureStockStructure();
+    const emailA = uniqueEmail("write-a");
+    const emailB = uniqueEmail("write-b");
+    createdEmails.push(emailA, emailB);
+    const userA = await insertBareUser(emailA);
+    const userB = await insertBareUser(emailB);
+    const planB = await insertExecutedPlan(userB.id);
+
+    // Both `operation_plan_rules_id` and `operation_id` carry a composite FK scoped to this
+    // row's own `user_id`: naming B's ids from A's repository can never satisfy either one.
+    await expect(
+      new PlanSignalsRepository(getDb(), userA).createMany([
+        {
+          operationPlanRulesId: planB.planRulesId,
+          operationId: planB.operationId,
+          kind: "target_hit",
+          session: "2024-01-03",
+          at: "2024-01-03T20:00:00.000Z",
+        },
+      ]),
+    ).rejects.toThrow();
+
+    expect(await new PlanSignalsRepository(getDb(), userB).listMine()).toHaveLength(0);
+  });
+
   it("deduplicates: a condition that is still true the next night writes nothing new", async () => {
     await ensureStockStructure();
     const email = uniqueEmail("dedupe");
@@ -159,5 +185,45 @@ describe("PlanSignalsRepository isolation", () => {
     expect(await repository.createMany([row])).toBe(1);
     expect(await repository.createMany([{ ...row, session: "2024-01-04" }])).toBe(0);
     expect(await repository.listMine()).toHaveLength(1);
+  });
+
+  it("clears a kind that no longer fires, so a later re-fire alerts again (#381 round 2)", async () => {
+    await ensureStockStructure();
+    const email = uniqueEmail("clear-stale");
+    createdEmails.push(email);
+    const owner = await insertBareUser(email);
+    const plan = await insertExecutedPlan(owner.id);
+    const repository = new PlanSignalsRepository(getDb(), owner);
+
+    await repository.createMany([
+      {
+        operationPlanRulesId: plan.planRulesId,
+        operationId: plan.operationId,
+        kind: "stop_hit",
+        session: "2024-01-03",
+        at: "2024-01-03T20:00:00.000Z",
+      },
+    ]);
+    expect(await repository.listMine()).toHaveLength(1);
+
+    const cleared = await repository.clearStale(
+      plan.operationId,
+      ["target_hit", "stop_hit", "roll_due", "expiry_near"],
+      [],
+    );
+    expect(cleared).toBe(1);
+    expect(await repository.listMine()).toHaveLength(0);
+
+    expect(
+      await repository.createMany([
+        {
+          operationPlanRulesId: plan.planRulesId,
+          operationId: plan.operationId,
+          kind: "stop_hit",
+          session: "2024-01-04",
+          at: "2024-01-04T20:00:00.000Z",
+        },
+      ]),
+    ).toBe(1);
   });
 });
