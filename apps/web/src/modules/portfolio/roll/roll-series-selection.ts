@@ -14,8 +14,7 @@ export interface RollSeriesTarget {
 }
 
 export type RollSeriesSelection =
-  | { ok: true; series: OptionSeries }
-  | { ok: false; reason: "no_next_expiry" | "no_traded_series" };
+  { ok: true; series: OptionSeries } | { ok: false; reason: "no_next_expiry" | "no_traded_series" };
 
 // `optionSeries` is expected already narrowed to series that traded at the pricing session
 // (plans/traded-series.ts's `filterToTradedSeries`) and to monthly expiries
