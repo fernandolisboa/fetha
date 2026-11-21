@@ -28,11 +28,23 @@ import {
 export const ILLUSTRATIVE_UNDERLYING: Ticker = tickerSchema.parse("EXMP3");
 export const ILLUSTRATIVE_SPOT: DecimalString = decimalStringSchema.parse("20.00");
 const ILLUSTRATIVE_EXPIRY: SessionDate = sessionDateSchema.parse("2026-02-20");
+export const ILLUSTRATIVE_LOWEST_STRIKE: DecimalString = decimalStringSchema.parse("18.00");
 export const ILLUSTRATIVE_LOWER_STRIKE: DecimalString = decimalStringSchema.parse("20.00");
+export const ILLUSTRATIVE_LOWER_MID_STRIKE: DecimalString = decimalStringSchema.parse("19.00");
+export const ILLUSTRATIVE_UPPER_MID_STRIKE: DecimalString = decimalStringSchema.parse("21.00");
 export const ILLUSTRATIVE_HIGHER_STRIKE: DecimalString = decimalStringSchema.parse("22.00");
 export const ILLUSTRATIVE_CALL_PREMIUM: DecimalString = decimalStringSchema.parse("1.50");
 export const ILLUSTRATIVE_HIGHER_CALL_PREMIUM: DecimalString = decimalStringSchema.parse("0.60");
 export const ILLUSTRATIVE_PUT_PREMIUM: DecimalString = decimalStringSchema.parse("1.20");
+// Premiums for the strikes PR 2's spreads, butterflies, the condor and the straddle/strangle
+// need: calls fall and puts rise as the strike rises, same as the pair above (CLAUDE.md
+// principle 1 lets a fixture's own inputs be chosen; only a lesson's *resolved* numbers may never
+// be hand-written).
+const ILLUSTRATIVE_LOWEST_CALL_PREMIUM: DecimalString = decimalStringSchema.parse("2.60");
+const ILLUSTRATIVE_UPPER_MID_CALL_PREMIUM: DecimalString = decimalStringSchema.parse("1.00");
+const ILLUSTRATIVE_LOWEST_PUT_PREMIUM: DecimalString = decimalStringSchema.parse("0.50");
+const ILLUSTRATIVE_LOWER_MID_PUT_PREMIUM: DecimalString = decimalStringSchema.parse("0.80");
+const ILLUSTRATIVE_HIGHER_PUT_PREMIUM: DecimalString = decimalStringSchema.parse("2.40");
 
 const AT = instantSchema.parse("2026-01-02T13:00:00.000Z");
 const CALENDAR_START = "2026-01-02";
@@ -42,9 +54,14 @@ const CALENDAR_SESSIONS = 60;
 // trailing number is a made-up sequence number, deliberately not the
 // strike (20.00/22.00), the mistake the reading-the-series-code lesson
 // warns against.
+const CALL_LOWEST_TICKER: Ticker = tickerSchema.parse("EXMPB130");
 const CALL_LOWER_TICKER: Ticker = tickerSchema.parse("EXMPB105");
+const CALL_UPPER_MID_TICKER: Ticker = tickerSchema.parse("EXMPB140");
 const CALL_HIGHER_TICKER: Ticker = tickerSchema.parse("EXMPB112");
+const PUT_LOWEST_TICKER: Ticker = tickerSchema.parse("EXMPN130");
+const PUT_LOWER_MID_TICKER: Ticker = tickerSchema.parse("EXMPN135");
 const PUT_LOWER_TICKER: Ticker = tickerSchema.parse("EXMPN105");
+const PUT_HIGHER_TICKER: Ticker = tickerSchema.parse("EXMPN112");
 
 function dailySessions(startDate: string, count: number): TradingSession[] {
   const sessions: TradingSession[] = [];
@@ -66,10 +83,28 @@ function dailySessions(startDate: string, count: number): TradingSession[] {
 // `loadIllustrativeExamples` happens to expose a ticker for.
 export const ILLUSTRATIVE_OPTION_SERIES = [
   {
+    ticker: CALL_LOWEST_TICKER,
+    underlying: ILLUSTRATIVE_UNDERLYING,
+    right: "call" as const,
+    strike: ILLUSTRATIVE_LOWEST_STRIKE,
+    expiry: ILLUSTRATIVE_EXPIRY,
+    style: "european" as const,
+    asOf: AT,
+  },
+  {
     ticker: CALL_LOWER_TICKER,
     underlying: ILLUSTRATIVE_UNDERLYING,
     right: "call" as const,
     strike: ILLUSTRATIVE_LOWER_STRIKE,
+    expiry: ILLUSTRATIVE_EXPIRY,
+    style: "european" as const,
+    asOf: AT,
+  },
+  {
+    ticker: CALL_UPPER_MID_TICKER,
+    underlying: ILLUSTRATIVE_UNDERLYING,
+    right: "call" as const,
+    strike: ILLUSTRATIVE_UPPER_MID_STRIKE,
     expiry: ILLUSTRATIVE_EXPIRY,
     style: "european" as const,
     asOf: AT,
@@ -84,10 +119,37 @@ export const ILLUSTRATIVE_OPTION_SERIES = [
     asOf: AT,
   },
   {
+    ticker: PUT_LOWEST_TICKER,
+    underlying: ILLUSTRATIVE_UNDERLYING,
+    right: "put" as const,
+    strike: ILLUSTRATIVE_LOWEST_STRIKE,
+    expiry: ILLUSTRATIVE_EXPIRY,
+    style: "european" as const,
+    asOf: AT,
+  },
+  {
+    ticker: PUT_LOWER_MID_TICKER,
+    underlying: ILLUSTRATIVE_UNDERLYING,
+    right: "put" as const,
+    strike: ILLUSTRATIVE_LOWER_MID_STRIKE,
+    expiry: ILLUSTRATIVE_EXPIRY,
+    style: "european" as const,
+    asOf: AT,
+  },
+  {
     ticker: PUT_LOWER_TICKER,
     underlying: ILLUSTRATIVE_UNDERLYING,
     right: "put" as const,
     strike: ILLUSTRATIVE_LOWER_STRIKE,
+    expiry: ILLUSTRATIVE_EXPIRY,
+    style: "european" as const,
+    asOf: AT,
+  },
+  {
+    ticker: PUT_HIGHER_TICKER,
+    underlying: ILLUSTRATIVE_UNDERLYING,
+    right: "put" as const,
+    strike: ILLUSTRATIVE_HIGHER_STRIKE,
     expiry: ILLUSTRATIVE_EXPIRY,
     style: "european" as const,
     asOf: AT,
@@ -155,17 +217,218 @@ const bullCallSpreadLegs: LegInput[] = [
   },
 ];
 
+const bullPutSpreadLegs: LegInput[] = [
+  {
+    role: "put",
+    side: "buy",
+    ticker: PUT_LOWER_MID_TICKER,
+    quantity: quantitySchema.parse(1),
+    price: ILLUSTRATIVE_LOWER_MID_PUT_PREMIUM,
+  },
+  {
+    role: "put",
+    side: "sell",
+    ticker: PUT_LOWER_TICKER,
+    quantity: quantitySchema.parse(1),
+    price: ILLUSTRATIVE_PUT_PREMIUM,
+  },
+];
+
+const bearCallSpreadLegs: LegInput[] = [
+  {
+    role: "call",
+    side: "sell",
+    ticker: CALL_LOWER_TICKER,
+    quantity: quantitySchema.parse(1),
+    price: ILLUSTRATIVE_CALL_PREMIUM,
+  },
+  {
+    role: "call",
+    side: "buy",
+    ticker: CALL_HIGHER_TICKER,
+    quantity: quantitySchema.parse(1),
+    price: ILLUSTRATIVE_HIGHER_CALL_PREMIUM,
+  },
+];
+
+const bearPutSpreadLegs: LegInput[] = [
+  {
+    role: "put",
+    side: "sell",
+    ticker: PUT_LOWER_MID_TICKER,
+    quantity: quantitySchema.parse(1),
+    price: ILLUSTRATIVE_LOWER_MID_PUT_PREMIUM,
+  },
+  {
+    role: "put",
+    side: "buy",
+    ticker: PUT_LOWER_TICKER,
+    quantity: quantitySchema.parse(1),
+    price: ILLUSTRATIVE_PUT_PREMIUM,
+  },
+];
+
+const coveredCallLegs: LegInput[] = [
+  {
+    role: "stock",
+    side: "buy",
+    ticker: ILLUSTRATIVE_UNDERLYING,
+    quantity: quantitySchema.parse(1),
+  },
+  {
+    role: "call",
+    side: "sell",
+    ticker: CALL_HIGHER_TICKER,
+    quantity: quantitySchema.parse(1),
+    price: ILLUSTRATIVE_HIGHER_CALL_PREMIUM,
+  },
+];
+
+const callButterflyLegs: LegInput[] = [
+  {
+    role: "call",
+    side: "buy",
+    ticker: CALL_LOWEST_TICKER,
+    quantity: quantitySchema.parse(1),
+    price: ILLUSTRATIVE_LOWEST_CALL_PREMIUM,
+  },
+  {
+    role: "call",
+    side: "sell",
+    ticker: CALL_LOWER_TICKER,
+    quantity: quantitySchema.parse(2),
+    price: ILLUSTRATIVE_CALL_PREMIUM,
+  },
+  {
+    role: "call",
+    side: "buy",
+    ticker: CALL_HIGHER_TICKER,
+    quantity: quantitySchema.parse(1),
+    price: ILLUSTRATIVE_HIGHER_CALL_PREMIUM,
+  },
+];
+
+const putButterflyLegs: LegInput[] = [
+  {
+    role: "put",
+    side: "buy",
+    ticker: PUT_LOWEST_TICKER,
+    quantity: quantitySchema.parse(1),
+    price: ILLUSTRATIVE_LOWEST_PUT_PREMIUM,
+  },
+  {
+    role: "put",
+    side: "sell",
+    ticker: PUT_LOWER_TICKER,
+    quantity: quantitySchema.parse(2),
+    price: ILLUSTRATIVE_PUT_PREMIUM,
+  },
+  {
+    role: "put",
+    side: "buy",
+    ticker: PUT_HIGHER_TICKER,
+    quantity: quantitySchema.parse(1),
+    price: ILLUSTRATIVE_HIGHER_PUT_PREMIUM,
+  },
+];
+
+const ironCondorLegs: LegInput[] = [
+  {
+    role: "put",
+    side: "buy",
+    ticker: PUT_LOWEST_TICKER,
+    quantity: quantitySchema.parse(1),
+    price: ILLUSTRATIVE_LOWEST_PUT_PREMIUM,
+  },
+  {
+    role: "put",
+    side: "sell",
+    ticker: PUT_LOWER_MID_TICKER,
+    quantity: quantitySchema.parse(1),
+    price: ILLUSTRATIVE_LOWER_MID_PUT_PREMIUM,
+  },
+  {
+    role: "call",
+    side: "sell",
+    ticker: CALL_UPPER_MID_TICKER,
+    quantity: quantitySchema.parse(1),
+    price: ILLUSTRATIVE_UPPER_MID_CALL_PREMIUM,
+  },
+  {
+    role: "call",
+    side: "buy",
+    ticker: CALL_HIGHER_TICKER,
+    quantity: quantitySchema.parse(1),
+    price: ILLUSTRATIVE_HIGHER_CALL_PREMIUM,
+  },
+];
+
+const longStraddleLegs: LegInput[] = [
+  {
+    role: "call",
+    side: "buy",
+    ticker: CALL_LOWER_TICKER,
+    quantity: quantitySchema.parse(1),
+    price: ILLUSTRATIVE_CALL_PREMIUM,
+  },
+  {
+    role: "put",
+    side: "buy",
+    ticker: PUT_LOWER_TICKER,
+    quantity: quantitySchema.parse(1),
+    price: ILLUSTRATIVE_PUT_PREMIUM,
+  },
+];
+
+const longStrangleLegs: LegInput[] = [
+  {
+    role: "put",
+    side: "buy",
+    ticker: PUT_LOWER_MID_TICKER,
+    quantity: quantitySchema.parse(1),
+    price: ILLUSTRATIVE_LOWER_MID_PUT_PREMIUM,
+  },
+  {
+    role: "call",
+    side: "buy",
+    ticker: CALL_UPPER_MID_TICKER,
+    quantity: quantitySchema.parse(1),
+    price: ILLUSTRATIVE_UPPER_MID_CALL_PREMIUM,
+  },
+];
+
 // Ids of structures the catalog also defines; `illustrativeLegs`' own test
 // checks these match the catalog's legs exactly (ratio, role, side). Writing
 // a naked call is deliberately absent from the strategy catalog (ADR-0064
 // only lists structures a backtest can size), so `shortCallLegs` below is
 // built directly instead of going through this map.
-export type StructureId = "long-call" | "long-put" | "bull-call-spread";
+export type StructureId =
+  | "long-call"
+  | "long-put"
+  | "bull-call-spread"
+  | "bull-put-spread"
+  | "bear-call-spread"
+  | "bear-put-spread"
+  | "covered-call"
+  | "call-butterfly"
+  | "put-butterfly"
+  | "iron-condor"
+  | "long-straddle"
+  | "long-strangle";
 
 export const illustrativeLegs: Record<StructureId, readonly LegInput[]> = {
   "long-call": longCallLegs,
   "long-put": longPutLegs,
   "bull-call-spread": bullCallSpreadLegs,
+  "bull-put-spread": bullPutSpreadLegs,
+  "bear-call-spread": bearCallSpreadLegs,
+  "bear-put-spread": bearPutSpreadLegs,
+  "covered-call": coveredCallLegs,
+  "call-butterfly": callButterflyLegs,
+  "put-butterfly": putButterflyLegs,
+  "iron-condor": ironCondorLegs,
+  "long-straddle": longStraddleLegs,
+  "long-strangle": longStrangleLegs,
 };
 
 async function priceIllustrative(legs: LegInput[]): Promise<OperationPricing> {
@@ -181,32 +444,79 @@ export type { IllustrativeExampleId };
 export interface IllustrativeExamples {
   underlying: Ticker;
   spot: DecimalString;
+  lowestStrike: DecimalString;
   lowerStrike: DecimalString;
+  lowerMidStrike: DecimalString;
+  upperMidStrike: DecimalString;
   higherStrike: DecimalString;
   "long-call": OperationPricing;
   "long-put": OperationPricing;
   "short-call": OperationPricing;
   "bull-call-spread": OperationPricing;
+  "bull-put-spread": OperationPricing;
+  "bear-call-spread": OperationPricing;
+  "bear-put-spread": OperationPricing;
+  "covered-call": OperationPricing;
+  "call-butterfly": OperationPricing;
+  "put-butterfly": OperationPricing;
+  "iron-condor": OperationPricing;
+  "long-straddle": OperationPricing;
+  "long-strangle": OperationPricing;
 }
 
 // Server-side, deterministic, no DB: resolved once per render of a lesson's
 // payoff-example blocks (learning/catalog.ts).
 export async function loadIllustrativeExamples(): Promise<IllustrativeExamples> {
-  const [longCall, longPut, shortCall, bullCallSpread] = await Promise.all([
+  const [
+    longCall,
+    longPut,
+    shortCall,
+    bullCallSpread,
+    bullPutSpread,
+    bearCallSpread,
+    bearPutSpread,
+    coveredCall,
+    callButterfly,
+    putButterfly,
+    ironCondor,
+    longStraddle,
+    longStrangle,
+  ] = await Promise.all([
     priceIllustrative(longCallLegs),
     priceIllustrative(longPutLegs),
     priceIllustrative(shortCallLegs),
     priceIllustrative(bullCallSpreadLegs),
+    priceIllustrative(bullPutSpreadLegs),
+    priceIllustrative(bearCallSpreadLegs),
+    priceIllustrative(bearPutSpreadLegs),
+    priceIllustrative(coveredCallLegs),
+    priceIllustrative(callButterflyLegs),
+    priceIllustrative(putButterflyLegs),
+    priceIllustrative(ironCondorLegs),
+    priceIllustrative(longStraddleLegs),
+    priceIllustrative(longStrangleLegs),
   ]);
 
   return {
     underlying: ILLUSTRATIVE_UNDERLYING,
     spot: ILLUSTRATIVE_SPOT,
+    lowestStrike: ILLUSTRATIVE_LOWEST_STRIKE,
     lowerStrike: ILLUSTRATIVE_LOWER_STRIKE,
+    lowerMidStrike: ILLUSTRATIVE_LOWER_MID_STRIKE,
+    upperMidStrike: ILLUSTRATIVE_UPPER_MID_STRIKE,
     higherStrike: ILLUSTRATIVE_HIGHER_STRIKE,
     "long-call": longCall,
     "long-put": longPut,
     "short-call": shortCall,
     "bull-call-spread": bullCallSpread,
+    "bull-put-spread": bullPutSpread,
+    "bear-call-spread": bearCallSpread,
+    "bear-put-spread": bearPutSpread,
+    "covered-call": coveredCall,
+    "call-butterfly": callButterfly,
+    "put-butterfly": putButterfly,
+    "iron-condor": ironCondor,
+    "long-straddle": longStraddle,
+    "long-strangle": longStrangle,
   };
 }

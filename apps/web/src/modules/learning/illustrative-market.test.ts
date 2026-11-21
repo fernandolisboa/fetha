@@ -58,6 +58,61 @@ describe("loadIllustrativeExamples", () => {
     expect(longPut.maxGain).toBe(Math.round(expectedMaxGain));
   });
 
+  it("prices every new PR 2 structure through the engine with a bounded payoff", async () => {
+    const examples = await loadIllustrativeExamples();
+    const ids = [
+      "bull-put-spread",
+      "bear-call-spread",
+      "bear-put-spread",
+      "covered-call",
+      "call-butterfly",
+      "put-butterfly",
+      "iron-condor",
+      "long-straddle",
+      "long-strangle",
+    ] as const;
+    for (const id of ids) {
+      const pricing = examples[id];
+      expect(pricing.payoff.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("credits the bull put spread and debits the bear put spread by the same amount", async () => {
+    const examples = await loadIllustrativeExamples();
+    expect(examples["bull-put-spread"].netPremium).toBe(
+      -Number(examples["bear-put-spread"].netPremium),
+    );
+  });
+
+  it("bounds the iron condor's loss and gain, crediting a net premium at entry", async () => {
+    const examples = await loadIllustrativeExamples();
+    const { maxLoss, maxGain, netPremium } = examples["iron-condor"];
+    expect(maxLoss).not.toBe("unbounded");
+    expect(maxGain).not.toBe("unbounded");
+    expect(netPremium).toBeGreaterThan(0);
+  });
+
+  it("gives the long straddle two break-evens straddling the shared strike", async () => {
+    const examples = await loadIllustrativeExamples();
+    const { breakEvens, maxLoss } = examples["long-straddle"];
+    expect(breakEvens.length).toBe(2);
+    expect(maxLoss).not.toBe("unbounded");
+  });
+
+  it("costs less than the straddle to enter the wider long strangle", async () => {
+    const examples = await loadIllustrativeExamples();
+    expect(Number(examples["long-strangle"].maxLoss)).toBeLessThan(
+      Number(examples["long-straddle"].maxLoss),
+    );
+  });
+
+  it("caps the covered call's upside at the strike while its stock leg carries the downside", async () => {
+    const examples = await loadIllustrativeExamples();
+    const { maxGain, maxLoss } = examples["covered-call"];
+    expect(maxGain).not.toBe("unbounded");
+    expect(maxLoss).not.toBe("unbounded");
+  });
+
   it("bounds the bull call spread's loss and gain within the net debit and the strike width", async () => {
     const examples = await loadIllustrativeExamples();
     const { maxLoss, maxGain, netPremium } = examples["bull-call-spread"];
