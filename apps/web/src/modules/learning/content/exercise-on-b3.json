@@ -29,8 +29,8 @@
     {
       "type": "paragraph",
       "text": {
-        "en": "A European-style option can only ever be exercised on its expiry date, never before. At expiry, B3 exercises an in-the-money option automatically once it clears a minimum in-the-money margin that B3 itself sets; below that margin, the holder has to request exercise by hand. Either way, the holder can choose to opt out of being exercised.",
-        "pt": "Uma opção de estilo europeu só pode ser exercida na própria data de vencimento, nunca antes. No vencimento, a B3 exerce automaticamente uma opção que está dentro do dinheiro depois que ela passa de uma margem mínima que a própria B3 define; abaixo dessa margem, quem detém a opção precisa pedir o exercício manualmente. Nos dois casos, quem detém a opção pode optar por não ser exercido."
+        "en": "A European-style option can only ever be exercised on its expiry date, never before. At expiry, B3 exercises an in-the-money option automatically once it clears a minimum in-the-money margin that B3 itself sets; below that margin, the holder has to request exercise by hand. In the automatic case, the holder may ask for it not to be exercised.",
+        "pt": "Uma opção de estilo europeu só pode ser exercida na própria data de vencimento, nunca antes. No vencimento, a B3 exerce automaticamente uma opção que está dentro do dinheiro depois que ela passa de uma margem mínima que a própria B3 define; abaixo dessa margem, quem detém a opção precisa pedir o exercício manualmente. No caso automático, quem detém a opção pode pedir que ela não seja exercida."
       }
     },
     {
