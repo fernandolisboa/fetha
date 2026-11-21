@@ -18,7 +18,7 @@ import {
   type ThesisClaim,
   type Ticker,
 } from "@fetha/contracts";
-import { engine, type LegInput, type MarketView, type OptionRight } from "@fetha/engine";
+import { engine, type MarketView, type OptionRight } from "@fetha/engine";
 
 import { getDb } from "@/db/client";
 import {
@@ -64,7 +64,7 @@ import { filterToTradedSeries } from "./traded-series";
 import { legSelectionFor } from "./plan-selection";
 import { isWithinPlanWindow } from "./plan-window";
 import { PlanRulesRepository } from "./plan-rules-repository";
-import { priceExactLegs } from "./reprice-legs";
+import { priceFromProbe } from "./reprice-legs";
 import { riskLimitCentavos } from "./risk-limit";
 import { recipeForView } from "./select-recipe";
 import { validateStructuralAdjustment } from "./validate-adjustment";
@@ -295,6 +295,71 @@ function expiryOf(facts: Map<string, PlanLegSeries>): SessionDate | null {
   return [...facts.values()][0]?.expiry ?? null;
 }
 
+interface PlanContext {
+  at: Instant;
+  date: SessionDate;
+  monthlyView: MarketView;
+  marketView: MarketView;
+  chain: PlanChainEntry[];
+  expiryOptions: SessionDate[];
+  riskProfile: RiskProfile;
+  openOperationCount: number;
+  limitCentavos: number;
+}
+
+// Everything `buildPlan` and `buildEdited` both need before they diverge into auto-sizing versus
+// pricing the user's own chosen legs: the session's own market view narrowed to monthly, traded
+// series, the chain and its expiry chips, the user's risk profile and open-operation count.
+async function resolvePlanContext(target: ResolvedTarget): Promise<PlanContext> {
+  const { at, date } = target.session;
+  const monthlyView = filterToMonthlyExpiries(
+    target.marketView ?? (await buildOperationMarketView(getDb(), target.underlying, at)),
+  );
+  const marketView = filterToTradedSeries(monthlyView, date);
+  const chain = chainFromMonthlyView(monthlyView, date, at);
+  const expiryOptions = expiryOptionsFrom(chain, date, monthlyView.calendar);
+
+  const riskProfile = (await getCurrentRiskProfile()) ?? DEFAULT_RISK_PROFILE;
+  const user = await requireUser();
+  const openOperationCount = await countLiveOpenOperations(getDb(), user, at);
+  const limitCentavos = riskLimitCentavos(riskProfile);
+
+  return {
+    at,
+    date,
+    monthlyView,
+    marketView,
+    chain,
+    expiryOptions,
+    riskProfile,
+    openOperationCount,
+    limitCentavos,
+  };
+}
+
+// The recipe's own "N sessions before expiry" pricing dates (round 2), resolved against this
+// expiry; shared by `buildPlan` and `buildEdited` so each only differs in how the leg quantities
+// themselves are priced.
+async function sessionsBeforeExpiryFor(
+  recipe: Recipe,
+  expiry: SessionDate | null,
+): Promise<Map<number, SessionDate | null>> {
+  const sessionsByDays = new Map<number, SessionDate | null>();
+  for (const days of new Set(daysBeforeExpiryValues(recipe))) {
+    if (days === 0) {
+      sessionsByDays.set(0, expiry);
+      continue;
+    }
+    if (!expiry) {
+      sessionsByDays.set(days, null);
+      continue;
+    }
+    const beforeExpiry = await nthSessionBefore(getDb(), expiry, days);
+    sessionsByDays.set(days, beforeExpiry ? beforeExpiry.date : null);
+  }
+  return sessionsByDays;
+}
+
 interface BuiltPlan {
   target: ResolvedTarget;
   result: GeneratePlanResult;
@@ -308,8 +373,10 @@ interface BuiltPlan {
 }
 
 // One lot's two-rung pricing (generate-plan.ts's `LotPricing`), via the structure's own engine
-// selection — `priceExactLegs` (reprice-legs.ts) does the actual two-rung work, shared with the
-// drag-to-adjust path (ticket #380), which prices the user's own chosen legs instead.
+// selection — this probe already resolves the abstract `LegSelection` into concrete legs with
+// last-trade prices, so `priceFromProbe` (reprice-legs.ts) reuses it directly instead of probing
+// a second time; the drag-to-adjust path (ticket #380) prices the user's own chosen legs instead,
+// via `priceExactLegs`, which probes once itself.
 async function priceLot(
   view: Awaited<ReturnType<typeof buildOperationMarketView>>,
   at: Instant,
@@ -328,13 +395,7 @@ async function priceLot(
     openOperationCount,
   });
   if (!probed.ok) return null;
-  const resolvedLegs: LegInput[] = probed.value.legs.map((valuation) => ({
-    role: valuation.leg.role,
-    side: valuation.leg.side,
-    ticker: valuation.leg.ticker,
-    quantity: valuation.leg.quantity,
-  }));
-  return priceExactLegs(view, at, resolvedLegs, riskProfile, openOperationCount);
+  return priceFromProbe(view, at, probed.value, riskProfile, openOperationCount);
 }
 
 // Builds the deterministic plan for a resolved target (ticket #379): every number is priced by
@@ -351,17 +412,8 @@ async function priceLot(
 // strike something traded that close, so a leg being `stale` or priceless becomes structurally
 // unlikely rather than something caught only after the fact.
 async function buildPlan(target: ResolvedTarget): Promise<BuiltPlan> {
-  const { at, date } = target.session;
-  const monthlyView = filterToMonthlyExpiries(
-    target.marketView ?? (await buildOperationMarketView(getDb(), target.underlying, at)),
-  );
-  const marketView = filterToTradedSeries(monthlyView, date);
-  const chain = chainFromMonthlyView(monthlyView, date, at);
-  const expiryOptions = expiryOptionsFrom(chain, date, monthlyView.calendar);
-
-  const riskProfile = (await getCurrentRiskProfile()) ?? DEFAULT_RISK_PROFILE;
-  const user = await requireUser();
-  const openOperationCount = await countLiveOpenOperations(getDb(), user, at);
+  const { at, marketView, chain, expiryOptions, riskProfile, openOperationCount, limitCentavos } =
+    await resolvePlanContext(target);
 
   // Shared between this function's own lot-1 precompute (for `seriesByTicker`/expiry) and every
   // lot count `generatePlan` prices while sizing (round 2 review "share one pricing cache"):
@@ -390,18 +442,8 @@ async function buildPlan(target: ResolvedTarget): Promise<BuiltPlan> {
     ? seriesFactsOf(onePricing.probe.legs, marketView.optionSeries, at)
     : new Map<string, PlanLegSeries>();
   const expiry = expiryOf(seriesByTicker);
-  const sessionsByDays = new Map<number, SessionDate | null>();
-  for (const days of new Set(daysBeforeExpiryValues(target.recipe))) {
-    if (days === 0) {
-      sessionsByDays.set(0, expiry);
-      continue;
-    }
-    if (!expiry) continue;
-    const beforeExpiry = await nthSessionBefore(getDb(), expiry, days);
-    sessionsByDays.set(days, beforeExpiry ? beforeExpiry.date : null);
-  }
+  const sessionsByDays = await sessionsBeforeExpiryFor(target.recipe, expiry);
 
-  const limitCentavos = riskLimitCentavos(riskProfile);
   const result = await generatePlan({
     recipe: target.recipe,
     structureId: target.structureId,
@@ -455,6 +497,30 @@ function toOutcome(built: BuiltPlan): BuildPlanOutcome {
     };
   }
   return { status: "error", error: result.reason };
+}
+
+// `adjustPlanAction`'s own wire response: the same shape `toOutcome` builds, minus the market
+// view, which is identical to the one `buildPlanAction` already sent for this session (same
+// underlying, same pricing instant) — the client keeps its own copy and merges it back in,
+// rather than this growing payload being re-shipped on every drag release, lot press or expiry
+// chip.
+export type AdjustPlanOutcome =
+  | (Omit<Extract<BuildPlanOutcome, { status: "ok" }>, "preview"> & {
+      preview: Omit<PlanPreviewContext, "marketView">;
+    })
+  | Extract<BuildPlanOutcome, { status: "error" }>;
+
+function toAdjustOutcome(built: BuiltPlan): AdjustPlanOutcome {
+  const outcome = toOutcome(built);
+  if (outcome.status !== "ok") return outcome;
+  return {
+    ...outcome,
+    preview: {
+      at: outcome.preview.at,
+      riskProfile: outcome.preview.riskProfile,
+      openOperationCount: outcome.preview.openOperationCount,
+    },
+  };
 }
 
 const fromViewInputSchema = z.strictObject({
@@ -561,18 +627,17 @@ async function buildEdited(
   legs: readonly AdjustedLegInput[],
   lots: number,
 ): Promise<BuiltPlan> {
-  const { at, date } = target.session;
-  const monthlyView = filterToMonthlyExpiries(
-    target.marketView ?? (await buildOperationMarketView(getDb(), target.underlying, at)),
-  );
-  const marketView = filterToTradedSeries(monthlyView, date);
-  const chain = chainFromMonthlyView(monthlyView, date, at);
-  const expiryOptions = expiryOptionsFrom(chain, date, monthlyView.calendar);
-
-  const riskProfile = (await getCurrentRiskProfile()) ?? DEFAULT_RISK_PROFILE;
-  const user = await requireUser();
-  const openOperationCount = await countLiveOpenOperations(getDb(), user, at);
-  const limitCentavos = riskLimitCentavos(riskProfile);
+  const {
+    at,
+    date,
+    monthlyView,
+    marketView,
+    chain,
+    expiryOptions,
+    riskProfile,
+    openOperationCount,
+    limitCentavos,
+  } = await resolvePlanContext(target);
 
   function invalidAdjustmentOutcome(): BuiltPlan {
     return {
@@ -606,15 +671,7 @@ async function buildEdited(
     return invalidAdjustmentOutcome();
   }
 
-  const sessionsByDays = new Map<number, SessionDate | null>();
-  for (const days of new Set(daysBeforeExpiryValues(target.recipe))) {
-    if (days === 0) {
-      sessionsByDays.set(0, expiry);
-      continue;
-    }
-    const beforeExpiry = await nthSessionBefore(getDb(), expiry, days);
-    sessionsByDays.set(days, beforeExpiry ? beforeExpiry.date : null);
-  }
+  const sessionsByDays = await sessionsBeforeExpiryFor(target.recipe, expiry);
 
   const result = await buildAdjustedPlan({
     recipe: target.recipe,
@@ -655,7 +712,7 @@ async function buildEdited(
 // lot +/- press or an expiry chip, never on every pixel of a drag — the client already shows a
 // `priceOperation`-backed preview for that. The official numbers that replace the preview once
 // this resolves.
-export async function adjustPlanAction(input: unknown): Promise<BuildPlanOutcome> {
+export async function adjustPlanAction(input: unknown): Promise<AdjustPlanOutcome> {
   const parsed = adjustInputSchema.safeParse(input);
   if (!parsed.success) return { status: "error", error: "invalid" };
 
@@ -673,7 +730,7 @@ export async function adjustPlanAction(input: unknown): Promise<BuildPlanOutcome
     const resolved = await resolveTarget(parsed.data);
     if (!resolved.ok) return { status: "error", error: resolved.reason };
     const built = await buildEdited(resolved.target, parsed.data.legs, parsed.data.lots);
-    return toOutcome(built);
+    return toAdjustOutcome(built);
   });
 }
 

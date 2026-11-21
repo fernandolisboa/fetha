@@ -133,7 +133,12 @@ export function PlanAdjuster({
       if (!commitSequencer.current.isCurrent(requestId)) return;
       setPreviewPricing(null);
       if (next.status === "ok") {
-        setCurrent(next);
+        // `adjustPlanAction` never re-ships the market view (it cannot change within one
+        // session); the client keeps the copy it already has.
+        setCurrent({
+          ...next,
+          preview: { ...next.preview, marketView: current.preview.marketView },
+        });
       } else {
         setError(next.error);
       }
@@ -196,7 +201,8 @@ export function PlanAdjuster({
       }
       const right = rightOf(current, leg.ticker);
       const series = current.seriesByTicker[leg.ticker];
-      const nextTicker = right && series ? remapToExpiry(chain, right, series.strike, nextExpiry) : null;
+      const nextTicker =
+        right && series ? remapToExpiry(chain, right, series.strike, nextExpiry) : null;
       if (!nextTicker) {
         setExpiryRemapFailed(true);
         return;
@@ -234,48 +240,54 @@ export function PlanAdjuster({
   // snapped strike (already restricted to traded, in-bound candidates) back to its ticker
   // through `tickerAtStrike`, then hand off to `previewLegChange`/`applyLegChange` — the exact
   // functions the ← → buttons already call, never a second implementation.
-  const strikeHandles: PayoffStrikeHandle[] = optionFullIndices.flatMap((fullIndex, optionIndex) => {
-    const leg = legs[fullIndex];
-    if (!leg || !expiry) return [];
-    const right = rightOf(current, leg.ticker);
-    const series = current.seriesByTicker[leg.ticker];
-    if (!right || !series) return [];
-    const bound = rankBounds[optionIndex] ?? { lower: null, upper: null };
-    const tradedStrikes = boundedStrikes(selectableStrikes(chain, right, expiry), bound.lower, bound.upper);
-    const allStrikes = allStrikesFor(chain, right, expiry);
-    if (allStrikes.length === 0) return [];
-    const values = allStrikes.map((entry) => Number(entry.strike));
-    return [
-      {
-        key: `leg-${String(fullIndex)}`,
-        ariaLabel: t.adjust.strikeLabel(sideLabel[leg.side], t.adjust.roleNames[leg.role]),
-        valueText: formatPriceBRL(series.strike),
-        value: Number(series.strike),
-        min: values[0] ?? Number(series.strike),
-        max: values.at(-1) ?? Number(series.strike),
-        // Dimmed when either untraded or outside this leg's own rank bound: both mean the same
-        // thing to a handle, "cannot land here" (round 4 review item 4).
-        ticks: allStrikes.map((entry) => ({
-          value: Number(entry.strike),
-          traded:
-            entry.traded &&
-            (bound.lower === null || Number(entry.strike) > bound.lower) &&
-            (bound.upper === null || Number(entry.strike) < bound.upper),
-        })),
-        onPreview: (nextValue) => {
-          const nextTicker = tickerAtStrike(tradedStrikes, nextValue);
-          if (nextTicker) previewLegChange(fullIndex, nextTicker);
+  const strikeHandles: PayoffStrikeHandle[] = optionFullIndices.flatMap(
+    (fullIndex, optionIndex) => {
+      const leg = legs[fullIndex];
+      if (!leg || !expiry) return [];
+      const right = rightOf(current, leg.ticker);
+      const series = current.seriesByTicker[leg.ticker];
+      if (!right || !series) return [];
+      const bound = rankBounds[optionIndex] ?? { lower: null, upper: null };
+      const tradedStrikes = boundedStrikes(
+        selectableStrikes(chain, right, expiry),
+        bound.lower,
+        bound.upper,
+      );
+      const allStrikes = allStrikesFor(chain, right, expiry);
+      if (allStrikes.length === 0) return [];
+      const values = allStrikes.map((entry) => Number(entry.strike));
+      return [
+        {
+          key: `leg-${String(fullIndex)}`,
+          ariaLabel: t.adjust.strikeLabel(sideLabel[leg.side], t.adjust.roleNames[leg.role]),
+          valueText: formatPriceBRL(series.strike),
+          value: Number(series.strike),
+          min: values[0] ?? Number(series.strike),
+          max: values.at(-1) ?? Number(series.strike),
+          // Dimmed when either untraded or outside this leg's own rank bound: both mean the same
+          // thing to a handle, "cannot land here" (round 4 review item 4).
+          ticks: allStrikes.map((entry) => ({
+            value: Number(entry.strike),
+            traded:
+              entry.traded &&
+              (bound.lower === null || Number(entry.strike) > bound.lower) &&
+              (bound.upper === null || Number(entry.strike) < bound.upper),
+          })),
+          onPreview: (nextValue) => {
+            const nextTicker = tickerAtStrike(tradedStrikes, nextValue);
+            if (nextTicker) previewLegChange(fullIndex, nextTicker);
+          },
+          onCommit: (nextValue) => {
+            const nextTicker = tickerAtStrike(tradedStrikes, nextValue);
+            if (nextTicker && nextTicker !== leg.ticker) applyLegChange(fullIndex, nextTicker);
+          },
+          onStep: (direction) => {
+            onStrikeStep(fullIndex, tradedStrikes, direction);
+          },
         },
-        onCommit: (nextValue) => {
-          const nextTicker = tickerAtStrike(tradedStrikes, nextValue);
-          if (nextTicker && nextTicker !== leg.ticker) applyLegChange(fullIndex, nextTicker);
-        },
-        onStep: (direction) => {
-          onStrikeStep(fullIndex, tradedStrikes, direction);
-        },
-      },
-    ];
-  });
+      ];
+    },
+  );
 
   const previewSource = previewPricing;
 
@@ -308,10 +320,7 @@ export function PlanAdjuster({
               : "—"
           }
         />
-        <StatBlock
-          label={t.screen.numbers.cashToday}
-          value={formatBRL(plan.netPremiumCentavos)}
-        />
+        <StatBlock label={t.screen.numbers.cashToday} value={formatBRL(plan.netPremiumCentavos)} />
         <StatBlock
           label={t.screen.numbers.riskUsed}
           value={riskUsedText(plan.maxLossCentavos, riskLimitCentavos)}
@@ -434,7 +443,11 @@ export function PlanAdjuster({
             const right = rightOf(current, leg.ticker);
             if (!right || !expiry) return null;
             const bound = rankBounds[optionIndex] ?? { lower: null, upper: null };
-            const strikes = boundedStrikes(selectableStrikes(chain, right, expiry), bound.lower, bound.upper);
+            const strikes = boundedStrikes(
+              selectableStrikes(chain, right, expiry),
+              bound.lower,
+              bound.upper,
+            );
             const index = strikes.findIndex((entry) => entry.ticker === leg.ticker);
             const series = current.seriesByTicker[leg.ticker];
             const label = t.adjust.strikeLabel(sideLabel[leg.side], t.adjust.roleNames[leg.role]);
@@ -485,7 +498,7 @@ export function PlanAdjuster({
 
       <PayoffChart
         points={previewSource?.payoff ?? plan.payoff}
-        pointsNow={previewSource ? previewSource.payoffNow ?? null : plan.payoffNow}
+        pointsNow={previewSource ? (previewSource.payoffNow ?? null) : plan.payoffNow}
         spot={previewSource?.spot ?? plan.spot}
         breakEvens={previewSource?.breakEvens ?? plan.breakEvens}
         maxGain={previewSource?.maxGain ?? plan.maxGainCentavos}
@@ -551,7 +564,9 @@ export function PlanAdjuster({
       <SavePlanButton
         input={input}
         fingerprint={current.fingerprint}
-        adjustment={changes.length > 0 ? { legs: toAdjustmentLegs(legs), lots: plan.lots } : undefined}
+        adjustment={
+          changes.length > 0 ? { legs: toAdjustmentLegs(legs), lots: plan.lots } : undefined
+        }
       />
     </div>
   );
