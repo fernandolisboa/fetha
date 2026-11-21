@@ -33,3 +33,5 @@ export { getCurrentRiskProfile, getMyDeclaredCapital } from "./risk-profile-quer
 export { RiskProfileRepository } from "./risk-profile-repository";
 export { portfolioStrings, t } from "./strings";
 export { PortfolioDataExport } from "./data-export";
+export { RollAgendaPanel } from "./roll/components/roll-agenda-panel";
+export { RollChainHistory } from "./roll/components/roll-chain-history";

@@ -28,7 +28,13 @@ import { AnalysisDialog, DecisionBar } from "@/modules/decisions/client";
 import { formatBRL } from "@/lib/format/brl";
 import { formatDate, formatDateTime } from "@/lib/format/date-time";
 import { todaySaoPauloDate } from "@/lib/today-sao-paulo";
-import { getMyOperations, getMyPortfolio, PortfolioDashboard, t } from "@/modules/portfolio";
+import {
+  getMyOperations,
+  getMyPortfolio,
+  PortfolioDashboard,
+  RollAgendaPanel,
+  t,
+} from "@/modules/portfolio";
 import { ImportFillsDialog, RecordFillDialog } from "@/modules/portfolio/client";
 import { PageHeader, Panel, t as shellStrings } from "@/modules/shell";
 
@@ -123,6 +129,8 @@ export default async function PortfolioPage() {
           </div>
         }
       />
+
+      <RollAgendaPanel />
 
       <PortfolioDashboard
         model={portfolio}

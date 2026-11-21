@@ -48,10 +48,8 @@ describe("selectNextMonthlySeries", () => {
       target,
     );
 
-    expect(result).toEqual({
-      ok: true,
-      series: expect.objectContaining({ ticker: "PETR4G300" }),
-    });
+    if (!result.ok) throw new Error("expected a selection");
+    expect(result.series.ticker).toBe("PETR4G300");
   });
 
   it("ignores expiries at or before the held leg's own expiry", () => {
@@ -101,10 +99,8 @@ describe("selectNextMonthlySeries", () => {
       target,
     );
 
-    expect(result).toEqual({
-      ok: true,
-      series: expect.objectContaining({ ticker: "PETR4G280" }),
-    });
+    if (!result.ok) throw new Error("expected a selection");
+    expect(result.series.ticker).toBe("PETR4G280");
   });
 
   it("refuses when the next expiry has no series at all for this right", () => {

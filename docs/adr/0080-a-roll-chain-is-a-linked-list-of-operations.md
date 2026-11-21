@@ -80,3 +80,41 @@ never have to locale-parse it.
   separate LGPD wiring needed, since it is not a new table.
 - The backtester still ignores roll rules entirely (`adjustment_not_applied`, #383); this ADR
   covers only the Carteira's own recording of a roll a human executed, never an automatic one.
+
+## Addendum (round 2): the agenda's trigger without a cheap plan link, and roll by leg
+
+The body above left two things to the orchestration ticket (#382's remaining slice): how the
+"Rolar" proposal picks each leg's own next series, and what the roll agenda's suggested-action
+rule (`roll/roll-agenda.ts`'s `rollTriggerSessions`) uses when an operation has no saved plan to
+read a structure-specific trigger from.
+
+- **Roll by leg, never by inferred structure**: the orchestrator (`roll/roll-plan.ts`,
+  `roll/roll-resolve.ts`) never looks at an operation's legs and guesses which structure they
+  form. Each option leg rolls on its own: same right, nearest strike to its own held strike at
+  the next monthly expiry (`roll/roll-series-selection.ts`, already shipped), same side and
+  quantity reopened, side reversed to close. A stock leg (a covered call's own stock) is left out
+  of the roll entirely — there is nothing to roll for it. One leg's own failure (no later monthly
+  expiry, or none of it traded) refuses that leg with its own ticker in the error, not the whole
+  operation guessed as some other shape.
+- **No cheap plan link exists today**: the intended design (checking whether the operation is
+  "cheaply linkable to a saved plan" and reusing that plan's own `rollTriggerSessionsBeforeExpiry`)
+  assumed a join from a held `operations` row back to the `contemplated_operations`/
+  `operation_plan_rules` row it was saved from (ADR-0079). No such column exists: `operations` and
+  `contemplated_operations` are different id spaces, and the only place that ever recorded a link
+  between them is a `decisions` row's `contemplatedOperationId` — which a `held_operation` decision
+  never carries (the schema's own check constraint keeps `contemplatedOperationId` and
+  `operationId` mutually exclusive, ADR-0022). Executing a plan into a real operation (#380/#381)
+  does not yet write that link either. So, today, every operation the agenda considers is in the
+  "no link" case.
+- **The agenda's own default**: `roll/roll-agenda-queries.ts` passes a fixed five-session trigger
+  (`DEFAULT_ROLL_SESSIONS_BEFORE_EXPIRY`, the same number `plans/exit-rules.ts`'s own constant of
+  that name already defaults a structure's roll rule to when its recipe names no
+  `days_before_expiry` exit rule) for every open operation that still carries an option leg,
+  rather than restricting the agenda to the "rollable" structures `plans/exit-rules.ts` names
+  (`covered-call`, `bull-put-spread`, `bear-call-spread`): with no structure known, there is
+  nothing to check that set against. The two modules duplicate this one literal (`5`) rather than
+  share an export, since `plans` does not expose it and a dependency the other way would couple
+  `portfolio`'s own agenda to a plan-screen default that is a coincidence of today's catalog, not
+  a shared invariant. Once execution linking (#380/#381) lets an operation name the plan it came
+  from, the agenda should read that plan's own trigger instead — this default is this ticket's
+  interim, not the final rule.

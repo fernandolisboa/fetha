@@ -1,5 +1,41 @@
 import type { Centavos } from "@fetha/contracts";
 
+export interface OperationLink {
+  id: string;
+  rolledFromOperationId: string | null;
+}
+
+// Every operation id in the chain containing `id`, oldest first (#382): walks back through
+// `rolledFromOperationId` to the chain's root, then forward through whichever operation names
+// each link as its own `rolledFromOperationId`, so the page for any link in the chain (not only
+// the newest) shows the whole history. A chain of one (an operation never rolled, and nothing
+// rolled from it) is just `[id]`.
+export function chainIdsFrom(operations: readonly OperationLink[], id: string): string[] {
+  const parentOf = new Map(
+    operations.map((operation) => [operation.id, operation.rolledFromOperationId]),
+  );
+  const childOf = new Map<string, string>();
+  for (const operation of operations) {
+    if (operation.rolledFromOperationId) {
+      childOf.set(operation.rolledFromOperationId, operation.id);
+    }
+  }
+  let root = id;
+  const seen = new Set([root]);
+  for (let parent = parentOf.get(root); parent; parent = parentOf.get(root)) {
+    if (seen.has(parent)) break;
+    root = parent;
+    seen.add(root);
+  }
+  const chain: string[] = [];
+  const visited = new Set<string>();
+  for (let node: string | undefined = root; node && !visited.has(node); node = childOf.get(node)) {
+    visited.add(node);
+    chain.push(node);
+  }
+  return chain;
+}
+
 // One operation in a roll chain (#382): the month it closed or expired in (an ISO "YYYY-MM",
 // the chain's own calendar unit — rolls happen monthly, ADR-0080), and the signed cash flow that
 // month's roll (or final close) carried. Centavos stay integers end to end; only

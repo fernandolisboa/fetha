@@ -1,7 +1,36 @@
 import { describe, expect, it } from "vitest";
 import type { Centavos } from "@fetha/contracts";
 
-import { aggregateRollChainByMonth, rollChainToCsv } from "./roll-chain";
+import { aggregateRollChainByMonth, chainIdsFrom, rollChainToCsv } from "./roll-chain";
+
+describe("chainIdsFrom", () => {
+  it("walks the whole chain from any link, oldest first", () => {
+    const operations = [
+      { id: "op-1", rolledFromOperationId: null },
+      { id: "op-2", rolledFromOperationId: "op-1" },
+      { id: "op-3", rolledFromOperationId: "op-2" },
+    ];
+    expect(chainIdsFrom(operations, "op-2")).toEqual(["op-1", "op-2", "op-3"]);
+    expect(chainIdsFrom(operations, "op-1")).toEqual(["op-1", "op-2", "op-3"]);
+    expect(chainIdsFrom(operations, "op-3")).toEqual(["op-1", "op-2", "op-3"]);
+  });
+
+  it("is a chain of one for an operation that never rolled", () => {
+    const operations = [
+      { id: "op-1", rolledFromOperationId: null },
+      { id: "op-9", rolledFromOperationId: null },
+    ];
+    expect(chainIdsFrom(operations, "op-1")).toEqual(["op-1"]);
+  });
+
+  it("never loops on a cycle a corrupt row might introduce", () => {
+    const operations = [
+      { id: "op-1", rolledFromOperationId: "op-2" },
+      { id: "op-2", rolledFromOperationId: "op-1" },
+    ];
+    expect(chainIdsFrom(operations, "op-1").length).toBeLessThanOrEqual(2);
+  });
+});
 
 describe("aggregateRollChainByMonth", () => {
   it("carries a running total forward across months in chronological order", () => {

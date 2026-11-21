@@ -271,6 +271,53 @@ const en = {
       not_a_session: "That date is not a trading session that has already opened.",
       index_stock_leg: "A market index cannot be the underlying of a stock leg.",
       unavailable: "Something went wrong; try again.",
+      no_option_legs: "This operation has no option leg to roll.",
+      no_expiry: "This operation has no expiry to roll against.",
+      no_data: "Missing market data for this underlying's latest close.",
+      no_next_expiry: (ticker: string) => `No later monthly expiry found for ${ticker}.`,
+      no_traded_series: (ticker: string) =>
+        `No traded series at the next monthly expiry for ${ticker}.`,
+      unpriceable: "Could not price the roll with the current data.",
+    },
+  },
+  roll: {
+    action: "Roll",
+    dialog: {
+      title: "Roll",
+      subtitle: (underlying: string) => `Close and reopen the option legs of ${underlying}`,
+      toClose: "Orders to close",
+      toOpen: "Orders to open",
+      netCredit: "Net credit",
+      netDebit: "Net debit",
+      price: "Price",
+      costs: "Costs",
+      confirm: "Record roll",
+      building: "Building the roll proposal…",
+      recorded: "Roll recorded.",
+    },
+    agenda: {
+      title: "Roll agenda",
+      subtitle: "Open option operations with a decision coming up",
+      empty: "Nothing needs a decision in the next sessions.",
+      sessionsToExpiry: (count: number) =>
+        count === 0
+          ? "expires today"
+          : count === 1
+            ? "expires in 1 session"
+            : `expires in ${String(count)} sessions`,
+      actions: {
+        roll: "Roll",
+        let_expire: "Let it expire",
+        close_early_assignment_risk: "Close now — assignment risk",
+      },
+    },
+    chain: {
+      title: "Roll history",
+      empty: "This operation was never rolled.",
+      month: "Month",
+      result: "Result",
+      runningTotal: "Running total",
+      download: "Download CSV",
     },
   },
   list: {
@@ -578,6 +625,53 @@ const ptBR = {
       not_a_session: "Essa data não é um pregão que já abriu.",
       index_stock_leg: "Um índice de mercado não pode ser o ativo-objeto de uma perna de ação.",
       unavailable: "Algo deu errado; tente de novo.",
+      no_option_legs: "Esta operação não tem perna de opção para rolar.",
+      no_expiry: "Esta operação não tem vencimento para rolar.",
+      no_data: "Faltam dados de mercado do último fechamento deste ativo-objeto.",
+      no_next_expiry: (ticker: string) => `Não há um vencimento mensal posterior para ${ticker}.`,
+      no_traded_series: (ticker: string) =>
+        `Não há série negociada no próximo vencimento mensal para ${ticker}.`,
+      unpriceable: "Não foi possível precificar a rolagem com os dados atuais.",
+    },
+  },
+  roll: {
+    action: "Rolar",
+    dialog: {
+      title: "Rolar",
+      subtitle: (underlying: string) => `Encerrar e reabrir as pernas de opção de ${underlying}`,
+      toClose: "Ordens de encerramento",
+      toOpen: "Ordens de abertura",
+      netCredit: "Crédito líquido",
+      netDebit: "Débito líquido",
+      price: "Preço",
+      costs: "Custos",
+      confirm: "Registrar rolagem",
+      building: "Montando a proposta de rolagem…",
+      recorded: "Rolagem registrada.",
+    },
+    agenda: {
+      title: "Agenda de rolagem",
+      subtitle: "Operações de opção abertas com decisão se aproximando",
+      empty: "Nada precisa de decisão nas próximas sessões.",
+      sessionsToExpiry: (count: number) =>
+        count === 0
+          ? "vence hoje"
+          : count === 1
+            ? "vence em 1 sessão"
+            : `vence em ${String(count)} sessões`,
+      actions: {
+        roll: "Rolar",
+        let_expire: "Deixar virar pó",
+        close_early_assignment_risk: "Encerrar agora — risco de exercício",
+      },
+    },
+    chain: {
+      title: "Histórico de rolagens",
+      empty: "Esta operação nunca foi rolada.",
+      month: "Mês",
+      result: "Resultado",
+      runningTotal: "Total acumulado",
+      download: "Baixar CSV",
     },
   },
   list: {
