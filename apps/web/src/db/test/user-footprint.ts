@@ -25,6 +25,7 @@ import {
   operations,
   riskProfiles,
 } from "@/modules/portfolio/schema";
+import { lessonProgress } from "@/modules/learning/schema";
 import { operationPlanRules, planSignals } from "@/modules/plans/schema";
 import { preferences } from "@/modules/preferences/schema";
 import { suggestionSightings } from "@/modules/radar/schema";
@@ -104,6 +105,9 @@ export async function seedUserFootprint(
   await db.insert(accessLog).values({ userId, event: "portfolio_read" });
   await db.insert(preferences).values({ userId });
   await db.insert(watchlistItems).values({ userId, ticker: "PETR4" });
+  await db
+    .insert(lessonProgress)
+    .values({ userId, lessonId: "what-is-an-option", lessonVersion: 1, bestCorrect: 3, total: 4 });
   // Its own underlying per footprint, on a session older than any test's and a horizon no
   // scoring run reaches, so the shared suggestion never shows up in another test's reads.
   const seen = await seedSuggestion(
