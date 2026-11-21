@@ -5,6 +5,8 @@ import {
   ILLUSTRATIVE_HIGHER_CALL_PREMIUM,
   ILLUSTRATIVE_HIGHER_PUT_PREMIUM,
   ILLUSTRATIVE_HIGHER_STRIKE,
+  ILLUSTRATIVE_LOWER_MID_STRIKE,
+  ILLUSTRATIVE_LOWER_MID_PUT_PREMIUM,
   ILLUSTRATIVE_LOWER_STRIKE,
   ILLUSTRATIVE_LOWEST_CALL_PREMIUM,
   ILLUSTRATIVE_LOWEST_PUT_PREMIUM,
@@ -12,10 +14,49 @@ import {
   ILLUSTRATIVE_PUT_PREMIUM,
   ILLUSTRATIVE_SPOT,
   ILLUSTRATIVE_UNDERLYING,
+  ILLUSTRATIVE_UPPER_MID_CALL_PREMIUM,
+  ILLUSTRATIVE_UPPER_MID_STRIKE,
   illustrativeLegs,
   loadIllustrativeExamples,
 } from "./illustrative-market";
 import { catalog } from "@/modules/strategies";
+
+// An independent re-implementation of Black-Scholes-Merton (Hull), kept deliberately separate
+// from the engine's own `packages/engine/src/internal/black-scholes.ts` (never imported from
+// outside the engine package, ADR-0013): this is the reference the fixture's 8 hard-coded
+// premiums are checked against, not the thing that produced them, so a mistake shared by both
+// implementations is the only way this test could still pass incorrectly.
+function erf(x: number): number {
+  const a1 = 0.254829592;
+  const a2 = -0.284496736;
+  const a3 = 1.421413741;
+  const a4 = -1.453152027;
+  const a5 = 1.061405429;
+  const p = 0.3275911;
+  const sign = x < 0 ? -1 : 1;
+  const absX = Math.abs(x);
+  const t = 1 / (1 + p * absX);
+  const poly = ((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t;
+  return sign * (1 - poly * Math.exp(-absX * absX));
+}
+
+function normalCdf(x: number): number {
+  return 0.5 * (1 + erf(x / Math.SQRT2));
+}
+
+function referenceBsmPrice(
+  s: number,
+  k: number,
+  t: number,
+  sigma: number,
+  right: "call" | "put",
+): number {
+  const d1 = (Math.log(s / k) + 0.5 * sigma * sigma * t) / (sigma * Math.sqrt(t));
+  const d2 = d1 - sigma * Math.sqrt(t);
+  return right === "call"
+    ? s * normalCdf(d1) - k * normalCdf(d2)
+    : k * normalCdf(-d2) - s * normalCdf(-d1);
+}
 
 describe("loadIllustrativeExamples", () => {
   it("prices the illustrative long call, long put, short call and bull call spread through the engine", async () => {
@@ -171,6 +212,28 @@ describe("the fixture's own put-call parity", () => {
     expect(
       Math.abs(examples["call-butterfly"].netPremium - examples["put-butterfly"].netPremium),
     ).toBe(0);
+  });
+});
+
+describe("the fixture's own premiums, against an independent Black-Scholes", () => {
+  it("matches every one of the 8 premiums to the cent, at sigma=0.50, r=0, T=36/252", () => {
+    const s = Number(ILLUSTRATIVE_SPOT);
+    const sigma = 0.5;
+    const t = 36 / 252;
+    const cases: [number, "call" | "put", string][] = [
+      [Number(ILLUSTRATIVE_LOWEST_STRIKE), "call", ILLUSTRATIVE_LOWEST_CALL_PREMIUM],
+      [Number(ILLUSTRATIVE_LOWEST_STRIKE), "put", ILLUSTRATIVE_LOWEST_PUT_PREMIUM],
+      [Number(ILLUSTRATIVE_LOWER_MID_STRIKE), "put", ILLUSTRATIVE_LOWER_MID_PUT_PREMIUM],
+      [Number(ILLUSTRATIVE_LOWER_STRIKE), "call", ILLUSTRATIVE_CALL_PREMIUM],
+      [Number(ILLUSTRATIVE_LOWER_STRIKE), "put", ILLUSTRATIVE_PUT_PREMIUM],
+      [Number(ILLUSTRATIVE_UPPER_MID_STRIKE), "call", ILLUSTRATIVE_UPPER_MID_CALL_PREMIUM],
+      [Number(ILLUSTRATIVE_HIGHER_STRIKE), "call", ILLUSTRATIVE_HIGHER_CALL_PREMIUM],
+      [Number(ILLUSTRATIVE_HIGHER_STRIKE), "put", ILLUSTRATIVE_HIGHER_PUT_PREMIUM],
+    ];
+    for (const [k, right, fixturePremium] of cases) {
+      const reference = Math.round(referenceBsmPrice(s, k, t, sigma, right) * 100) / 100;
+      expect(Number(fixturePremium)).toBeCloseTo(reference, 2);
+    }
   });
 });
 

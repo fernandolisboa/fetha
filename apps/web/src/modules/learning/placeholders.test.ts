@@ -38,9 +38,12 @@ describe("resolvePlaceholder", () => {
     expect(resolvePlaceholder("long-straddle.breakEven1", examples)).toBe(formatPriceBRL(second));
   });
 
-  it("resolves theta's magnitude regardless of its sign", async () => {
+  it("resolves theta's magnitude regardless of its sign, never to R$0,00", async () => {
     const examples = await loadIllustrativeExamples();
-    expect(resolvePlaceholder("long-call.thetaAbs", examples)).toMatch(/^R\$ \d/);
+    const resolved = resolvePlaceholder("long-call.thetaAbs", examples);
+    expect(resolved).toMatch(/^R\$ \d/);
+    expect(resolved).not.toBe("R$ 0,00");
+    expect(Math.abs(Number(examples["long-call"].greeks.theta))).toBeGreaterThan(0);
   });
 
   it("throws resolving a break-even index the example does not have", async () => {

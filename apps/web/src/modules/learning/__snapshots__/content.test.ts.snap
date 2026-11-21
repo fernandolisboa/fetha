@@ -20,11 +20,11 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "type": "payoff-example",
     },
     {
-      "text": "O ganho máximo é o crédito líquido recebido, R$ 0,73, mantido por completo no strike vendido ou abaixo dele; subindo a partir daí, ele encolhe até zero exatamente no break-even de R$ 20,73, e então se torna uma perda crescente. A perda máxima é travada em R$ 1,27 assim que a ação chega ao strike mais alto — a distância entre os dois strikes menos o crédito recebido.",
+      "text": "O ganho máximo é o crédito líquido recebido, R$ 0,73 por ação (×100 por lote), mantido por completo no strike vendido ou abaixo dele; subindo a partir daí, ele encolhe até zero exatamente no break-even de R$ 20,73, e então se torna uma perda crescente. A perda máxima é travada em R$ 1,27 por ação assim que a ação chega ao strike mais alto — a distância entre os dois strikes menos o crédito recebido.",
       "type": "paragraph",
     },
     {
-      "text": "A call vendida costuma ser do estilo americano, então carrega risco de atribuição antecipada se ficar bem dentro do dinheiro; na B3, porém, um provento em dinheiro ajusta o próprio strike (ADR-0070), então uma data de dividendo por si só raramente torna vantajoso exercer antecipadamente. Dimensione pela perda máxima, não pelo crédito — aqui R$ 1,27 contra um crédito de R$ 0,73; uma alta forte e rápida pode romper o break-even antes de dar tempo de reagir.",
+      "text": "A call vendida costuma ser do estilo americano, então carrega risco de atribuição antecipada se ficar bem dentro do dinheiro; na B3, porém, um provento em dinheiro ajusta o próprio strike (ADR-0070), então uma data de dividendo por si só raramente torna vantajoso exercer antecipadamente. Dimensione pela perda máxima, não pelo crédito — aqui R$ 1,27 por ação contra um crédito de R$ 0,73 por ação; uma alta forte e rápida pode romper o break-even antes de dar tempo de reagir.",
       "tone": "warning",
       "type": "callout",
     },
@@ -104,7 +104,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "type": "payoff-example",
     },
     {
-      "text": "A perda máxima é o débito líquido pago, R$ 0,49, mantida por completo no strike comprado ou acima dele; caindo a partir daí, ela encolhe até zero exatamente no break-even de R$ 19,51, e então se torna um ganho crescente. O ganho máximo é travado em R$ 0,51 assim que a ação chega ao strike mais baixo — a distância entre os dois strikes menos o que foi pago pela trava.",
+      "text": "A perda máxima é o débito líquido pago, R$ 0,49 por ação (×100 por lote), mantida por completo no strike comprado ou acima dele; caindo a partir daí, ela encolhe até zero exatamente no break-even de R$ 19,51, e então se torna um ganho crescente. O ganho máximo é travado em R$ 0,51 por ação assim que a ação chega ao strike mais baixo — a distância entre os dois strikes menos o que foi pago pela trava.",
       "type": "paragraph",
     },
     {
@@ -188,7 +188,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "type": "payoff-example",
     },
     {
-      "text": "A perda máxima é o débito líquido pago, R$ 0,73, mantida por completo no strike comprado ou abaixo dele; subindo a partir daí, ela encolhe até zero exatamente no break-even de R$ 20,73, e então se torna um ganho crescente. O ganho máximo é travado em R$ 1,27 assim que a ação chega ao strike mais alto — a distância entre os dois strikes menos o que foi pago pela trava.",
+      "text": "A perda máxima é o débito líquido pago, R$ 0,73 por ação (×100 por lote), mantida por completo no strike comprado ou abaixo dele; subindo a partir daí, ela encolhe até zero exatamente no break-even de R$ 20,73, e então se torna um ganho crescente. O ganho máximo é travado em R$ 1,27 por ação assim que a ação chega ao strike mais alto — a distância entre os dois strikes menos o que foi pago pela trava.",
       "type": "paragraph",
     },
     {
@@ -272,11 +272,11 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "type": "payoff-example",
     },
     {
-      "text": "O ganho máximo é o crédito líquido recebido, R$ 0,49, mantido por completo no strike vendido ou acima dele; caindo a partir daí, ele encolhe até zero exatamente no break-even de R$ 19,51, e então se torna uma perda crescente. A perda máxima é travada em R$ 0,51 se a ação cair até o strike mais baixo ou abaixo — a distância entre os dois strikes menos o crédito recebido.",
+      "text": "O ganho máximo é o crédito líquido recebido, R$ 0,49 por ação (×100 por lote), mantido por completo no strike vendido ou acima dele; caindo a partir daí, ele encolhe até zero exatamente no break-even de R$ 19,51, e então se torna uma perda crescente. A perda máxima é travada em R$ 0,51 por ação se a ação cair até o strike mais baixo ou abaixo — a distância entre os dois strikes menos o crédito recebido.",
       "type": "paragraph",
     },
     {
-      "text": "A put vendida costuma ser do estilo europeu nas ações da B3, então sem risco de atribuição antecipada antes do vencimento, mas uma queda rápida da ação ainda apaga o crédito rapidamente; dimensione a posição pela perda máxima, não pelo crédito — aqui R$ 0,51 contra um crédito de R$ 0,49; baixa liquidez em qualquer perna encarece encerrar antes do vencimento.",
+      "text": "A put vendida costuma ser do estilo europeu nas ações da B3, então sem risco de atribuição antecipada antes do vencimento, mas uma queda rápida da ação ainda apaga o crédito rapidamente; dimensione a posição pela perda máxima, não pelo crédito — aqui R$ 0,51 por ação contra um crédito de R$ 0,49 por ação; baixa liquidez em qualquer perna encarece encerrar antes do vencimento.",
       "tone": "warning",
       "type": "callout",
     },
@@ -312,7 +312,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
     },
     {
       "correctOptionId": "a",
-      "explanation": "A distância entre os strikes menos o crédito, R$ 0,51 aqui contra um crédito de R$ 0,49, é o que de fato está em risco; dimensionar só pelo crédito subestima isso sempre que a perda máxima acaba sendo maior.",
+      "explanation": "A distância entre os strikes menos o crédito, R$ 0,51 por ação aqui contra um crédito de R$ 0,49 por ação, é o que de fato está em risco; dimensionar só pelo crédito subestima isso sempre que a perda máxima acaba sendo maior.",
       "options": [
         "No crédito recebido, já que é o dinheiro recolhido na entrada",
         "Na perda máxima, não no crédito recebido",
@@ -353,7 +353,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "type": "payoff-example",
     },
     {
-      "caption": "Lançando a mesma call a descoberto: a imagem espelhada. Ganho travado no prêmio recebido de R$ 1,51, perda sem limite acima do ponto de equilíbrio.",
+      "caption": "Lançando a mesma call a descoberto: a imagem espelhada. Ganho travado no prêmio recebido de R$ 1,51 por ação (×100 por lote), perda sem limite acima do ponto de equilíbrio.",
       "exampleId": "short-call",
       "type": "payoff-example",
     },
@@ -390,7 +390,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "options": [
         "Um valor sem limite superior",
         "O preço do strike",
-        "R$ 1,51, o prêmio recebido",
+        "R$ 1,51 por ação, o prêmio recebido",
       ],
       "prompt": "No exemplo desta lição, lançar a call a descoberto trava o ganho em:",
     },
@@ -431,7 +431,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "type": "payoff-example",
     },
     {
-      "text": "A perda máxima é o débito líquido pago, R$ 0,41, mantida por completo no strike externo ou além dele, de qualquer lado; voltando em direção ao meio, ela encolhe até zero exatamente no break-even mais próximo (R$ 18,41 ou R$ 21,59), e então se torna um ganho crescente. O ganho máximo, R$ 1,59, só é alcançado se a ação terminar exatamente no strike do meio.",
+      "text": "A perda máxima é o débito líquido pago, R$ 0,41 por ação (×100 por lote), mantida por completo no strike externo ou além dele, de qualquer lado; voltando em direção ao meio, ela encolhe até zero exatamente no break-even mais próximo (R$ 18,41 ou R$ 21,59), e então se torna um ganho crescente. O ganho máximo, R$ 1,59 por ação, só é alcançado se a ação terminar exatamente no strike do meio.",
       "type": "paragraph",
     },
     {
@@ -578,12 +578,12 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "type": "list",
     },
     {
-      "caption": "Ação a R$ 20,00, com venda de uma call de strike R$ 22,00. A proporção de 1 para 1 aqui é a mesma da B3 na prática: uma opção de call por lote da ação — cada contrato de opção já cobre 100 ações, o mesmo tamanho de um lote.",
+      "caption": "Ação a R$ 20,00, com venda de uma call de strike R$ 22,00. A proporção de 1 para 1 aqui é a mesma da B3 na prática: uma opção cobre uma ação, então um lote de 100 ações pede 100 calls vendidas contra ele, um lote de cada.",
       "exampleId": "covered-call",
       "type": "payoff-example",
     },
     {
-      "text": "O ganho máximo é travado em R$ 2,78 assim que a ação chega ao strike — a call vendida trava-o ali, prêmio incluído. A perda máxima, R$ 19,22, é a própria queda da ação até zero, amortecida um pouco pelo prêmio recebido; o break-even fica em R$ 19,22, abaixo do preço de entrada da própria ação exatamente por esse prêmio.",
+      "text": "O ganho máximo é travado em R$ 2,78 por ação (×100 por lote) assim que a ação chega ao strike — a call vendida trava-o ali, prêmio incluído. A perda máxima, R$ 19,22 por ação, é a própria queda da ação até zero, amortecida um pouco pelo prêmio recebido; o break-even fica em R$ 19,22, abaixo do preço de entrada da própria ação exatamente por esse prêmio.",
       "type": "paragraph",
     },
     {
@@ -878,7 +878,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "type": "payoff-example",
     },
     {
-      "text": "O ganho máximo é o crédito líquido recebido, R$ 0,68, mantido por completo entre os dois strikes vendidos. Passando qualquer um deles, ele encolhe até zero exatamente no break-even mais próximo (R$ 18,32 ou R$ 21,68), e então se torna uma perda crescente. A perda máxima, R$ 0,32, é travada de qualquer lado — a largura de qual ponta for rompida, menos o crédito recebido.",
+      "text": "O ganho máximo é o crédito líquido recebido, R$ 0,68 por ação (×100 por lote), mantido por completo entre os dois strikes vendidos. Passando qualquer um deles, ele encolhe até zero exatamente no break-even mais próximo (R$ 18,32 ou R$ 21,68), e então se torna uma perda crescente. A perda máxima, R$ 0,32 por ação, é travada de qualquer lado — a largura de qual ponta for rompida, menos o crédito recebido.",
       "type": "paragraph",
     },
     {
@@ -961,7 +961,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "type": "payoff-example",
     },
     {
-      "text": "A perda máxima é o prêmio pago, R$ 1,51, se a ação terminar no strike ou abaixo. O ganho máximo é sem limite acima do break-even de R$ 21,51. Não há piso de perda além do próprio prêmio — essa é a vantagem toda de comprar em vez de lançar.",
+      "text": "A perda máxima é o prêmio pago, R$ 1,51 por ação (×100 por lote), se a ação terminar no strike ou abaixo. O ganho máximo é sem limite acima do break-even de R$ 21,51. Não há piso de perda além do próprio prêmio — essa é a vantagem toda de comprar em vez de lançar.",
       "type": "paragraph",
     },
     {
@@ -1044,7 +1044,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "type": "payoff-example",
     },
     {
-      "text": "A perda máxima é o prêmio pago, R$ 1,51, se a ação terminar no strike ou acima. O ganho máximo é travado, não sem limite — uma ação só pode cair até zero — em R$ 18,49, alcançado só se a ação cair até zero, bem abaixo do break-even de R$ 18,49.",
+      "text": "A perda máxima é o prêmio pago, R$ 1,51 por ação (×100 por lote), se a ação terminar no strike ou acima. O ganho máximo é travado, não sem limite — uma ação só pode cair até zero — em R$ 18,49 por ação, alcançado só se a ação cair até R$ 0,00.",
       "type": "paragraph",
     },
     {
@@ -1128,7 +1128,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "type": "payoff-example",
     },
     {
-      "text": "A perda máxima é o prêmio combinado pago, R$ 3,02, se a ação terminar exatamente no strike. O ganho máximo é sem limite para qualquer lado, passando os break-evens de R$ 16,98 na queda e R$ 23,02 na alta — a ação precisa romper um desses dois, não só se mover um pouco.",
+      "text": "A perda máxima é o prêmio combinado pago, R$ 3,02 por ação (×100 por lote), se a ação terminar exatamente no strike. O ganho máximo é sem limite para qualquer lado, passando os break-evens de R$ 16,98 na queda e R$ 23,02 na alta — a ação precisa romper um desses dois, não só se mover um pouco.",
       "type": "paragraph",
     },
     {
@@ -1212,7 +1212,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "type": "payoff-example",
     },
     {
-      "text": "A perda máxima é o prêmio combinado pago, R$ 2,11, entre os dois strikes. O ganho máximo é sem limite para qualquer lado, passando os break-evens de R$ 16,89 na queda e R$ 23,11 na alta — mais distantes do que os de um straddle, já que a ação precisa primeiro passar de um strike fora do dinheiro, não só do preço atual.",
+      "text": "A perda máxima é o prêmio combinado pago, R$ 2,11 por ação (×100 por lote), entre os dois strikes. O ganho máximo é sem limite para qualquer lado, passando os break-evens de R$ 16,89 na queda e R$ 23,11 na alta — mais distantes do que os de um straddle, já que a ação precisa primeiro passar de um strike fora do dinheiro, não só do preço atual.",
       "type": "paragraph",
     },
     {
@@ -1370,7 +1370,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "type": "payoff-example",
     },
     {
-      "text": "A perda máxima é o débito líquido pago, R$ 0,41, mantida por completo no strike externo ou além dele, de qualquer lado; voltando em direção ao meio, ela encolhe até zero exatamente no break-even mais próximo (R$ 18,41 ou R$ 21,59), e então se torna um ganho crescente. O ganho máximo, R$ 1,59, só é alcançado se a ação terminar exatamente no strike do meio — o mesmo formato de payoff da borboleta com calls, só que com puts.",
+      "text": "A perda máxima é o débito líquido pago, R$ 0,41 por ação (×100 por lote), mantida por completo no strike externo ou além dele, de qualquer lado; voltando em direção ao meio, ela encolhe até zero exatamente no break-even mais próximo (R$ 18,41 ou R$ 21,59), e então se torna um ganho crescente. O ganho máximo, R$ 1,59 por ação, só é alcançado se a ação terminar exatamente no strike do meio — o mesmo formato de payoff da borboleta com calls, só que com puts.",
       "type": "paragraph",
     },
     {
@@ -1442,18 +1442,18 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "type": "paragraph",
     },
     {
-      "caption": "A call comprada desta lição. A linha mais grossa é o payoff no vencimento; a mais fina por baixo é o T+0 (“hoje”) — o que a posição já vale agora, pelo modelo, antes de chegar o vencimento.",
+      "caption": "A call comprada desta lição. A linha mais grossa é o payoff no vencimento; a linha cinza mais fina é o T+0 (“hoje”) — o que a posição já vale agora, pelo modelo, antes de chegar o vencimento.",
       "exampleId": "long-call",
       "type": "payoff-example",
     },
     {
-      "text": "Numa opção comprada isolada, a linha de T+0 sempre fica acima da linha de vencimento: ela ainda carrega valor do tempo que não derreteu ainda, então vale mais hoje do que seu valor intrínseco puro no vencimento (as lições de valor intrínseco vs. valor do tempo, e de theta, explicam o porquê). Conforme o vencimento se aproxima, as duas linhas se aproximam; no próprio vencimento, T+0 e a linha de vencimento são a mesma coisa. Numa estrutura com várias pontas, a ordem entre as duas linhas pode variar conforme o preço da ação, já que o valor do tempo de cada ponta derrete no seu próprio ritmo.",
+      "text": "Numa opção comprada isolada com valor do tempo positivo, como a call desta lição, a linha de T+0 fica acima da linha de vencimento: ela ainda carrega valor do tempo que não derreteu ainda, então vale mais hoje do que seu valor intrínseco puro no vencimento (as lições de valor intrínseco vs. valor do tempo, e de theta, explicam o porquê). Conforme o vencimento se aproxima, as duas linhas se aproximam; no próprio vencimento, T+0 e a linha de vencimento são a mesma coisa. Numa estrutura com várias pontas, a ordem entre as duas linhas pode variar conforme o preço da ação, já que o valor do tempo de cada ponta derrete no seu próprio ritmo — e uma opção europeia bem dentro do dinheiro, onde exercer antecipadamente valeria algo se fosse possível, pode até ver sua linha de T+0 cair abaixo.",
       "type": "paragraph",
     },
     {
       "items": [
         "Break-even: onde a linha de vencimento cruza o zero. Nesta call é R$ 21,51.",
-        "Perda máxima: o pior ponto da linha de vencimento. Aqui ela está travada no prêmio pago, R$ 1,51.",
+        "Perda máxima: o pior ponto da linha de vencimento. Aqui ela está travada no prêmio pago, R$ 1,51 por ação (×100 por lote).",
         "Ganho máximo: o melhor ponto da linha de vencimento — sem limite para cima nesta call comprada, já que a ação não tem teto.",
       ],
       "type": "list",
@@ -1472,13 +1472,13 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
     },
     {
       "correctOptionId": "b",
-      "explanation": "Uma posição que ainda carrega valor do tempo vale mais hoje do que seu valor puro no vencimento, então T+0 fica acima da linha de vencimento até esse valor do tempo acabar.",
+      "explanation": "Essa call comprada ainda carrega valor do tempo, valendo mais hoje do que seu valor puro no vencimento, então a linha de T+0 dela fica acima da linha de vencimento até esse valor do tempo acabar — nem toda posição se comporta assim (uma opção europeia bem dentro do dinheiro pode ter as duas linhas se cruzando).",
       "options": [
-        "Sempre abaixo",
-        "Sempre exatamente em cima",
-        "Acima dela enquanto o valor do tempo ainda não derreteu",
+        "Abaixo dela",
+        "Exatamente em cima",
+        "Acima dela, enquanto o valor do tempo ainda não derreteu",
       ],
-      "prompt": "A linha de T+0, comparada à linha de vencimento, fica:",
+      "prompt": "Para a call comprada desta lição, a linha de T+0, comparada à linha de vencimento, fica:",
     },
     {
       "correctOptionId": "a",
@@ -1501,7 +1501,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "prompt": "No próprio vencimento, a linha de T+0 e a linha de vencimento:",
     },
   ],
-  "summary": "A linha de vencimento, a linha mais fina de hoje (T+0) por baixo, e o que break-even, ganho máximo e perda máxima significam no gráfico.",
+  "summary": "A linha de vencimento, a linha cinza mais fina de hoje (T+0), e o que break-even, ganho máximo e perda máxima significam no gráfico.",
   "title": "Lendo um gráfico de payoff",
 }
 `;
@@ -1592,7 +1592,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "type": "list",
     },
     {
-      "text": "O prêmio é o preço da opção: R$ 1,51 pela call do exemplo desta lição, pago por quem compra a quem vende, na abertura da posição. Essa cotação é por ação; na B3 uma opção negocia em lotes de 100 ações, então o valor em dinheiro de fato é o prêmio cotado vezes 100 (e de novo vezes quantos lotes a posição tiver).",
+      "text": "O prêmio é o preço da opção: R$ 1,51 por ação, pela call do exemplo desta lição, pago por quem compra a quem vende, na abertura da posição. Na B3 uma opção negocia em lotes de 100 opções (uma por ação), então o valor em dinheiro de fato é o prêmio cotado vezes 100 (e de novo vezes quantos lotes a posição tiver).",
       "type": "paragraph",
     },
     {
