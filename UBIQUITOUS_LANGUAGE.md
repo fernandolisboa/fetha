@@ -425,8 +425,18 @@ the lot count or the expiry before saving (drag-to-adjust, #380), but every numb
 or after an edit, still comes from the engine — the user picks which listed series and lot count
 to price, never a number itself. Saving one records both the contemplated operation and an
 `enter` decision in the Diário, so Fetha's original plan is later scored against the user's edits.
-A plan never executes a roll (#382, #383).
+"Executei" (#381) turns a saved plan into a real, held operation: one fill per plan order, the
+user's own corrected prices, grouped into one operation and linked back to the plan, which then
+shows as executed. A plan never executes a roll (#382, #383).
 _Avoid_: strategy, recommendation, trade idea
+
+**Plan signal**:
+A nightly alert (#381) that a saved plan's own rules fired against the real operation "Executei"
+made of it: target hit, stop hit, or roll due (sessions to the held expiry at or past the plan's
+own roll trigger). Read-only — Fetha never sends an order — and shown in its own panel in
+`/sinais`, deduplicated per operation and kind rather than re-alerting every night. Distinct from
+a strategy's own Signal: it carries no proposal and belongs to no strategy version.
+_Avoid_: order, trade alert, trigger
 
 **Held operation**:
 An open operation of the real portfolio whose expiry session has not closed, as the user sees it

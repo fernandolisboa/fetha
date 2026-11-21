@@ -8,6 +8,7 @@ import {
   type Ticker,
 } from "@fetha/contracts";
 
+import type { Database, Transaction } from "@/db/client";
 import { postgresErrorOf } from "@/db/pg-error";
 import { UserScopedRepository } from "@/lib/user-scoped-repository";
 
@@ -174,16 +175,29 @@ export class PortfolioRepository extends UserScopedRepository {
   }
 
   // Idempotent for import-keyed fills (ADR-0021 item 7): a key this user
-  // already has is skipped, never duplicated or overwritten.
-  async insertFills(newFills: readonly NewFill[]): Promise<{ inserted: number }> {
+  // already has is skipped, never duplicated or overwritten. Without a
+  // `tx`, this chunked insert opens and commits its own transaction; a
+  // caller already inside its own `db.transaction`
+  // (`recordFillsAsOperation`, which inserts fills, groups them and lets
+  // its own caller link a plan, all in one transaction) passes that `tx`
+  // instead, so this runs inside it rather than opening a nested one — a
+  // statically typed `Transaction` parameter, not a runtime
+  // `Database | Transaction` union, so no cast is ever needed to tell the
+  // two apart (#381).
+  async insertFills(
+    newFills: readonly NewFill[],
+    tx?: Transaction,
+  ): Promise<{ inserted: number; ids: string[] }> {
     if (newFills.length === 0) {
-      return { inserted: 0 };
+      return { inserted: 0, ids: [] };
     }
     // Postgres caps one statement at 65,535 bind parameters (~13 per fill).
-    return this.db.transaction(async (tx) => {
-      let inserted = 0;
+    const insertChunks = async (
+      executor: Transaction | Database,
+    ): Promise<{ inserted: number; ids: string[] }> => {
+      const ids: string[] = [];
       for (let start = 0; start < newFills.length; start += INSERT_CHUNK) {
-        const rows = await tx
+        const rows = await executor
           .insert(fills)
           .values(
             newFills
@@ -195,10 +209,14 @@ export class PortfolioRepository extends UserScopedRepository {
             where: sql`${fills.importKey} is not null`,
           })
           .returning({ id: fills.id });
-        inserted += rows.length;
+        ids.push(...rows.map((row) => row.id));
       }
-      return { inserted };
-    });
+      return { inserted: ids.length, ids };
+    };
+    if (tx) {
+      return insertChunks(tx);
+    }
+    return this.db.transaction(insertChunks);
   }
 
   // An option fill imported before its series reached the reference data is
@@ -223,16 +241,19 @@ export class PortfolioRepository extends UserScopedRepository {
   // Assigns unassigned fills to a new operation (operationId null) or to an
   // open one, re-planning the operation from its whole fill set under row
   // locks so a concurrent grouping cannot take the same fill twice.
+  // `insertFills`'s own pattern: without a `tx`, opens a fresh
+  // transaction; with one, runs inside a caller's own.
   async group(
     operationId: string | null,
     fillIds: readonly string[],
     plan: PlanFromFills,
+    outerTx?: Transaction,
   ): Promise<GroupResult> {
     const ids = [...new Set(fillIds)];
     if (ids.length === 0) {
       return { ok: false, reason: "fills_unavailable" };
     }
-    return this.db.transaction(async (tx) => {
+    const run = async (tx: Transaction): Promise<GroupResult> => {
       if (operationId) {
         const [existing] = await tx
           .select({ id: operations.id })
@@ -293,7 +314,11 @@ export class PortfolioRepository extends UserScopedRepository {
         .set({ operationId: targetId })
         .where(and(inArray(fills.id, ids), eq(fills.userId, this.userId)));
       return { ok: true, operationId: targetId };
-    });
+    };
+    if (outerTx) {
+      return run(outerTx);
+    }
+    return this.db.transaction(run);
   }
 
   async ungroup(operationId: string): Promise<UngroupResult> {

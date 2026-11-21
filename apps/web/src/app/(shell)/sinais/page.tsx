@@ -14,6 +14,7 @@ import {
 import { AnalysisDialog, DecisionBar } from "@/modules/decisions/client";
 import { EmptyState, PageHeader, Panel, t as shellStrings } from "@/modules/shell";
 import { formatDate, formatDateTime } from "@/lib/format/date-time";
+import { getMyPlanSignals, PlanSignalsPanel } from "@/modules/plans";
 import {
   evaluationLabel,
   getMyEvaluationLog,
@@ -29,9 +30,13 @@ export const maxDuration = 120;
 
 export default async function SignalsPage() {
   await requireUser();
-  const [signals, evaluationLog] = await Promise.all([getMySignals(), getMyEvaluationLog()]);
+  const [signals, evaluationLog, planSignals] = await Promise.all([
+    getMySignals(),
+    getMyEvaluationLog(),
+    getMyPlanSignals(),
+  ]);
 
-  if (signals.length === 0 && evaluationLog.length === 0) {
+  if (signals.length === 0 && evaluationLog.length === 0 && planSignals.length === 0) {
     return <EmptyState sentence={shellStrings.emptyStates.signals.sentence} />;
   }
 
@@ -48,6 +53,8 @@ export default async function SignalsPage() {
   return (
     <div className="flex flex-col gap-8 px-5 py-8">
       <PageHeader overline={t.inbox.overline} headline={t.inbox.title} />
+
+      <PlanSignalsPanel signals={planSignals} />
 
       <Panel>
         {signals.length === 0 ? (

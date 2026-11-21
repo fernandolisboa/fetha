@@ -53,6 +53,14 @@ const researchScoringReportSchema = z.object({
   errorCount: z.number().int().nonnegative(),
 });
 
+const planSignalScoringReportSchema = z.object({
+  usersEvaluated: z.number().int().nonnegative(),
+  usersSkipped: z.number().int().nonnegative(),
+  signalsWritten: z.number().int().nonnegative(),
+  signalsCleared: z.number().int().nonnegative(),
+  errorCount: z.number().int().nonnegative(),
+});
+
 const sentimentReportSchema = z.object({
   labels: z.object({
     status: z.enum(["off", "ran", "failed"]),
@@ -106,6 +114,8 @@ const completedReportSchema = z.object({
   suggestionScoring: suggestionScoringReportSchema.optional(),
   // Optional: runs stored before docs/adr/0076 have no such field.
   researchScoring: researchScoringReportSchema.optional(),
+  // Optional: runs stored before ticket #381 have no such field.
+  planSignalScoring: planSignalScoringReportSchema.optional(),
   // Absent from runs recorded before #310.
   sentiment: sentimentReportSchema.optional(),
   radar: radarReportSchema.nullable(),
@@ -181,6 +191,13 @@ export function buildNightlyRunReport(outcome: NightlyJobOutcome): NightlyRunRep
       scored: outcome.researchScoring.scored,
       skipped: outcome.researchScoring.skipped,
       errorCount: outcome.researchScoring.errors,
+    },
+    planSignalScoring: {
+      usersEvaluated: outcome.planSignalScoring.usersEvaluated,
+      usersSkipped: outcome.planSignalScoring.usersSkipped,
+      signalsWritten: outcome.planSignalScoring.signalsWritten,
+      signalsCleared: outcome.planSignalScoring.signalsCleared,
+      errorCount: outcome.planSignalScoring.errors,
     },
     sentiment: {
       labels: { ...outcome.sentiment.labels },

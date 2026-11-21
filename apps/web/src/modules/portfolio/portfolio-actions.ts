@@ -14,17 +14,12 @@ import {
   requireUser,
   withAuthenticatedAction,
 } from "@/modules/auth";
-import {
-  isMarketIndex,
-  latestCandle,
-  optionSeriesForFills,
-  seriesKey,
-  tradingSessionForDate,
-} from "@/modules/market-data";
+import { optionSeriesForFills, seriesKey, tradingSessionForDate } from "@/modules/market-data";
 
 import { holdingKey, type LedgerFill } from "./bookkeeping";
 import { parseNegotiationRows, type SkipReason } from "./b3-import/parse-negotiation";
 import { readFirstSheet } from "./b3-import/read-xlsx";
+import { parseFillAmounts, resolveFillInstrument } from "./fill-validation";
 import { idSchema } from "./id-schema";
 import { removeIndexStockLegs } from "./import-index-refusal";
 import { planOperation, type SeriesByHolding } from "./operation-plan";
@@ -202,9 +197,8 @@ export async function recordFillAction(input: unknown): Promise<PortfolioActionR
   if (!parsed.success) {
     return { status: "error", error: "invalid_input" };
   }
-  const price = parsePriceInput(parsed.data.price);
-  const costs = parsed.data.costs.trim() === "" ? 0 : parseCentavosInput(parsed.data.costs);
-  if (price === null || costs === null) {
+  const amounts = parseFillAmounts(parsed.data);
+  if (!amounts) {
     return { status: "error", error: "invalid_input" };
   }
   const { ticker, side, quantity, session } = parsed.data;
@@ -224,31 +218,16 @@ export async function recordFillAction(input: unknown): Promise<PortfolioActionR
     if (!tradingSession || new Date(tradingSession.open) > new Date(nowInstant())) {
       return { status: "error" as const, error: "not_a_session" as const };
     }
-    const series = (await optionSeriesForFills(db, [{ ticker, session }])).get(
-      seriesKey(ticker, session),
-    );
-    if (!series && !(await latestCandle(db, ticker))) {
-      return { status: "error" as const, error: "unknown_instrument" as const };
+    const resolved = await resolveFillInstrument(db, session, {
+      ticker,
+      side,
+      quantity,
+      ...amounts,
+    });
+    if (!resolved.ok) {
+      return { status: "error" as const, error: resolved.reason };
     }
-    // A stock fill on a market index is never a real B3 fill (ADR-0062):
-    // B3's own investor-area export cannot produce one.
-    if (!series && isMarketIndex(ticker)) {
-      return { status: "error" as const, error: "index_stock_leg" as const };
-    }
-    await new PortfolioRepository(db, user).insertFills([
-      {
-        ticker,
-        assetClass: series ? "option" : "stock",
-        side,
-        quantity,
-        price,
-        session,
-        costsCentavos: costs,
-        expiry: series ? sessionDateSchema.parse(series.expiry) : null,
-        source: "manual",
-        importKey: null,
-      },
-    ]);
+    await new PortfolioRepository(db, user).insertFills([resolved.fill]);
     revalidatePortfolio();
     return { status: "ok" as const };
   });

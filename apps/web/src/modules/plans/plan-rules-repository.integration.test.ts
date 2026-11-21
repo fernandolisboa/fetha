@@ -5,7 +5,7 @@ import { getDb } from "@/db/client";
 import { deleteTestUser } from "@/db/test/cleanup";
 import { user } from "@/modules/auth/schema";
 import { structures } from "@/modules/strategies/schema";
-import { contemplatedOperations } from "@/modules/portfolio/schema";
+import { contemplatedOperations, operations } from "@/modules/portfolio/schema";
 
 import { PlanRulesRepository } from "./plan-rules-repository";
 
@@ -139,6 +139,71 @@ describe("PlanRulesRepository isolation", () => {
         rules: fixtureRules(),
       }),
     ).rejects.toThrow();
+  });
+
+  it("cannot link a plan to another user's operation (write isolation, #381)", async () => {
+    await ensureStockStructure();
+    const db = getDb();
+    const emailA = uniqueEmail("cross-link-a");
+    const emailB = uniqueEmail("cross-link-b");
+    createdEmails.push(emailA, emailB);
+
+    const userA = await insertBareUser(emailA);
+    const userB = await insertBareUser(emailB);
+    const operationA = await insertContemplatedOperation(userA.id);
+    await new PlanRulesRepository(db, userA).save({
+      contemplatedOperationId: operationA,
+      recipeId: "bull-call-spread-low-iv",
+      rules: fixtureRules(),
+    });
+    const [operationB] = await db
+      .insert(operations)
+      .values({ userId: userB.id, underlying: "PETR4", status: "open", openedAt: "2027-01-02" })
+      .returning({ id: operations.id });
+    if (!operationB) throw new Error("failed to insert operation");
+
+    // The composite FK, not only this repository's own scoping, refuses it: `operation_id`
+    // alone could be forged by any authenticated caller, the pair `(operation_id, user_id)`
+    // cannot.
+    await expect(
+      new PlanRulesRepository(db, userA).linkOperation(operationA, operationB.id),
+    ).rejects.toThrow();
+
+    const stillUnlinked = await new PlanRulesRepository(db, userA).findByOperation(operationA);
+    expect(stillUnlinked?.operationId).toBeNull();
+  });
+
+  it("refuses to link user B's own plan to user B's own operation when called as user A (security advisory, #381)", async () => {
+    await ensureStockStructure();
+    const db = getDb();
+    const emailA = uniqueEmail("cross-link-plan-a");
+    const emailB = uniqueEmail("cross-link-plan-b");
+    createdEmails.push(emailA, emailB);
+
+    const userA = await insertBareUser(emailA);
+    const userB = await insertBareUser(emailB);
+    const operationB = await insertContemplatedOperation(userB.id);
+    await new PlanRulesRepository(db, userB).save({
+      contemplatedOperationId: operationB,
+      recipeId: "bull-call-spread-low-iv",
+      rules: fixtureRules(),
+    });
+    const [heldOperationB] = await db
+      .insert(operations)
+      .values({ userId: userB.id, underlying: "PETR4", status: "open", openedAt: "2027-01-02" })
+      .returning({ id: operations.id });
+    if (!heldOperationB) throw new Error("failed to insert operation");
+
+    // No FK violation to throw here — A's own repository scope finds no row to update at all,
+    // since the plan's `user_id` is B's, not A's.
+    const result = await new PlanRulesRepository(db, userA).linkOperation(
+      operationB,
+      heldOperationB.id,
+    );
+    expect(result).toEqual({ ok: false });
+
+    const stillUnlinked = await new PlanRulesRepository(db, userB).findByOperation(operationB);
+    expect(stillUnlinked?.operationId).toBeNull();
   });
 
   it("returns null and an empty list before any plan is saved", async () => {
