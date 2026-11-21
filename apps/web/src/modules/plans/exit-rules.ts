@@ -9,7 +9,10 @@ export const ROLLABLE_STRUCTURE_IDS: ReadonlySet<string> = new Set([
   "bear-call-spread",
 ]);
 
-const DEFAULT_ROLL_SESSIONS_BEFORE_EXPIRY = 5;
+// Exported (#382): the roll agenda has no structure id to look up (a held operation's own
+// `operations` row never stores one, ADR-0080 addendum "no cheap plan link"), so it reuses this
+// same default rather than a second constant.
+export const DEFAULT_ROLL_SESSIONS_BEFORE_EXPIRY = 5;
 
 // Every exit rule the recipe carries, with the one date it can resolve to: a
 // `days_before_expiry` rule becomes a concrete session via `sessionsBeforeExpiry`; a profit
