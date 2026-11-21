@@ -8,6 +8,7 @@ import { forCurrentUser, withAuthenticatedAction } from "@/modules/auth";
 
 import { layoutSchema } from "./layout";
 import { PreferencesRepository } from "./preferences-repository";
+import { suggestionDensitySchema } from "./suggestion-density";
 import { themeSchema } from "./theme";
 
 export type PreferencesActionResult = { status: "ok" } | { status: "error" };
@@ -36,6 +37,23 @@ export async function setLayoutAction(formData: FormData): Promise<PreferencesAc
   await withAuthenticatedAction(async () => {
     const repository = await forCurrentUser(getDb(), PreferencesRepository);
     await repository.setLayout(parsed.data);
+  });
+
+  revalidatePath("/", "layout");
+  return { status: "ok" };
+}
+
+export async function setSuggestionDensityAction(
+  formData: FormData,
+): Promise<PreferencesActionResult> {
+  const parsed = suggestionDensitySchema.safeParse(formData.get("suggestionDensity"));
+  if (!parsed.success) {
+    return { status: "error" };
+  }
+
+  await withAuthenticatedAction(async () => {
+    const repository = await forCurrentUser(getDb(), PreferencesRepository);
+    await repository.setSuggestionDensity(parsed.data);
   });
 
   revalidatePath("/", "layout");

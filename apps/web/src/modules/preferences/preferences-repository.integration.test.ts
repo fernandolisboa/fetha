@@ -78,6 +78,7 @@ describe("PreferencesRepository isolation", () => {
       tourDismissed: false,
       assetTourDismissed: false,
       suggestionArchive: { enabled: false, afterMinutes: 1440 },
+      suggestionDensity: "full",
     });
   });
 
@@ -109,6 +110,7 @@ describe("PreferencesRepository isolation", () => {
       tourDismissed: true,
       assetTourDismissed: false,
       suggestionArchive: { enabled: false, afterMinutes: 1440 },
+      suggestionDensity: "full",
     });
   });
 
@@ -131,6 +133,7 @@ describe("PreferencesRepository isolation", () => {
       tourDismissed: false,
       assetTourDismissed: false,
       suggestionArchive: { enabled: false, afterMinutes: 1440 },
+      suggestionDensity: "full",
     });
   });
 
@@ -162,6 +165,7 @@ describe("PreferencesRepository isolation", () => {
       tourDismissed: true,
       assetTourDismissed: true,
       suggestionArchive: { enabled: false, afterMinutes: 1440 },
+      suggestionDensity: "full",
     });
   });
 
@@ -180,6 +184,7 @@ describe("PreferencesRepository isolation", () => {
       tourDismissed: false,
       assetTourDismissed: false,
       suggestionArchive: { enabled: false, afterMinutes: 1440 },
+      suggestionDensity: "full",
     });
   });
 
@@ -201,6 +206,7 @@ describe("PreferencesRepository isolation", () => {
       tourDismissed: false,
       assetTourDismissed: false,
       suggestionArchive: { enabled: false, afterMinutes: 1440 },
+      suggestionDensity: "full",
     });
   });
 
@@ -221,6 +227,7 @@ describe("PreferencesRepository isolation", () => {
       tourDismissed: false,
       assetTourDismissed: false,
       suggestionArchive: { enabled: false, afterMinutes: 1440 },
+      suggestionDensity: "full",
     });
   });
 
@@ -255,6 +262,7 @@ describe("PreferencesRepository isolation", () => {
       tourDismissed: false,
       assetTourDismissed: false,
       suggestionArchive: { enabled: false, afterMinutes: 1440 },
+      suggestionDensity: "full",
     });
   });
 
@@ -276,7 +284,42 @@ describe("PreferencesRepository isolation", () => {
       tourDismissed: false,
       assetTourDismissed: false,
       suggestionArchive: { enabled: false, afterMinutes: 1440 },
+      suggestionDensity: "full",
     });
+  });
+
+  it("user A switching to compact suggestions leaves user B on full", async () => {
+    const db = getDb();
+    const emailA = uniqueEmail("density-a");
+    const emailB = uniqueEmail("density-b");
+    createdEmails.push(emailA, emailB);
+    const userA = await insertBareUser(emailA);
+    const userB = await insertBareUser(emailB);
+    await new PreferencesRepository(db, userB).setTheme("fosforo");
+
+    await new PreferencesRepository(db, userA).setSuggestionDensity("compact");
+
+    expect((await new PreferencesRepository(db, userA).find()).suggestionDensity).toBe("compact");
+    expect(await new PreferencesRepository(db, userB).find()).toEqual({
+      theme: "fosforo",
+      layout: "workspace",
+      railCollapsed: false,
+      tourDismissed: false,
+      assetTourDismissed: false,
+      suggestionArchive: { enabled: false, afterMinutes: 1440 },
+      suggestionDensity: "full",
+    });
+  });
+
+  it("falls back to full suggestions when the stored value is out of the enum", async () => {
+    const db = getDb();
+    const email = uniqueEmail("density-out-of-enum");
+    createdEmails.push(email);
+    const testUser = await insertBareUser(email);
+
+    await db.insert(preferences).values({ userId: testUser.id, suggestionDensity: "cozy" });
+
+    expect((await new PreferencesRepository(db, testUser).find()).suggestionDensity).toBe("full");
   });
 
   it("falls back to the workspace layout when the stored value is out of the enum", async () => {

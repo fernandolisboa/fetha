@@ -9,6 +9,7 @@ import {
   storedSuggestionArchive,
   type SuggestionArchive,
 } from "./suggestion-archive";
+import { suggestionDensitySchema, type SuggestionDensity } from "./suggestion-density";
 import { themeSchema, type Theme } from "./theme";
 
 export interface Preferences {
@@ -18,6 +19,7 @@ export interface Preferences {
   tourDismissed: boolean;
   assetTourDismissed: boolean;
   suggestionArchive: SuggestionArchive;
+  suggestionDensity: SuggestionDensity;
 }
 
 const defaults: Preferences = {
@@ -27,6 +29,7 @@ const defaults: Preferences = {
   tourDismissed: false,
   assetTourDismissed: false,
   suggestionArchive: { enabled: false, afterMinutes: DEFAULT_ARCHIVE_MINUTES },
+  suggestionDensity: suggestionDensitySchema.parse(undefined),
 };
 
 export class PreferencesRepository extends UserScopedRepository {
@@ -35,6 +38,7 @@ export class PreferencesRepository extends UserScopedRepository {
       .select({
         theme: preferences.theme,
         layout: preferences.layout,
+        suggestionDensity: preferences.suggestionDensity,
         railCollapsed: preferences.railCollapsed,
         tourDismissedAt: preferences.tourDismissedAt,
         assetTourDismissedAt: preferences.assetTourDismissedAt,
@@ -51,9 +55,13 @@ export class PreferencesRepository extends UserScopedRepository {
 
     const parsedTheme = themeSchema.safeParse(row.theme);
     const parsedLayout = layoutSchema.safeParse(row.layout);
+    const parsedSuggestionDensity = suggestionDensitySchema.safeParse(row.suggestionDensity);
     return {
       theme: parsedTheme.success ? parsedTheme.data : defaults.theme,
       layout: parsedLayout.success ? parsedLayout.data : defaults.layout,
+      suggestionDensity: parsedSuggestionDensity.success
+        ? parsedSuggestionDensity.data
+        : defaults.suggestionDensity,
       railCollapsed: row.railCollapsed,
       tourDismissed: row.tourDismissedAt !== null,
       assetTourDismissed: row.assetTourDismissedAt !== null,
@@ -70,6 +78,10 @@ export class PreferencesRepository extends UserScopedRepository {
 
   async setLayout(layout: Layout): Promise<void> {
     await this.upsert({ layout });
+  }
+
+  async setSuggestionDensity(suggestionDensity: SuggestionDensity): Promise<void> {
+    await this.upsert({ suggestionDensity });
   }
 
   async setSuggestionArchive({ enabled, afterMinutes }: SuggestionArchive): Promise<void> {
@@ -115,7 +127,7 @@ export class PreferencesRepository extends UserScopedRepository {
 
   private async upsert(
     patch: Partial<
-      Pick<Preferences, "theme" | "layout" | "railCollapsed"> & {
+      Pick<Preferences, "theme" | "layout" | "railCollapsed" | "suggestionDensity"> & {
         suggestionArchiveEnabled: boolean;
         suggestionArchiveAfterMinutes: number;
       }
