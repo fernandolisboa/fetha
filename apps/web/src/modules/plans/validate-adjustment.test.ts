@@ -29,7 +29,12 @@ const BULL_CALL_SPREAD: Structure = structureSchema.parse({
 const EXPIRY = "2027-01-15" as PlanChainEntry["expiry"];
 const OTHER_EXPIRY = "2027-02-19" as PlanChainEntry["expiry"];
 
-function entry(ticker: string, strike: string, right: "call" | "put" = "call", expiry = EXPIRY): PlanChainEntry {
+function entry(
+  ticker: string,
+  strike: string,
+  right: "call" | "put" = "call",
+  expiry = EXPIRY,
+): PlanChainEntry {
   return {
     ticker: tickerSchema.parse(ticker),
     right,
@@ -52,7 +57,11 @@ describe("validateStructuralAdjustment", () => {
     const ok = validateStructuralAdjustment(
       CALL_BUTTERFLY,
       CHAIN,
-      [tickerSchema.parse("PETRC034"), tickerSchema.parse("PETRC036"), tickerSchema.parse("PETRC038")],
+      [
+        tickerSchema.parse("PETRC034"),
+        tickerSchema.parse("PETRC036"),
+        tickerSchema.parse("PETRC038"),
+      ],
       2,
     );
     expect(ok).toBe(true);

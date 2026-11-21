@@ -61,14 +61,14 @@ describe("isWithinPlanWindow", () => {
   });
 
   it("refuses an expiry nearer than the plan's minimum window", () => {
-    expect(
-      isWithinPlanWindow(calendar, at(dates, 0), at(dates, PLAN_MIN_SESSIONS_AHEAD - 1)),
-    ).toBe(false);
+    expect(isWithinPlanWindow(calendar, at(dates, 0), at(dates, PLAN_MIN_SESSIONS_AHEAD - 1))).toBe(
+      false,
+    );
   });
 
   it("refuses an expiry past the plan's maximum window", () => {
-    expect(
-      isWithinPlanWindow(calendar, at(dates, 0), at(dates, PLAN_MAX_SESSIONS_AHEAD + 1)),
-    ).toBe(false);
+    expect(isWithinPlanWindow(calendar, at(dates, 0), at(dates, PLAN_MAX_SESSIONS_AHEAD + 1))).toBe(
+      false,
+    );
   });
 });

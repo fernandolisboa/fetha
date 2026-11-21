@@ -51,11 +51,7 @@ export default async function NewPlanPage({
         headline={t.screen.title}
       />
       {outcome.status === "ok" ? (
-        <PlanScreen
-          outcome={outcome}
-          riskLimitCentavos={outcome.riskLimitCentavos}
-          input={input}
-        />
+        <PlanScreen outcome={outcome} riskLimitCentavos={outcome.riskLimitCentavos} input={input} />
       ) : (
         <ErrorNotice>{t.screen.errors[outcome.error]}</ErrorNotice>
       )}

@@ -1,4 +1,11 @@
-import type { ExitRule, Recipe, RiskProfile, SessionDate, Structure, Ticker } from "@fetha/contracts";
+import type {
+  ExitRule,
+  Recipe,
+  RiskProfile,
+  SessionDate,
+  Structure,
+  Ticker,
+} from "@fetha/contracts";
 import type { MarketView } from "@fetha/engine";
 
 import { resolveExitRules, resolveRollRule } from "./exit-rules";
