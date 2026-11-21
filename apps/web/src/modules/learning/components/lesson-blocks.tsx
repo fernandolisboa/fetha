@@ -1,8 +1,8 @@
-import type { LessonBlock } from "@fetha/contracts";
+import type { IllustrativeExampleId, LessonBlock } from "@fetha/contracts";
 
 import { PayoffChart, StatBlocks } from "@/modules/portfolio/client";
 
-import type { IllustrativeExampleId, IllustrativeExamples } from "../illustrative-market";
+import type { IllustrativeExamples } from "../illustrative-market";
 import { resolveText } from "../placeholders";
 
 function Callout({ tone, text }: { tone: "info" | "warning"; text: string }) {
@@ -53,42 +53,42 @@ export function LessonBlocks({
   examples: IllustrativeExamples;
 }) {
   return (
-    <div className="flex max-w-[72ch] flex-col gap-4">
+    <div className="flex min-w-0 flex-col gap-4">
       {blocks.map((block, index) => {
-        if (block.type === "paragraph") {
-          return (
-            <p key={index} className="text-[13px] leading-relaxed">
-              {resolveText(block.text.pt, examples)}
-            </p>
-          );
+        switch (block.type) {
+          case "paragraph":
+            return (
+              <p key={index} className="max-w-[72ch] text-[13px] leading-relaxed">
+                {resolveText(block.text.pt, examples)}
+              </p>
+            );
+          case "list":
+            return (
+              <ul
+                key={index}
+                className="marker:text-muted-foreground max-w-[72ch] list-disc flex-col gap-1.5 pl-4 text-[13px]"
+              >
+                {block.items.pt.map((item, itemIndex) => (
+                  <li key={itemIndex} className="py-0.5">
+                    {resolveText(item, examples)}
+                  </li>
+                ))}
+              </ul>
+            );
+          case "callout":
+            return (
+              <Callout key={index} tone={block.tone} text={resolveText(block.text.pt, examples)} />
+            );
+          case "payoff-example":
+            return (
+              <PayoffExampleBlock
+                key={index}
+                exampleId={block.exampleId}
+                caption={resolveText(block.caption.pt, examples)}
+                examples={examples}
+              />
+            );
         }
-        if (block.type === "list") {
-          return (
-            <ul
-              key={index}
-              className="marker:text-muted-foreground list-disc flex-col gap-1.5 pl-4 text-[13px]"
-            >
-              {block.items.pt.map((item, itemIndex) => (
-                <li key={itemIndex} className="py-0.5">
-                  {resolveText(item, examples)}
-                </li>
-              ))}
-            </ul>
-          );
-        }
-        if (block.type === "callout") {
-          return (
-            <Callout key={index} tone={block.tone} text={resolveText(block.text.pt, examples)} />
-          );
-        }
-        return (
-          <PayoffExampleBlock
-            key={index}
-            exampleId={block.exampleId as IllustrativeExampleId}
-            caption={resolveText(block.caption.pt, examples)}
-            examples={examples}
-          />
-        );
       })}
     </div>
   );
