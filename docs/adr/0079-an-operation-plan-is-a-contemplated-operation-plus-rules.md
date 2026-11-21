@@ -221,10 +221,16 @@ plan, unedited, when they touched nothing, or the edited legs when they did — 
 still exactly one contemplated operation (the body above). Scoring "Fetha's plan vs. the user's
 edits" (deferred from #379, still deferred past this ticket to whichever ticket actually computes
 it) needs Fetha's own side kept somewhere once it is no longer the saved side, which is the one
-new fact this ticket adds: `PlanRules.original` (`legs`, `lots`), always populated — with the
-exact same legs and lot count the save already wrote to `contemplated_operations`
-when the user changed nothing, and with Fetha's freshly-recomputed, never-trusted-from-the-client
-plan (`buildPlan`, the same auto-sizing path #379 already had) when they did. No migration: the
+new fact this ticket adds: `PlanRules.original` (`legs`, `lots`), an **optional** field — absent
+for a plan saved before ticket #380 shipped, since those rows never wrote it and
+`planRulesSchema.parse` must still read them back without throwing. Every plan `savePlanAction`
+writes from here on populates it: with the exact same legs and lot count the save already wrote
+to `contemplated_operations` when the user changed nothing, and with Fetha's
+freshly-recomputed, never-trusted-from-the-client plan (`buildPlan`, the same auto-sizing path
+#379 already had) when they did. When Fetha's own auto-sized plan did not even fit the risk limit
+(`does_not_fit`) — so there is no real "Fetha's plan" to diff the user's edit against —
+`original` falls back to echoing the edited side itself, rather than inventing one; a future
+scoring pass reads this as "no divergence to score," not as a missing row. No migration: the
 plan's own rules were already a jsonb column (`operation_plan_rules.rules`), and a new key on an
 existing jsonb shape is schema-free the same way `signals`/`suggestions`' own jsonb payloads
 already are (ADR-0064).
@@ -314,6 +320,26 @@ the chart itself, not an alternative control next to it, so this ticket now draw
   exactly, not with a lag) and re-enabled on release, when it snaps visually to the committed
   strike. Its hit area is a 24px-diameter circle (`r={12}`), DESIGN.md's own accent token
   (`var(--accent)`) fill.
+
+### Legs are identified by their template position, never by role+side; the server rebuilds them
+
+A structure can have two legs sharing both a role and a side — a call butterfly's two buy-call
+wings — so matching an edit back to "the buy call" is ambiguous. Every leg is instead identified
+by its own position in `structure.legs` (`optionLegsOf`/`legsFromTemplate`,
+`apps/web/src/modules/plans/template-legs.ts`): the client's `AdjustedLegInput` carries only a
+listed ticker per non-stock template slot, in template order; role, side and quantity
+(`ratio * lots * 100`, never a flat `lots * 100`) are always rebuilt from the template itself,
+never trusted from the client. The same position is what "O que mudou" (`plan-diff.ts`) and every
+UI list key the drag-to-adjust screen renders now use.
+
+`validateStructuralAdjustment` (`validate-adjustment.ts`) checks the edit still conforms to that
+same template before any engine call: an exact leg count, each listed series' own `right`
+matching the template's role, one shared expiry, legs at the same strike rank (a box spread's own
+paired call/put) landing on the same strike, and strictly increasing strikes from one rank to the
+next — refusing a non-conforming edit with a typed `invalid_adjustment` rather than pricing and
+saving it under the recipe's structure anyway. The plan's own 20-50-session expiry window
+(`plan-selection.ts`) is enforced the same way, server-side, not only in which expiry chips the
+client renders (`isWithinPlanWindow`, `plan-window.ts`).
 
 ## Alternatives considered
 
