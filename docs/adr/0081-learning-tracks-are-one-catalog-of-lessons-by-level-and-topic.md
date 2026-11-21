@@ -100,9 +100,56 @@ catalog.json` lists every level, every topic and every lesson's id with its leve
 
 ## Deferred
 
-- The "Estruturas" view (one lesson per structure) and contextual links from elsewhere in the app
-  into a lesson (PR 2).
 - A first-run question asking the user's level, to pre-select where Jornada opens (Taful D25).
 - Unlock modes gating a lesson on a prior one passing (Taful D24); v1 keeps everything open.
 - Runtime AI help inside a lesson: out of scope for v1, and it would spend the user's own
   Anthropic key for something the lesson's own static text should already cover.
+
+## Addendum (PR 2): Estruturas, the `structure` field and contextual links
+
+1. **A third view, Estruturas.** `apps/web/src/app/(shell)/aprender?ver=estruturas` adds a third
+   tab after Jornada and Temas: one row per structure lesson, grouped by the market view its own
+   recipe expects (`modules/strategies`' `recipes`, read by `expectedMove`) in `alta`, `baixa`,
+   `lateral`, `movimento forte` order — `learning/grouping.ts`'s `estruturasGroups`. It shares
+   Jornada's progress map and `nextLesson` logic; it never duplicates them. This is the first
+   place `learning` depends on `strategies`' entry point (`recipes`), a dependency `ARCHITECTURE.md`
+   records.
+2. **`structure` on a lesson.** `lessonSchema` gains an optional `structure`, closed to a new
+   `structureIds` enum in `packages/contracts`' `lesson-catalog.ts`: exactly the 12 structure ids
+   `modules/strategies/recipes.json` uses. A content test pins that every structure id in
+   `recipes.json` has exactly one lesson, and that `structureIds` itself matches the set
+   `recipes.json` actually uses — so adding a thirteenth recipe structure without a lesson, or a
+   lesson naming a structure no recipe uses, both fail a test rather than silently drifting.
+   `level` and `topic` stay catalog-only (ADR-0081's original rule); `structure` lives on the
+   lesson file itself because, unlike level and topic, it is a property of the lesson's own
+   content (which structure it teaches), not of its place in a display order.
+3. **One lookup, `lessonHrefForStructure`.** `learning/structure-link.ts` maps a structure id to
+   its one lesson's URL, or `null` for a structure with no lesson (or an invalid id) — the only
+   function any other module calls to link into a lesson; no other module reads `learning/catalog`
+   or `learning/grouping` directly. Exposed from `learning`'s `index.ts`, so every caller is a
+   server component or a server-only module (`modules/recipes/cards.ts` resolves it once per
+   recipe card, since `RecipePicker` itself is a client component and cannot pull in `learning`'s
+   server entry point).
+4. **Contextual links.** A small, secondary-styled "Aprender: `<nome da estrutura>`" link, per
+   `DESIGN.md`, appears in: the suggestion card's header (`radar/components/suggestion-card.tsx`)
+   and the research idea card (`radar/components/research-idea-card.tsx`), both naming the
+   structure from `suggestion.structure` / `idea.structure`; the recipe picker
+   (`recipes/components/recipe-picker.tsx`, via `RecipeCard.lessonHref` resolved server-side); and
+   the plan screen (`plans/components/plan-screen.tsx`, from the plan's own `structureId`). Each
+   renders nothing when `lessonHrefForStructure` returns `null`.
+5. **Covered call's stock leg.** `learning/illustrative-market.ts` extends `priceOperation`'s
+   known leg roles with `role: "stock"`, which the engine already supports (ADR-0081's own
+   `priceOperation` surface, unchanged): the covered-call lesson's payoff example holds the stock
+   at a 1-to-1 proportion with the call sold, called out in the lesson's own text as illustrative
+   rather than a real 100-share lot, so the chart stays easy to read without implying a specific
+   position size.
+6. **Two new placeholder families.** `breakEven<N>` (not just `breakEven0`) resolves any
+   break-even index a multi-break-even structure (a butterfly, a condor, a straddle, a strangle)
+   has, so a lesson can name both without inventing a number; `<exampleId>.thetaAbs` resolves an
+   example's own aggregate theta magnitude from `OperationPricing.greeks`, used once, in the theta
+   lesson. Both follow the existing rule: resolved only from engine output over the fixed
+   illustrative market, never hand-written.
+7. **The T+0 curve on every lesson chart.** `LessonBlocks`' `payoff-example` block now passes
+   `payoffNow` to `PayoffChart` as well as `payoff` (ADR-0077), whenever the engine returns one,
+   so the "reading a payoff diagram" and theta lessons can point at a real, engine-drawn T+0 line
+   instead of describing it in the abstract.
