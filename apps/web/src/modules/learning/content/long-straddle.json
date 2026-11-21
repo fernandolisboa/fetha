@@ -1,0 +1,191 @@
+{
+  "id": "long-straddle",
+  "version": 1,
+  "minutes": 7,
+  "title": { "en": "Long straddle", "pt": "Straddle comprado" },
+  "summary": {
+    "en": "A bet on a big move, either direction, by buying a call and a put at the same strike.",
+    "pt": "Uma aposta num movimento grande, para qualquer lado, comprando uma call e uma put no mesmo strike."
+  },
+  "structure": "long-straddle",
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Use a long straddle when the view is that the stock makes a big move, but the direction is genuinely unclear — an earnings release, a vote, a court decision. It fits low IV rank: buying two options outright is expensive, so cheap options relative to this underlying's own recent normal matter even more here than on a single long call or put.",
+        "pt": "Use um straddle comprado quando a visão é de que a ação faz um movimento grande, mas a direção é de fato incerta — um resultado trimestral, uma votação, uma decisão judicial. Encaixa com IV rank baixo: comprar duas opções direto é caro, então opções baratas em relação ao normal recente deste ativo importam ainda mais aqui do que numa única call ou put comprada."
+      }
+    },
+    {
+      "type": "list",
+      "items": {
+        "en": ["Buy one call at a strike.", "Buy one put at the same strike, same expiry."],
+        "pt": [
+          "Compra de uma call num strike.",
+          "Compra de uma put no mesmo strike, mesmo vencimento."
+        ]
+      }
+    },
+    {
+      "type": "payoff-example",
+      "exampleId": "long-straddle",
+      "caption": {
+        "en": "Buying the {{lowerStrike}} call and the {{lowerStrike}} put, stock at {{spot}}.",
+        "pt": "Compra da call de {{lowerStrike}} e da put de {{lowerStrike}}, ação a {{spot}}."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Max loss is the combined premium paid, {{long-straddle.maxLossAbs}}, if the stock finishes exactly at the strike. Max gain is unbounded either direction, past break-evens of {{long-straddle.breakEven0}} on the downside and {{long-straddle.breakEven1}} on the upside — the stock needs to clear one of those two, not just move a little.",
+        "pt": "A perda máxima é o prêmio combinado pago, {{long-straddle.maxLossAbs}}, se a ação terminar exatamente no strike. O ganho máximo é sem limite para qualquer lado, passando os break-evens de {{long-straddle.breakEven0}} na queda e {{long-straddle.breakEven1}} na alta — a ação precisa romper um desses dois, não só se mover um pouco."
+      }
+    },
+    {
+      "type": "callout",
+      "tone": "warning",
+      "text": {
+        "en": "Two bought legs means theta eats twice as fast as a single long option, every session nothing happens; an event that resolves calmly can trigger an IV crush — implied volatility collapsing right after the news, which hurts even a straddle that guessed the direction right; both legs need real liquidity, since both are opened and closed together.",
+        "pt": "Duas pernas compradas significam que o theta corrói duas vezes mais rápido do que numa única opção comprada, a cada pregão em que nada acontece; um evento que se resolve de forma calma pode gerar um IV crush — a volatilidade implícita despenca logo depois da notícia, o que machuca até um straddle que acertou a direção; as duas pernas precisam de liquidez real, já que as duas são abertas e encerradas juntas."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Fetha's Montar plano sets this recipe's own profit target, stop and days-before-expiry exit for both legs together — useful here given how fast an IV crush can turn a right call on direction into a loss anyway.",
+        "pt": "O Montar plano da Fetha define, para as duas pernas juntas, o alvo de lucro, o stop e a saída por dias até o vencimento da própria receita — útil aqui, já que um IV crush pode transformar rápido um acerto de direção numa perda mesmo assim."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "No Fetha: this is the “Straddle comprado” recipe.",
+        "pt": "No Fetha: essa é a receita “Straddle comprado”."
+      }
+    }
+  ],
+  "quiz": [
+    {
+      "id": "q1",
+      "prompt": {
+        "en": "A long straddle's two legs are:",
+        "pt": "As duas pernas de um straddle comprado são:"
+      },
+      "options": [
+        {
+          "id": "b",
+          "text": {
+            "en": "A bought call and a sold put",
+            "pt": "Uma call comprada e uma put vendida"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "A bought call and a bought put, same strike",
+            "pt": "Uma call comprada e uma put comprada, mesmo strike"
+          }
+        },
+        {
+          "id": "c",
+          "text": { "en": "Two bought calls", "pt": "Duas calls compradas" }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "A straddle buys both a call and a put at the same strike, betting on a move either direction.",
+        "pt": "Um straddle compra uma call e uma put no mesmo strike, apostando num movimento para qualquer lado."
+      }
+    },
+    {
+      "id": "q2",
+      "prompt": {
+        "en": "A long straddle profits only once the stock:",
+        "pt": "Um straddle comprado só dá lucro quando a ação:"
+      },
+      "options": [
+        {
+          "id": "c",
+          "text": { "en": "Stays exactly at the strike", "pt": "Fica exatamente no strike" }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Clears one of its two break-evens",
+            "pt": "Rompe um dos dois break-evens"
+          }
+        },
+        {
+          "id": "b",
+          "text": { "en": "Moves by any amount at all", "pt": "Se move por qualquer valor" }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "A small move is not enough — the stock needs to move past one of the two break-evens to clear the combined premium paid.",
+        "pt": "Um movimento pequeno não basta — a ação precisa passar de um dos dois break-evens para cobrir o prêmio combinado pago."
+      }
+    },
+    {
+      "id": "q3",
+      "prompt": {
+        "en": "An IV crush, right after an event resolves calmly, hurts a long straddle because:",
+        "pt": "Um IV crush, logo depois de um evento se resolver de forma calma, machuca um straddle comprado porque:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "Implied volatility collapses, taking time value down with it even if direction was right",
+            "pt": "A volatilidade implícita despenca, levando o valor do tempo com ela mesmo se a direção estava certa"
+          }
+        },
+        {
+          "id": "b",
+          "text": { "en": "The strike changes", "pt": "O strike muda" }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "The expiry date moves earlier",
+            "pt": "A data de vencimento muda para antes"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "Both legs' premiums were pricing in the event's uncertainty; once it resolves, that uncertainty — and the premium with it — evaporates fast.",
+        "pt": "Os prêmios das duas pernas estavam precificando a incerteza do evento; depois que ele se resolve, essa incerteza — e o prêmio junto com ela — evapora rápido."
+      }
+    },
+    {
+      "id": "q4",
+      "prompt": {
+        "en": "With two bought legs instead of one, theta on a long straddle:",
+        "pt": "Com duas pernas compradas em vez de uma, o theta num straddle comprado:"
+      },
+      "options": [
+        {
+          "id": "b",
+          "text": { "en": "Does not apply", "pt": "Não se aplica" }
+        },
+        {
+          "id": "c",
+          "text": { "en": "Works in the position's favor", "pt": "Trabalha a favor da posição" }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Erodes value about twice as fast as a single long option",
+            "pt": "Corrói valor cerca de duas vezes mais rápido do que uma única opção comprada"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "Each leg carries its own negative theta; with two bought legs, the combined decay roughly doubles a single long option's.",
+        "pt": "Cada perna carrega seu próprio theta negativo; com duas pernas compradas, a corrosão combinada aproximadamente dobra a de uma única opção comprada."
+      }
+    }
+  ]
+}

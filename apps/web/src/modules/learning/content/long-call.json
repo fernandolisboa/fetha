@@ -1,0 +1,191 @@
+{
+  "id": "long-call",
+  "version": 1,
+  "minutes": 6,
+  "title": { "en": "Long call", "pt": "Compra de call" },
+  "summary": {
+    "en": "The simplest bullish bet: pay a premium for unlimited upside, risk only that premium.",
+    "pt": "A aposta de alta mais simples: paga um prêmio por um potencial de alta sem limite, arriscando só esse prêmio."
+  },
+  "structure": "long-call",
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Use a long call when the view is that the stock rises, and rises by more than the premium costs — not just “probably up a little”. It works best when options are cheap relative to this underlying's own recent normal (low IV rank): a rise in volatility later, on top of a rise in price, only helps.",
+        "pt": "Use uma compra de call quando a visão é de que a ação sobe, e sobe mais do que o prêmio custa — não só “provavelmente sobe um pouco”. Funciona melhor quando as opções estão baratas em relação ao normal recente deste ativo (IV rank baixo): uma alta de volatilidade depois, além da alta de preço, só ajuda."
+      }
+    },
+    {
+      "type": "list",
+      "items": {
+        "en": ["One leg: buy one call."],
+        "pt": ["Uma perna: compra de uma call."]
+      }
+    },
+    {
+      "type": "payoff-example",
+      "exampleId": "long-call",
+      "caption": {
+        "en": "Buying a call struck at {{lowerStrike}} with the stock at {{spot}}.",
+        "pt": "Compra de uma call com strike {{lowerStrike}} e a ação a {{spot}}."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Max loss is the premium paid, {{long-call.maxLossAbs}}, if the stock finishes at or below the strike. Max gain is unbounded above the break-even of {{long-call.breakEven0}}. There is no downside floor beyond the premium itself — that is the whole appeal of buying instead of writing.",
+        "pt": "A perda máxima é o prêmio pago, {{long-call.maxLossAbs}}, se a ação terminar no strike ou abaixo. O ganho máximo é sem limite acima do break-even de {{long-call.breakEven0}}. Não há piso de perda além do próprio prêmio — essa é a vantagem toda de comprar em vez de lançar."
+      }
+    },
+    {
+      "type": "callout",
+      "tone": "warning",
+      "text": {
+        "en": "Theta works against this position every session the stock stays put (the fundamentals lesson on theta); a drop in implied volatility after entry hurts even if the stock does nothing; a thinly traded series can be hard to exit at a fair price without moving it.",
+        "pt": "O theta trabalha contra essa posição todo pregão em que a ação fica parada (a lição de fundamentos sobre theta); uma queda na volatilidade implícita depois da entrada machuca mesmo que a ação não faça nada; uma série pouco negociada pode ser difícil de encerrar a um preço justo sem mexer nele."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "A long call is rarely rolled the way a short position is — there is no obligation to manage away. Fetha's Montar plano still sets a profit target, a stop and a days-before-expiry exit from the recipe's own defaults, so leaving the position is a rule, not a guess.",
+        "pt": "Uma call comprada raramente é rolada do jeito que uma posição vendida é — não há obrigação para administrar. O Montar plano da Fetha ainda define alvo de lucro, stop e saída por dias até o vencimento a partir dos padrões da própria receita, então sair da posição é uma regra, não um palpite."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "No Fetha: this is the “Compra de call” recipe.",
+        "pt": "No Fetha: essa é a receita “Compra de call”."
+      }
+    }
+  ],
+  "quiz": [
+    {
+      "id": "q1",
+      "prompt": {
+        "en": "A long call's max loss is:",
+        "pt": "A perda máxima de uma call comprada é:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": { "en": "The premium paid", "pt": "O prêmio pago" }
+        },
+        {
+          "id": "b",
+          "text": { "en": "Unbounded", "pt": "Sem limite" }
+        },
+        {
+          "id": "c",
+          "text": { "en": "The strike price", "pt": "O preço do strike" }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "Buying an option risks, at worst, only what was paid for it.",
+        "pt": "Comprar uma opção arrisca, no pior caso, só o que foi pago por ela."
+      }
+    },
+    {
+      "id": "q2",
+      "prompt": {
+        "en": "A long call fits best when the view expects the stock to rise and implied volatility is:",
+        "pt": "Uma call comprada encaixa melhor quando a visão espera a ação subir e a volatilidade implícita está:"
+      },
+      "options": [
+        {
+          "id": "c",
+          "text": {
+            "en": "At any level, it never matters",
+            "pt": "Em qualquer nível, nunca importa"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Low relative to this underlying's own recent normal",
+            "pt": "Baixa em relação ao normal recente deste ativo"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "High relative to this underlying's own recent normal",
+            "pt": "Alta em relação ao normal recente deste ativo"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "Cheap options, by low IV rank, mean a smaller premium at risk and room for volatility itself to rise later.",
+        "pt": "Opções baratas, por IV rank baixo, significam um prêmio menor em risco e espaço para a própria volatilidade subir depois."
+      }
+    },
+    {
+      "id": "q3",
+      "prompt": {
+        "en": "Every session the stock stays put, theta:",
+        "pt": "Todo pregão em que a ação fica parada, o theta:"
+      },
+      "options": [
+        {
+          "id": "b",
+          "text": { "en": "Helps a long call", "pt": "Ajuda a call comprada" }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "Has no effect on a long call",
+            "pt": "Não tem efeito sobre a call comprada"
+          }
+        },
+        {
+          "id": "a",
+          "text": { "en": "Works against a long call", "pt": "Trabalha contra a call comprada" }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "A long call's theta is negative: time value erodes with each session the stock does not move.",
+        "pt": "O theta de uma call comprada é negativo: o valor do tempo corrói a cada pregão em que a ação não se move."
+      }
+    },
+    {
+      "id": "q4",
+      "prompt": {
+        "en": "In this lesson's example, the call's break-even is {{long-call.breakEven0}}. That means the stock needs to:",
+        "pt": "No exemplo desta lição, o break-even da call é {{long-call.breakEven0}}. Isso significa que a ação precisa:"
+      },
+      "options": [
+        {
+          "id": "c",
+          "text": {
+            "en": "Fall to that price for the position to profit",
+            "pt": "Cair até esse preço para a posição lucrar"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Rise above that price for the position to profit",
+            "pt": "Subir acima desse preço para a posição lucrar"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "Stay exactly at that price forever",
+            "pt": "Ficar exatamente nesse preço para sempre"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "Above break-even, the call's intrinsic value exceeds the premium paid, and the position turns a profit.",
+        "pt": "Acima do break-even, o valor intrínseco da call supera o prêmio pago, e a posição passa a ter lucro."
+      }
+    }
+  ]
+}

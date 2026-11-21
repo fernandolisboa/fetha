@@ -1,0 +1,170 @@
+{
+  "id": "reading-a-payoff-diagram",
+  "version": 1,
+  "minutes": 5,
+  "title": {
+    "en": "Reading a payoff diagram",
+    "pt": "Lendo um gráfico de payoff"
+  },
+  "summary": {
+    "en": "The expiry line, the thinner T+0 line under it, and what break-even, max gain and max loss mean on the chart.",
+    "pt": "A linha de vencimento, a linha mais fina de hoje (T+0) por baixo, e o que break-even, ganho máximo e perda máxima significam no gráfico."
+  },
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "A payoff diagram plots profit or loss (vertical axis) against where the underlying stock could sit (horizontal axis). The thicker line is the payoff at expiry: what the position is worth on its last day, for every possible stock price.",
+        "pt": "Um gráfico de payoff mostra o lucro ou a perda (eixo vertical) contra onde a ação-objeto poderia estar (eixo horizontal). A linha mais grossa é o payoff no vencimento: o que a posição vale no último dia, para cada preço possível da ação."
+      }
+    },
+    {
+      "type": "payoff-example",
+      "exampleId": "long-call",
+      "caption": {
+        "en": "This lesson's long call. The thick line is the payoff at expiry; the thinner line under it is the T+0 (“today”) value — what the position is already worth right now, mark-to-model, before expiry arrives.",
+        "pt": "A call comprada desta lição. A linha mais grossa é o payoff no vencimento; a mais fina por baixo é o T+0 (“hoje”) — o que a posição já vale agora, pelo modelo, antes de chegar o vencimento."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "The T+0 line always sits below the expiry line for a position that cost a premium: it still carries time value that has not decayed away yet (the fundamentals lesson on intrinsic vs. time value, and theta, explain why). As expiry gets closer, the two lines converge; at expiry itself, T+0 and the expiry line are the same thing.",
+        "pt": "A linha de T+0 sempre fica abaixo da linha de vencimento numa posição que custou um prêmio: ela ainda carrega valor do tempo que não derreteu ainda (as lições de valor intrínseco vs. valor do tempo, e de theta, explicam o porquê). Conforme o vencimento se aproxima, as duas linhas se aproximam; no próprio vencimento, T+0 e a linha de vencimento são a mesma coisa."
+      }
+    },
+    {
+      "type": "list",
+      "items": {
+        "en": [
+          "Break-even: where the expiry line crosses zero. This call's is {{long-call.breakEven0}}.",
+          "Max loss: the worst point of the expiry line. Here it is capped at the premium paid, {{long-call.maxLossAbs}}.",
+          "Max gain: the best point of the expiry line — unbounded above for this long call, since the stock has no ceiling."
+        ],
+        "pt": [
+          "Break-even: onde a linha de vencimento cruza o zero. Nesta call é {{long-call.breakEven0}}.",
+          "Perda máxima: o pior ponto da linha de vencimento. Aqui ela está travada no prêmio pago, {{long-call.maxLossAbs}}.",
+          "Ganho máximo: o melhor ponto da linha de vencimento — sem limite para cima nesta call comprada, já que a ação não tem teto."
+        ]
+      }
+    }
+  ],
+  "quiz": [
+    {
+      "id": "q1",
+      "prompt": {
+        "en": "On a payoff diagram, the horizontal axis represents:",
+        "pt": "No gráfico de payoff, o eixo horizontal representa:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "Where the underlying stock could sit",
+            "pt": "Onde a ação-objeto poderia estar"
+          }
+        },
+        {
+          "id": "b",
+          "text": { "en": "Time until expiry", "pt": "O tempo até o vencimento" }
+        },
+        {
+          "id": "c",
+          "text": { "en": "Implied volatility", "pt": "A volatilidade implícita" }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "The horizontal axis sweeps every possible stock price; the vertical axis reads the profit or loss at each one.",
+        "pt": "O eixo horizontal percorre todo preço possível da ação; o eixo vertical lê o lucro ou perda em cada um."
+      }
+    },
+    {
+      "id": "q2",
+      "prompt": {
+        "en": "The T+0 line, compared to the expiry line, sits:",
+        "pt": "A linha de T+0, comparada à linha de vencimento, fica:"
+      },
+      "options": [
+        {
+          "id": "b",
+          "text": { "en": "Always above it", "pt": "Sempre acima" }
+        },
+        {
+          "id": "c",
+          "text": { "en": "Always exactly on top of it", "pt": "Sempre exatamente em cima" }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Below it while time value has not decayed away yet",
+            "pt": "Abaixo dela enquanto o valor do tempo ainda não derreteu"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "A position that still carries time value is worth less today than at expiry, so T+0 sits below the expiry line until that time value is gone.",
+        "pt": "Uma posição que ainda carrega valor do tempo vale menos hoje do que no vencimento, então T+0 fica abaixo da linha de vencimento até esse valor do tempo acabar."
+      }
+    },
+    {
+      "id": "q3",
+      "prompt": {
+        "en": "Break-even, on the chart, is:",
+        "pt": "Break-even, no gráfico, é:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "Where the expiry line crosses zero",
+            "pt": "Onde a linha de vencimento cruza o zero"
+          }
+        },
+        {
+          "id": "c",
+          "text": { "en": "The strike price", "pt": "O preço do strike" }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "The highest point of the expiry line",
+            "pt": "O ponto mais alto da linha de vencimento"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "Break-even is the stock price at which the expiry payoff is exactly zero.",
+        "pt": "Break-even é o preço da ação no qual o payoff de vencimento é exatamente zero."
+      }
+    },
+    {
+      "id": "q4",
+      "prompt": {
+        "en": "At expiry itself, the T+0 line and the expiry line:",
+        "pt": "No próprio vencimento, a linha de T+0 e a linha de vencimento:"
+      },
+      "options": [
+        {
+          "id": "b",
+          "text": { "en": "Are always far apart", "pt": "Estão sempre bem separadas" }
+        },
+        {
+          "id": "a",
+          "text": { "en": "Are the same thing", "pt": "São a mesma coisa" }
+        },
+        {
+          "id": "c",
+          "text": { "en": "No longer exist", "pt": "Deixam de existir" }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "All time value has decayed away by expiry, so the T+0 value and the expiry payoff converge into the same line.",
+        "pt": "Todo o valor do tempo já derreteu no vencimento, então o valor de T+0 e o payoff de vencimento se tornam a mesma linha."
+      }
+    }
+  ]
+}

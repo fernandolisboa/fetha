@@ -1,0 +1,194 @@
+{
+  "id": "covered-call",
+  "version": 1,
+  "minutes": 6,
+  "title": { "en": "Covered call", "pt": "Lançamento coberto" },
+  "summary": {
+    "en": "Own the stock, sell a call against it, collect a premium in exchange for giving up gains above the strike.",
+    "pt": "Tenha a ação, venda uma call contra ela, receba um prêmio em troca de abrir mão dos ganhos acima do strike."
+  },
+  "structure": "covered-call",
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Use a covered call on a stock already held, with a flat-to-mildly-bullish view: selling the call brings in income while giving up gains past the strike, in exchange for lowering the position's break-even. It fits high IV rank, when the call sold is rich relative to this underlying's own recent normal.",
+        "pt": "Use um lançamento coberto numa ação que você já tem, com uma visão neutra a levemente otimista: vender a call traz renda, abrindo mão dos ganhos além do strike, em troca de baixar o break-even da posição. Encaixa com IV rank alto, quando a call vendida está cara em relação ao normal recente deste ativo."
+      }
+    },
+    {
+      "type": "list",
+      "items": {
+        "en": [
+          "Own the stock (the “covering” leg).",
+          "Sell one call above the stock's current price, same proportion as the shares held."
+        ],
+        "pt": [
+          "Ter a ação (a perna que “cobre” a operação).",
+          "Vender uma call acima do preço atual da ação, na mesma proporção das ações que você tem."
+        ]
+      }
+    },
+    {
+      "type": "payoff-example",
+      "exampleId": "covered-call",
+      "caption": {
+        "en": "Holding the stock at {{spot}} and selling a call struck at {{higherStrike}}. The lesson keeps a 1-to-1 proportion between the share and the call to read the chart clearly — a real position sizes the stock in lots of 100 per call sold.",
+        "pt": "Ação a {{spot}}, com venda de uma call de strike {{higherStrike}}. A lição mantém uma proporção de 1 para 1 entre a ação e a call só para ler o gráfico com clareza — numa posição real a ação é dimensionada em lotes de 100 por call vendida."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Max gain is capped at {{covered-call.maxGainAbs}} once the stock reaches the strike — the call sold caps it there, premium included. Max loss, {{covered-call.maxLossAbs}}, is the stock's own downside to zero, cushioned a little by the premium received; break-even sits at {{covered-call.breakEven0}}, below the stock's own entry price by exactly that premium.",
+        "pt": "O ganho máximo é travado em {{covered-call.maxGainAbs}} assim que a ação chega ao strike — a call vendida trava ele ali, prêmio incluído. A perda máxima, {{covered-call.maxLossAbs}}, é a própria queda da ação até zero, amortecida um pouco pelo prêmio recebido; o break-even fica em {{covered-call.breakEven0}}, abaixo do preço de entrada da própria ação exatamente por esse prêmio."
+      }
+    },
+    {
+      "type": "callout",
+      "tone": "warning",
+      "text": {
+        "en": "The sold call is usually American-style, so it can be assigned early, most often right before a dividend pays if the call is deep in the money — assignment there simply delivers the stock at the strike, losing the next dividend along with any further upside; the stock's own downside is not covered by the premium, only cushioned by it.",
+        "pt": "A call vendida costuma ser do estilo americano, então pode ser atribuída antes do vencimento, mais comumente pouco antes de um dividendo pagar, se a call estiver bem dentro do dinheiro — a atribuição ali simplesmente entrega a ação pelo strike, perdendo o próximo dividendo junto com qualquer alta adicional; a queda da própria ação não é coberta pelo prêmio, só amortecida por ele."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Fetha's Montar plano sets this recipe's own stop and days-before-expiry exit for the call leg; Rolar lets the call be rolled to another strike or expiry, keeping the stock position itself untouched.",
+        "pt": "O Montar plano da Fetha define, para a perna de call, o stop e a saída por dias até o vencimento da própria receita; o Rolar permite rolar a call para outro strike ou vencimento, mantendo a posição na ação intocada."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "No Fetha: this is the “Lançamento coberto” recipe.",
+        "pt": "No Fetha: essa é a receita “Lançamento coberto”."
+      }
+    }
+  ],
+  "quiz": [
+    {
+      "id": "q1",
+      "prompt": {
+        "en": "A covered call's downside, compared to simply holding the stock alone, is:",
+        "pt": "A queda de um lançamento coberto, comparada a só ter a ação sozinha, é:"
+      },
+      "options": [
+        {
+          "id": "b",
+          "text": { "en": "Removed entirely", "pt": "Removida por completo" }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "The same stock risk, cushioned a little by the premium received",
+            "pt": "O mesmo risco da ação, amortecido um pouco pelo prêmio recebido"
+          }
+        },
+        {
+          "id": "c",
+          "text": { "en": "Doubled", "pt": "Dobrada" }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "The call premium only lowers the break-even a little; the stock's own fall to zero is still the max loss.",
+        "pt": "O prêmio da call só baixa um pouco o break-even; a queda da própria ação até zero ainda é a perda máxima."
+      }
+    },
+    {
+      "id": "q2",
+      "prompt": {
+        "en": "Once the stock reaches the strike sold, a covered call's gain:",
+        "pt": "Quando a ação chega ao strike vendido, o ganho de um lançamento coberto:"
+      },
+      "options": [
+        {
+          "id": "c",
+          "text": { "en": "Keeps growing without limit", "pt": "Continua crescendo sem limite" }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Is capped there, premium included",
+            "pt": "Fica travado ali, prêmio incluído"
+          }
+        },
+        {
+          "id": "b",
+          "text": { "en": "Drops to zero", "pt": "Cai a zero" }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "The sold call offsets any further rise past the strike, so the gain caps there.",
+        "pt": "A call vendida compensa qualquer alta adicional além do strike, então o ganho trava ali."
+      }
+    },
+    {
+      "id": "q3",
+      "prompt": {
+        "en": "Early assignment on the sold call most often happens:",
+        "pt": "A atribuição antecipada da call vendida mais costuma acontecer:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "Right before a dividend, if the call is deep in the money",
+            "pt": "Pouco antes de um dividendo, se a call estiver bem dentro do dinheiro"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "The instant the call is sold",
+            "pt": "No instante em que a call é vendida"
+          }
+        },
+        {
+          "id": "c",
+          "text": { "en": "Only after expiry", "pt": "Só depois do vencimento" }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "A deep-in-the-money American-style call is most likely to be exercised early right before a dividend, to capture it.",
+        "pt": "Uma call americana bem dentro do dinheiro tem mais chance de ser exercida antes do vencimento pouco antes de um dividendo, para capturar ele."
+      }
+    },
+    {
+      "id": "q4",
+      "prompt": {
+        "en": "Fetha's Rolar, on a covered call, rolls:",
+        "pt": "O Rolar da Fetha, num lançamento coberto, rola:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "The call leg, to another strike or expiry",
+            "pt": "A perna de call, para outro strike ou vencimento"
+          }
+        },
+        {
+          "id": "b",
+          "text": { "en": "The stock position itself", "pt": "A própria posição na ação" }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "Nothing — covered calls cannot be rolled",
+            "pt": "Nada — lançamentos cobertos não podem ser rolados"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "Rolling replaces the sold call with another one, further out or at a different strike, while the stock position stays as it is.",
+        "pt": "Rolar troca a call vendida por outra, mais adiante ou num strike diferente, enquanto a posição na ação permanece como está."
+      }
+    }
+  ]
+}

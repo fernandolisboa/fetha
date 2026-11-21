@@ -1,0 +1,197 @@
+{
+  "id": "bull-put-spread",
+  "version": 1,
+  "minutes": 6,
+  "title": { "en": "Bull put spread", "pt": "Trava de alta com puts" },
+  "summary": {
+    "en": "A credit received up front, kept in full if the stock stays above the strike sold.",
+    "pt": "Um crédito recebido na entrada, mantido por completo se a ação ficar acima do strike vendido."
+  },
+  "structure": "bull-put-spread",
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Use a bull put spread for the same bullish view, when selling premium instead of buying it fits better — it needs the stock to simply hold above a level, not to rally hard. It fits high IV rank: options richer than this underlying's own recent normal mean a bigger credit for the same strikes.",
+        "pt": "Use uma trava de alta com puts para a mesma visão de alta, quando vender prêmio em vez de comprar encaixa melhor — ela precisa só que a ação se mantenha acima de um nível, não que suba com força. Encaixa com IV rank alto: opções mais caras do que o normal recente deste ativo significam um crédito maior para os mesmos strikes."
+      }
+    },
+    {
+      "type": "list",
+      "items": {
+        "en": [
+          "Buy one put at the lower strike.",
+          "Sell one put at the higher strike, same expiry."
+        ],
+        "pt": [
+          "Compra de uma put no strike mais baixo.",
+          "Venda de uma put no strike mais alto, mesmo vencimento."
+        ]
+      }
+    },
+    {
+      "type": "payoff-example",
+      "exampleId": "bull-put-spread",
+      "caption": {
+        "en": "Buying the {{lowerMidStrike}} put and selling the {{lowerStrike}} put, stock at {{spot}}.",
+        "pt": "Compra da put de {{lowerMidStrike}} e venda da put de {{lowerStrike}}, ação a {{spot}}."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Max gain is the net credit received, {{bull-put-spread.maxGainAbs}}, kept in full above the break-even of {{bull-put-spread.breakEven0}}. Max loss is capped at {{bull-put-spread.maxLossAbs}} if the stock falls to or below the lower strike — the width between the two strikes minus the credit received.",
+        "pt": "O ganho máximo é o crédito líquido recebido, {{bull-put-spread.maxGainAbs}}, mantido por completo acima do break-even de {{bull-put-spread.breakEven0}}. A perda máxima é travada em {{bull-put-spread.maxLossAbs}} se a ação cair até o strike mais baixo ou abaixo — a distância entre os dois strikes menos o crédito recebido."
+      }
+    },
+    {
+      "type": "callout",
+      "tone": "warning",
+      "text": {
+        "en": "The sold put is usually European-style on B3 equities, so no early-assignment risk before expiry, but a fast drop in the stock still erases the credit quickly; a credit spread's max loss can be several times the credit received, so sizing by that max loss matters more than the credit itself; low liquidity on either leg widens the cost of closing before expiry.",
+        "pt": "A put vendida costuma ser do estilo europeu nas ações da B3, então sem risco de atribuição antecipada antes do vencimento, mas uma queda rápida da ação ainda apaga o crédito rapidamente; a perda máxima de uma trava de crédito pode ser várias vezes o crédito recebido, então dimensionar por essa perda máxima importa mais do que pelo crédito em si; baixa liquidez em qualquer perna encarece encerrar antes do vencimento."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Fetha's Montar plano sets this recipe's own profit target, stop and days-before-expiry exit for both legs together; Rolar lets the whole spread move to a later expiry without closing it first.",
+        "pt": "O Montar plano da Fetha define, para as duas pernas juntas, o alvo de lucro, o stop e a saída por dias até o vencimento da própria receita; o Rolar permite levar a trava inteira para um vencimento mais distante sem encerrar ela antes."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "No Fetha: this is the “Trava de alta com puts” recipe.",
+        "pt": "No Fetha: essa é a receita “Trava de alta com puts”."
+      }
+    }
+  ],
+  "quiz": [
+    {
+      "id": "q1",
+      "prompt": {
+        "en": "A bull put spread's max gain is received:",
+        "pt": "O ganho máximo de uma trava de alta com puts é recebido:"
+      },
+      "options": [
+        {
+          "id": "c",
+          "text": { "en": "At expiry only, never before", "pt": "Só no vencimento, nunca antes" }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Up front, as the net credit",
+            "pt": "Na entrada, como o crédito líquido"
+          }
+        },
+        {
+          "id": "b",
+          "text": { "en": "From the broker as interest", "pt": "Do corretor como juros" }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "Selling the higher-strike put for more than the lower-strike put bought costs gives a net credit at entry, which is the max this spread can ever gain.",
+        "pt": "Vender a put de strike mais alto por mais do que custa a put de strike mais baixo comprada dá um crédito líquido na entrada, que é o máximo que essa trava pode ganhar."
+      }
+    },
+    {
+      "id": "q2",
+      "prompt": {
+        "en": "A bull put spread fits best with implied volatility:",
+        "pt": "Uma trava de alta com puts encaixa melhor com a volatilidade implícita:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "High relative to this underlying's own recent normal",
+            "pt": "Alta em relação ao normal recente deste ativo"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "Low relative to this underlying's own recent normal",
+            "pt": "Baixa em relação ao normal recente deste ativo"
+          }
+        },
+        {
+          "id": "c",
+          "text": { "en": "It never matters here", "pt": "Nunca importa aqui" }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "Richer options, from high IV rank, mean a bigger credit for selling the same strikes.",
+        "pt": "Opções mais caras, de IV rank alto, significam um crédito maior ao vender os mesmos strikes."
+      }
+    },
+    {
+      "id": "q3",
+      "prompt": {
+        "en": "A credit spread's max loss, compared to its credit received, is typically:",
+        "pt": "A perda máxima de uma trava de crédito, comparada ao crédito recebido, costuma ser:"
+      },
+      "options": [
+        {
+          "id": "b",
+          "text": { "en": "Always smaller than the credit", "pt": "Sempre menor que o crédito" }
+        },
+        {
+          "id": "c",
+          "text": { "en": "Exactly equal to the credit", "pt": "Exatamente igual ao crédito" }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Several times the credit received",
+            "pt": "Várias vezes o crédito recebido"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "The width between the strikes minus the credit is usually a multiple of that credit, so position sizing should use the max loss, not the credit.",
+        "pt": "A distância entre os strikes menos o crédito costuma ser um múltiplo desse crédito, então o tamanho da posição deveria usar a perda máxima, não o crédito."
+      }
+    },
+    {
+      "id": "q4",
+      "prompt": {
+        "en": "On B3, the sold put in a bull put spread is usually:",
+        "pt": "Na B3, a put vendida numa trava de alta com puts costuma ser:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "European-style, so no early assignment before expiry",
+            "pt": "Do estilo europeu, então sem atribuição antecipada antes do vencimento"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "Always assigned the day after it is sold",
+            "pt": "Sempre atribuída no dia seguinte à venda"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "American-style, assignable at any time",
+            "pt": "Do estilo americano, atribuível a qualquer momento"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "Most B3 equity puts are European-style, so this leg carries no early-assignment risk before expiry — check the series' own style before relying on it.",
+        "pt": "A maioria das puts sobre ações da B3 é do estilo europeu, então essa perna não carrega risco de atribuição antecipada antes do vencimento — confira o estilo da própria série antes de contar com isso."
+      }
+    }
+  ]
+}

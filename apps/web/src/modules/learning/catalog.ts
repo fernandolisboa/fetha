@@ -7,12 +7,29 @@ import {
   type TopicId,
 } from "@fetha/contracts";
 
+import bearCallSpread from "./content/bear-call-spread.json";
+import bearPutSpread from "./content/bear-put-spread.json";
+import bullCallSpread from "./content/bull-call-spread.json";
+import bullPutSpread from "./content/bull-put-spread.json";
 import buyingVsWriting from "./content/buying-vs-writing.json";
+import callButterfly from "./content/call-butterfly.json";
 import callsAndPuts from "./content/calls-and-puts.json";
 import catalogJson from "./content/catalog.json";
+import coveredCall from "./content/covered-call.json";
 import exerciseOnB3 from "./content/exercise-on-b3.json";
+import impliedVolatilityAndIvRank from "./content/implied-volatility-and-iv-rank.json";
+import intrinsicAndTimeValue from "./content/intrinsic-and-time-value.json";
+import ironCondor from "./content/iron-condor.json";
+import longCall from "./content/long-call.json";
+import longPut from "./content/long-put.json";
+import longStraddle from "./content/long-straddle.json";
+import longStrangle from "./content/long-strangle.json";
+import moneyness from "./content/moneyness.json";
+import putButterfly from "./content/put-butterfly.json";
+import readingAPayoffDiagram from "./content/reading-a-payoff-diagram.json";
 import readingTheSeriesCode from "./content/reading-the-series-code.json";
 import strikeExpiryPremium from "./content/strike-expiry-premium.json";
+import thetaAndTimeDecay from "./content/theta-and-time-decay.json";
 import whatIsAnOption from "./content/what-is-an-option.json";
 
 // `catalog.json`'s `lessons` array fixes Jornada order; each entry's file is
@@ -25,6 +42,23 @@ const LESSON_FILES: readonly unknown[] = [
   buyingVsWriting,
   exerciseOnB3,
   readingTheSeriesCode,
+  moneyness,
+  intrinsicAndTimeValue,
+  readingAPayoffDiagram,
+  impliedVolatilityAndIvRank,
+  thetaAndTimeDecay,
+  longCall,
+  longPut,
+  bullCallSpread,
+  bullPutSpread,
+  bearPutSpread,
+  bearCallSpread,
+  coveredCall,
+  callButterfly,
+  putButterfly,
+  ironCondor,
+  longStraddle,
+  longStrangle,
 ];
 
 export const lessonCatalog: LessonCatalog = lessonCatalogSchema.parse(catalogJson);

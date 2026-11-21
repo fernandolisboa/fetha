@@ -1,0 +1,188 @@
+{
+  "id": "long-strangle",
+  "version": 1,
+  "minutes": 7,
+  "title": { "en": "Long strangle", "pt": "Strangle comprado" },
+  "summary": {
+    "en": "A cheaper version of the straddle: buy an out-of-the-money call and put instead of the same strike.",
+    "pt": "Uma versão mais barata do straddle: compra uma call e uma put fora do dinheiro, em vez do mesmo strike."
+  },
+  "structure": "long-strangle",
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Use a long strangle for the same big-move, direction-unclear view as a long straddle, when a lower cost matters more than a tighter break-even range. It fits low IV rank for the same reason the straddle does — buying two options outright benefits from cheap premiums relative to this underlying's own recent normal.",
+        "pt": "Use um strangle comprado para a mesma visão de movimento grande e direção incerta do straddle comprado, quando um custo menor importa mais do que uma faixa de break-even mais estreita. Encaixa com IV rank baixo pelo mesmo motivo do straddle — comprar duas opções direto se beneficia de prêmios baratos em relação ao normal recente deste ativo."
+      }
+    },
+    {
+      "type": "list",
+      "items": {
+        "en": ["Buy one put below the stock.", "Buy one call above the stock, same expiry."],
+        "pt": [
+          "Compra de uma put abaixo da ação.",
+          "Compra de uma call acima da ação, mesmo vencimento."
+        ]
+      }
+    },
+    {
+      "type": "payoff-example",
+      "exampleId": "long-strangle",
+      "caption": {
+        "en": "Buying the {{lowerMidStrike}} put and the {{upperMidStrike}} call, stock at {{spot}}.",
+        "pt": "Compra da put de {{lowerMidStrike}} e da call de {{upperMidStrike}}, ação a {{spot}}."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Max loss is the combined premium paid, {{long-strangle.maxLossAbs}}, between the two strikes. Max gain is unbounded either direction, past break-evens of {{long-strangle.breakEven0}} on the downside and {{long-strangle.breakEven1}} on the upside — wider apart than a straddle's, since the stock has to clear an out-of-the-money strike first, not just the current price.",
+        "pt": "A perda máxima é o prêmio combinado pago, {{long-strangle.maxLossAbs}}, entre os dois strikes. O ganho máximo é sem limite para qualquer lado, passando os break-evens de {{long-strangle.breakEven0}} na queda e {{long-strangle.breakEven1}} na alta — mais distantes do que os de um straddle, já que a ação precisa primeiro passar de um strike fora do dinheiro, não só do preço atual."
+      }
+    },
+    {
+      "type": "callout",
+      "tone": "warning",
+      "text": {
+        "en": "Cheaper than a straddle comes with a trade-off: the stock needs a bigger move to break even at all; the same IV-crush risk right after an event resolves calmly applies here too; both legs still need real liquidity, opened and closed together.",
+        "pt": "Mais barato do que um straddle vem com uma troca: a ação precisa de um movimento maior para só então empatar; o mesmo risco de IV crush logo depois de um evento se resolver de forma calma também se aplica aqui; as duas pernas ainda precisam de liquidez real, abertas e encerradas juntas."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Fetha's Montar plano sets this recipe's own profit target, stop and days-before-expiry exit for both legs together, same as the straddle's.",
+        "pt": "O Montar plano da Fetha define, para as duas pernas juntas, o alvo de lucro, o stop e a saída por dias até o vencimento da própria receita, igual ao do straddle."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "No Fetha: this is the “Strangle comprado” recipe.",
+        "pt": "No Fetha: essa é a receita “Strangle comprado”."
+      }
+    }
+  ],
+  "quiz": [
+    {
+      "id": "q1",
+      "prompt": {
+        "en": "A long strangle differs from a long straddle mainly because:",
+        "pt": "Um strangle comprado difere de um straddle comprado principalmente porque:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "Its call and put sit at different, out-of-the-money strikes",
+            "pt": "A call e a put ficam em strikes diferentes, fora do dinheiro"
+          }
+        },
+        {
+          "id": "b",
+          "text": { "en": "It only buys a call", "pt": "Só compra uma call" }
+        },
+        {
+          "id": "c",
+          "text": { "en": "It sells both legs", "pt": "Vende as duas pernas" }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "A straddle uses the same strike for both legs; a strangle spreads them apart, one put strike below the stock and one call strike above.",
+        "pt": "Um straddle usa o mesmo strike para as duas pernas; um strangle espalha elas, um strike de put abaixo da ação e um de call acima."
+      }
+    },
+    {
+      "id": "q2",
+      "prompt": {
+        "en": "Compared to a straddle on the same stock, a strangle usually costs:",
+        "pt": "Comparado a um straddle na mesma ação, um strangle costuma custar:"
+      },
+      "options": [
+        {
+          "id": "b",
+          "text": { "en": "Exactly the same", "pt": "Exatamente o mesmo" }
+        },
+        {
+          "id": "c",
+          "text": { "en": "More", "pt": "Mais" }
+        },
+        {
+          "id": "a",
+          "text": { "en": "Less", "pt": "Menos" }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "Out-of-the-money options are cheaper than at-the-money ones, so a strangle's combined premium is lower than a straddle's.",
+        "pt": "Opções fora do dinheiro são mais baratas do que as no dinheiro, então o prêmio combinado de um strangle é menor do que o de um straddle."
+      }
+    },
+    {
+      "id": "q3",
+      "prompt": {
+        "en": "Paying less than a straddle, a strangle's break-evens are:",
+        "pt": "Pagando menos que um straddle, os break-evens de um strangle são:"
+      },
+      "options": [
+        {
+          "id": "c",
+          "text": { "en": "Identical to a straddle's", "pt": "Idênticos aos de um straddle" }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Farther apart — a bigger move is needed to profit",
+            "pt": "Mais distantes — um movimento maior é preciso para lucrar"
+          }
+        },
+        {
+          "id": "b",
+          "text": { "en": "Closer together", "pt": "Mais próximos" }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "Starting from out-of-the-money strikes already below and above the stock, the stock needs to move further still to clear each break-even.",
+        "pt": "Partindo de strikes fora do dinheiro já abaixo e acima da ação, a ação precisa se mover ainda mais para passar de cada break-even."
+      }
+    },
+    {
+      "id": "q4",
+      "prompt": {
+        "en": "An IV crush right after a calmly resolved event hurts a long strangle:",
+        "pt": "Um IV crush logo depois de um evento se resolver de forma calma machuca um strangle comprado:"
+      },
+      "options": [
+        {
+          "id": "b",
+          "text": {
+            "en": "Never, only straddles are exposed to it",
+            "pt": "Nunca, só straddles ficam expostos a isso"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "The same way it hurts a long straddle",
+            "pt": "Do mesmo jeito que machuca um straddle comprado"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "Only the put leg, never the call",
+            "pt": "Só a perna de put, nunca a de call"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "Both legs still bought premium pricing in the event's uncertainty, so the same volatility collapse hits a strangle too.",
+        "pt": "As duas pernas ainda compraram prêmio precificando a incerteza do evento, então o mesmo colapso de volatilidade também atinge um strangle."
+      }
+    }
+  ]
+}

@@ -1,0 +1,193 @@
+{
+  "id": "put-butterfly",
+  "version": 1,
+  "minutes": 7,
+  "title": { "en": "Put butterfly", "pt": "Borboleta com puts" },
+  "summary": {
+    "en": "The same defined-risk sideways bet as the call butterfly, built from puts instead.",
+    "pt": "A mesma aposta de lateralização e risco definido da borboleta com calls, montada com puts."
+  },
+  "structure": "put-butterfly",
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Use a put butterfly for the same sideways view as a call butterfly, centered on a specific price, when puts price the three strikes more conveniently than calls would. It fits high IV rank the same way: richer options make the two sold puts in the middle worth more, lowering the net debit.",
+        "pt": "Use uma borboleta com puts para a mesma visão de lateralização da borboleta com calls, centrada num preço específico, quando as puts precificam os três strikes de forma mais conveniente do que as calls. Encaixa com IV rank alto do mesmo jeito: opções mais caras deixam as duas puts vendidas do meio mais valiosas, baixando o débito líquido."
+      }
+    },
+    {
+      "type": "list",
+      "items": {
+        "en": [
+          "Buy one put at the lower strike.",
+          "Sell two puts at the middle strike, same expiry.",
+          "Buy one put at the higher strike, same expiry, equally spaced from the middle as the lower strike."
+        ],
+        "pt": [
+          "Compra de uma put no strike mais baixo.",
+          "Venda de duas puts no strike do meio, mesmo vencimento.",
+          "Compra de uma put no strike mais alto, mesmo vencimento, com a mesma distância do meio que o strike mais baixo."
+        ]
+      }
+    },
+    {
+      "type": "payoff-example",
+      "exampleId": "put-butterfly",
+      "caption": {
+        "en": "Buying the {{lowestStrike}} and {{higherStrike}} puts, selling two {{lowerStrike}} puts, stock at {{spot}}.",
+        "pt": "Compra das puts de {{lowestStrike}} e {{higherStrike}}, venda de duas puts de {{lowerStrike}}, ação a {{spot}}."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Max loss is the net debit paid, {{put-butterfly.maxLossAbs}}, outside the two break-evens of {{put-butterfly.breakEven0}} and {{put-butterfly.breakEven1}}. Max gain, {{put-butterfly.maxGainAbs}}, is reached only if the stock finishes exactly at the middle strike — same payoff shape as the call butterfly, with puts instead.",
+        "pt": "A perda máxima é o débito líquido pago, {{put-butterfly.maxLossAbs}}, fora dos dois break-evens de {{put-butterfly.breakEven0}} e {{put-butterfly.breakEven1}}. O ganho máximo, {{put-butterfly.maxGainAbs}}, só é alcançado se a ação terminar exatamente no strike do meio — o mesmo formato de payoff da borboleta com calls, só que com puts."
+      }
+    },
+    {
+      "type": "callout",
+      "tone": "warning",
+      "text": {
+        "en": "On B3 equity puts are usually European-style, so less early-assignment risk than the call version, but four legs still means four series needing real liquidity to open and close cleanly; as with the call butterfly, the full max gain only shows up pinned exactly at the middle strike.",
+        "pt": "Na B3, puts sobre ações costumam ser do estilo europeu, então com menos risco de atribuição antecipada do que a versão com calls, mas quatro pernas ainda significam quatro séries precisando de liquidez real para abrir e encerrar direito; como na borboleta com calls, o ganho máximo inteiro só aparece com o fechamento bem travado no strike do meio."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Fetha's Montar plano sets this recipe's own stop and days-before-expiry exit for all four legs together.",
+        "pt": "O Montar plano da Fetha define, para as quatro pernas juntas, o stop e a saída por dias até o vencimento da própria receita."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "No Fetha: this is the “Borboleta com puts” recipe.",
+        "pt": "No Fetha: essa é a receita “Borboleta com puts”."
+      }
+    }
+  ],
+  "quiz": [
+    {
+      "id": "q1",
+      "prompt": {
+        "en": "A put butterfly's payoff shape, compared to a call butterfly at the same strikes, is:",
+        "pt": "O formato do payoff de uma borboleta com puts, comparado ao de uma borboleta com calls nos mesmos strikes, é:"
+      },
+      "options": [
+        {
+          "id": "b",
+          "text": {
+            "en": "The mirror image, flipped upside down",
+            "pt": "O espelho, invertido de cabeça para baixo"
+          }
+        },
+        {
+          "id": "a",
+          "text": { "en": "The same shape", "pt": "O mesmo formato" }
+        },
+        {
+          "id": "c",
+          "text": { "en": "Unbounded on both sides", "pt": "Sem limite dos dois lados" }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "Buying the wings and selling twice the middle strike gives the same capped-loss, peaked-gain shape whether built from calls or puts.",
+        "pt": "Comprar as pontas e vender o dobro no strike do meio dá o mesmo formato de perda travada e ganho em pico, seja montado com calls ou com puts."
+      }
+    },
+    {
+      "id": "q2",
+      "prompt": {
+        "en": "On B3, puts sold in the middle of this structure are usually:",
+        "pt": "Na B3, as puts vendidas no meio dessa estrutura costumam ser:"
+      },
+      "options": [
+        {
+          "id": "c",
+          "text": {
+            "en": "Always assigned the next session",
+            "pt": "Sempre atribuídas no pregão seguinte"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "European-style, with less early-assignment risk than calls",
+            "pt": "Do estilo europeu, com menos risco de atribuição antecipada que calls"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "American-style only on this structure",
+            "pt": "Do estilo americano só nessa estrutura"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "Most B3 equity puts are European-style, exercisable only at expiry, unlike the American-style calls in the call butterfly.",
+        "pt": "A maioria das puts sobre ações da B3 é do estilo europeu, exercível só no vencimento, diferente das calls americanas da borboleta com calls."
+      }
+    },
+    {
+      "id": "q3",
+      "prompt": {
+        "en": "Max gain on a put butterfly is reached when the stock finishes:",
+        "pt": "O ganho máximo numa borboleta com puts é alcançado quando a ação termina:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": { "en": "Exactly at the middle strike", "pt": "Exatamente no strike do meio" }
+        },
+        {
+          "id": "c",
+          "text": { "en": "At the lower strike", "pt": "No strike mais baixo" }
+        },
+        {
+          "id": "b",
+          "text": { "en": "At the higher strike", "pt": "No strike mais alto" }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "Same as the call butterfly: the position peaks exactly at the middle strike, where the two sold puts are worth the most against the wings.",
+        "pt": "Igual à borboleta com calls: a posição alcança o pico exatamente no strike do meio, onde as duas puts vendidas valem mais contra as pontas."
+      }
+    },
+    {
+      "id": "q4",
+      "prompt": {
+        "en": "Compared to a two-leg spread, a four-leg butterfly's cost to open and close is:",
+        "pt": "Comparado a uma trava de duas pernas, o custo de abrir e encerrar uma borboleta de quatro pernas é:"
+      },
+      "options": [
+        {
+          "id": "b",
+          "text": { "en": "Always lower", "pt": "Sempre menor" }
+        },
+        {
+          "id": "c",
+          "text": { "en": "Exactly the same", "pt": "Exatamente o mesmo" }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Relatively higher, since each extra series adds its own bid-ask spread",
+            "pt": "Relativamente maior, já que cada série extra soma seu próprio spread de compra e venda"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "More legs means more series, each with its own liquidity cost at entry and exit.",
+        "pt": "Mais pernas significam mais séries, cada uma com seu próprio custo de liquidez na entrada e na saída."
+      }
+    }
+  ]
+}

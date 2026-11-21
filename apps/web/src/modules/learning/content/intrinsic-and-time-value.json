@@ -1,0 +1,171 @@
+{
+  "id": "intrinsic-and-time-value",
+  "version": 1,
+  "minutes": 5,
+  "title": {
+    "en": "Intrinsic value vs. time value",
+    "pt": "Valor intrínseco vs. valor do tempo"
+  },
+  "summary": {
+    "en": "Every premium splits into what exercising right now would be worth, plus everything else.",
+    "pt": "Todo prêmio se divide no que valeria exercer agora, mais todo o resto."
+  },
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Intrinsic value is what an option would be worth if it expired this instant: for a call, the stock price minus the strike, floored at zero; for a put, the strike minus the stock price, floored at zero. An out-of-the-money option always has zero intrinsic value.",
+        "pt": "Valor intrínseco é o que uma opção valeria se vencesse agora mesmo: para uma call, o preço da ação menos o strike, travado em zero; para uma put, o strike menos o preço da ação, travado em zero. Uma opção fora do dinheiro sempre tem valor intrínseco zero."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Time value is everything in the premium beyond that: the chance the stock still moves further in the buyer's favor before expiry. It is highest with more time left and more expected movement, and it decays to zero by expiry — the subject of this track's theta lesson.",
+        "pt": "Valor do tempo é tudo o que sobra no prêmio além disso: a chance de a ação ainda se mover mais a favor de quem comprou, antes do vencimento. Ele é maior com mais tempo até o vencimento e mais movimento esperado, e derrete até zero no vencimento — assunto da lição de theta desta trilha."
+      }
+    },
+    {
+      "type": "list",
+      "items": {
+        "en": [
+          "This lesson's call, struck at {{lowerStrike}} with the stock at {{spot}}, is at the money: its intrinsic value is zero, so its whole {{long-call.premiumAbs}} premium is time value.",
+          "A deeper call, struck below the stock, carries intrinsic value too — the premium then splits between the two, intrinsic plus whatever time value is left."
+        ],
+        "pt": [
+          "A call desta lição, com strike {{lowerStrike}} e a ação a {{spot}}, está no dinheiro: seu valor intrínseco é zero, então o prêmio inteiro de {{long-call.premiumAbs}} é valor do tempo.",
+          "Uma call mais funda, com strike abaixo da ação, também carrega valor intrínseco — o prêmio então se divide entre os dois, intrínseco mais o que sobrar de valor do tempo."
+        ]
+      }
+    },
+    {
+      "type": "callout",
+      "tone": "info",
+      "text": {
+        "en": "Deep in the money, an option's premium is close to pure intrinsic value, because there is little room left for it to move further in the buyer's favor; deep out of the money, it is close to pure time value sitting on top of a zero intrinsic floor — and often close to zero itself.",
+        "pt": "Bem dentro do dinheiro, o prêmio de uma opção fica perto do valor intrínseco puro, porque sobra pouco espaço para ela se mover ainda mais a favor de quem comprou; bem fora do dinheiro, fica perto do valor do tempo puro em cima de um piso intrínseco zero — e muitas vezes perto de zero também."
+      }
+    }
+  ],
+  "quiz": [
+    {
+      "id": "q1",
+      "prompt": {
+        "en": "A call's intrinsic value is:",
+        "pt": "O valor intrínseco de uma call é:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "The stock price minus the strike, floored at zero",
+            "pt": "O preço da ação menos o strike, travado em zero"
+          }
+        },
+        {
+          "id": "b",
+          "text": { "en": "The premium paid for it", "pt": "O prêmio pago por ela" }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "The strike minus the stock price, floored at zero",
+            "pt": "O strike menos o preço da ação, travado em zero"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "A call's intrinsic value is the stock price minus the strike, never negative.",
+        "pt": "O valor intrínseco de uma call é o preço da ação menos o strike, nunca negativo."
+      }
+    },
+    {
+      "id": "q2",
+      "prompt": {
+        "en": "An out-of-the-money option's intrinsic value is always:",
+        "pt": "O valor intrínseco de uma opção fora do dinheiro é sempre:"
+      },
+      "options": [
+        {
+          "id": "b",
+          "text": { "en": "Equal to its full premium", "pt": "Igual ao prêmio inteiro" }
+        },
+        {
+          "id": "a",
+          "text": { "en": "Zero", "pt": "Zero" }
+        },
+        {
+          "id": "c",
+          "text": { "en": "Negative", "pt": "Negativo" }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "Out of the money, exercising right now would be worthless, so intrinsic value is zero.",
+        "pt": "Fora do dinheiro, exercer agora não valeria nada, então o valor intrínseco é zero."
+      }
+    },
+    {
+      "id": "q3",
+      "prompt": {
+        "en": "This lesson's at-the-money call, premium {{long-call.premiumAbs}}, splits into intrinsic and time value as:",
+        "pt": "A call no dinheiro desta lição, prêmio {{long-call.premiumAbs}}, se divide entre intrínseco e valor do tempo como:"
+      },
+      "options": [
+        {
+          "id": "c",
+          "text": {
+            "en": "Half intrinsic, half time value",
+            "pt": "Metade intrínseco, metade valor do tempo"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Zero intrinsic, all of it time value",
+            "pt": "Zero intrínseco, tudo valor do tempo"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "All of it intrinsic, zero time value",
+            "pt": "Tudo intrínseco, zero valor do tempo"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "At the money, intrinsic value is zero by definition, so the entire premium is time value.",
+        "pt": "No dinheiro, o valor intrínseco é zero por definição, então o prêmio inteiro é valor do tempo."
+      }
+    },
+    {
+      "id": "q4",
+      "prompt": {
+        "en": "A premium deep in the money sits closest to:",
+        "pt": "Um prêmio bem dentro do dinheiro fica mais perto de:"
+      },
+      "options": [
+        {
+          "id": "b",
+          "text": { "en": "Pure time value", "pt": "Valor do tempo puro" }
+        },
+        {
+          "id": "c",
+          "text": { "en": "Zero", "pt": "Zero" }
+        },
+        {
+          "id": "a",
+          "text": { "en": "Pure intrinsic value", "pt": "Valor intrínseco puro" }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "Deep in the money there is little room left to move further in the buyer's favor, so time value shrinks and the premium is mostly intrinsic.",
+        "pt": "Bem dentro do dinheiro sobra pouco espaço para se mover mais a favor de quem comprou, então o valor do tempo encolhe e o prêmio fica majoritariamente intrínseco."
+      }
+    }
+  ]
+}
