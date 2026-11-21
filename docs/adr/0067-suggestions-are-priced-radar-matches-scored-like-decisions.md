@@ -229,3 +229,26 @@ never drift apart on them), the payoff chart, "Por que agora", the lot as a tabl
 closed-by-default "Detalhes" with the greeks and the recipe's own track record. "Por que agora"
 now pairs each condition with the figure that matched it today instead of repeating a separate
 facts list beside it. None of this changes items 1–6, 8–10 or the terms; it is presentation only.
+
+## Amendment (2026-11-21, card B)
+
+A per-user Aparência preference, `preferences.suggestion_density` (`full` | `compact`, default
+`full`, migration 0052, next to `theme` and `layout`, set from Configurações › Aparência with
+`setSuggestionDensityAction`), switches "Sugestões de hoje" and the radar tab's list between the
+card above (card A) and a one-line **compact row** (card B) per suggestion, for sweeping a long
+list: the title and scenario chip, "Arrisca `<valor>` · ganha até `<valor>`" (gain in `--up`, "sem
+limite" when unbounded), the profit zone the curve's own shape reads as ("Lucro entre X e Y" /
+"Lucro acima de X" / "Lucro abaixo de X" / "Lucro abaixo de X ou acima de Y", omitted when the
+shape is unclassified) followed by "vence `<data>`", a small payoff spark (plain SVG, the engine's
+own expiry payoff split at zero into `--up`/`--down` areas, with a zero line) and an "Abrir ▾" /
+"Fechar ▴" toggle. A container query switches the row from stacked (phone: text left, a 96px spark
+right) to one line (`title | numbers | zone | spark 120px | open 72px`) at 44rem, the same
+breakpoint card A's own grid already uses. Opening a row mounts card A inline below it
+(`Collapsible`, never hand-rolled, `aria-expanded` on the row's own trigger) rather than a second
+rendering of the same numbers; rows start collapsed. The zone phrase and the spark are both read
+from exactly the numbers card A already computes (`summarizePayoff`'s own classification, the
+engine's own payoff points) — nothing is computed twice or differently for the compact row. The
+single suggestion's own page (`/sugestoes/[id]`) always renders the full card, never the row,
+matching how it already ignores the structure-cap grouping. "Obter sugestões" keeps its own,
+differently-shaped card (`ResearchIdeaCard`) unchanged: card B only replaces `SuggestionCard`
+where `SuggestionList` already toggles behaviour on `onPage`.
