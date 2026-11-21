@@ -24,6 +24,7 @@ import {
   optionSeries,
   tradingSessions,
 } from "@/modules/market-data/schema";
+import { loadPortfolio } from "@/modules/portfolio/portfolio-service";
 import { contemplatedOperations, fills, operations } from "@/modules/portfolio/schema";
 import { structures } from "@/modules/strategies/schema";
 
@@ -510,10 +511,17 @@ describe("evaluatePlanSignals", () => {
   // base; at a 2x multiple the threshold is −20 000 centavos. The loss from mark 4,10 against
   // entry 1,00 is −(4,10 − 1,00) × 100 = −310,00 = −31 000 centavos, past the threshold.
   it("still fires a stop on a leg the engine could not converge an IV for", async () => {
-    const { markSession } = await setupExecutedShortCallPlan("iv-not-converged", {
-      stopMultiple: "2",
-    });
+    const { owner, operationId, markSession } = await setupExecutedShortCallPlan(
+      "iv-not-converged",
+      { stopMultiple: "2" },
+    );
     const db = getDb();
+
+    const read = await loadPortfolio(db, owner, closeOf(markSession));
+    const operationRow = read.operations.find((row) => row.operation.id === operationId);
+    expect(operationRow?.valuation?.pricing.notes.map((note) => note.code)).toContain(
+      "iv_not_converged",
+    );
 
     const outcome = await evaluatePlanSignals(db, markSession);
     expect(outcome.signalsWritten).toBe(1);

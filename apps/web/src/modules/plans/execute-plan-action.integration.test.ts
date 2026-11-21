@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { CurrentUser } from "@/modules/auth";
 import { decimalStringSchema, type ContemplatedLeg, type PlanRules } from "@fetha/contracts";
 
@@ -59,6 +59,31 @@ const { PlanRulesRepository } = await import("./plan-rules-repository");
 function uniqueEmail(label: string): string {
   return `fetha-execute-plan-${label}-${crypto.randomUUID()}@example.com`;
 }
+
+// resolveFillInstrument (shared with recordFillAction, #381 review round 2) refuses any stock
+// leg with no ingested candle. PETR4 and VALE3 are used here as plain stock tickers across many
+// tests; seed them once, upserting so a shared candle from another suite is left alone.
+async function ensureStockCandle(ticker: string): Promise<void> {
+  await upsertDailyCandles(getDb(), "2024-01-02", new Date("2024-01-02T20:00:00.000Z"), [
+    cotahistStockRowSchema.parse({
+      kind: "stock",
+      session: "2024-01-02",
+      ticker,
+      open: "30.000000",
+      high: "30.000000",
+      low: "30.000000",
+      average: "30.000000",
+      close: "30.000000",
+      trades: 100,
+      tradedQuantity: 10000,
+    }),
+  ]);
+}
+
+beforeAll(async () => {
+  await ensureStockCandle("PETR4");
+  await ensureStockCandle("VALE3");
+});
 
 async function insertBareUser(email: string): Promise<CurrentUser> {
   const [row] = await getDb()
