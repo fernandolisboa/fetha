@@ -18,12 +18,12 @@ borrowed from good trading and analytics layouts; nothing copied. Not a fintech 
   `/opcoes/<ticker>`), market bar (IBOV, CDI, the focused instrument's last price and change, data
   freshness: "14:32 · cotação com atraso de 5 min" or "fechamento de ontem"), account menu. Nav: a
   left rail, 200px with icons and labels, 56px collapsed with icons only, state remembered per
-  user; six destinations: Watchlist, Sinais (with an unread count), Estratégias, Carteira, Diário,
-  Configurações; declared capital at the rail foot. The radar (ADR-0066) is a tab of the
-  Watchlist page (`/?aba=radar`), never a seventh destination. Configurações is split into tabs, each with its own URL
+  user; seven destinations: Watchlist, Sinais (with an unread count), Estratégias, Carteira, Diário,
+  Aprender, Configurações; declared capital at the rail foot. The radar (ADR-0066) is a tab of the
+  Watchlist page (`/?aba=radar`), never its own destination. Configurações is split into tabs, each with its own URL
   (`/configuracoes/<aba>`): Aparência, Risco, IA, Conta and, for the owner only, Administração;
   `/configuracoes` opens Aparência and links about a missing risk profile open Risco. Under 1024px the rail collapses; under 768px
-  it becomes a 56px bottom tab bar (rare: desktop first): six equal icon-only cells, like the
+  it becomes a 56px bottom tab bar (rare: desktop first): seven equal icon-only cells, like the
   collapsed rail, the active one in `--accent` with a 2px top line, Sinais' unread count as a
   small accent pill; it is fixed to the viewport bottom and the page keeps a gutter its height.
   Installed on a notched phone (`viewport-fit=cover`), the page is inset by
@@ -59,12 +59,12 @@ borrowed from good trading and analytics layouts; nothing copied. Not a fintech 
   theme. A theme changes color, type, radius, elevation, density and `color-scheme`; every
   component keeps its anatomy (ADR-0015).
 - **Layouts** are per-user too (`data-layout` on `<html>`, chosen in Aparência, ADR-0069). The
-  shell above is **Workspace** (default). **Studio**, from 768px up, puts the six destinations in
+  shell above is **Workspace** (default). **Studio**, from 768px up, puts the destinations in
   the header as tabs (icon and label from 1280px, icon only below, the active one boxed in
   `--accent` on `--accent-soft`, Sinais' unread count as a pill), renders no rail, moves the market
   bar into a 28px status bar fixed to the bottom (unread-signal count on the left, market bar on
   the right; the page keeps a gutter its height) and sets the page's overline and headline on one
-  line, the headline at 18px. **Dock** (ADR-0071), from 768px up, floats the six destinations in
+  line, the headline at 18px. **Dock** (ADR-0071), from 768px up, floats the destinations in
   a panel over the page's left edge instead of a rail column: 12px below the header and from the
   left edge, radius twice `--radius`, hairline border plus `--shell-float-shadow` (the one shadow
   in the shell: a surface over the page must read as above it), 50px wide with icons at rest; it

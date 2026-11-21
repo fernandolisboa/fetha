@@ -7,7 +7,11 @@ const e2eSecret = process.env.E2E_SECRET;
 
 test.skip(!e2eSecret, "E2E_SECRET is not set; skipping the workstation shell flow.");
 
-test("shell renders after login with the six destinations", async ({ page, baseURL, request }) => {
+test("shell renders after login with the seven destinations", async ({
+  page,
+  baseURL,
+  request,
+}) => {
   await registerAndSignIn(page, request, baseURL, e2eSecret ?? "");
 
   const rail = page.getByRole("navigation", { name: "Navegação principal" });
@@ -17,6 +21,7 @@ test("shell renders after login with the six destinations", async ({ page, baseU
     "Estratégias",
     "Carteira",
     "Diário",
+    "Aprender",
     "Configurações",
   ]) {
     await expect(rail.getByRole("link", { name })).toBeVisible();
@@ -24,7 +29,7 @@ test("shell renders after login with the six destinations", async ({ page, baseU
   await expect(page.getByTestId("market-bar")).toBeVisible();
 });
 
-test("under 768px the rail becomes a bottom tab bar with the six destinations", async ({
+test("under 768px the rail becomes a bottom tab bar with the seven destinations", async ({
   page,
   baseURL,
   request,
@@ -35,7 +40,15 @@ test("under 768px the rail becomes a bottom tab bar with the six destinations", 
   const navigation = page.getByRole("navigation", { name: "Navegação principal" });
   await expect(navigation).toHaveCount(1);
   await expect(navigation).toHaveAttribute("data-tour", "tab-bar");
-  const names = ["Watchlist", "Sinais", "Estratégias", "Carteira", "Diário", "Configurações"];
+  const names = [
+    "Watchlist",
+    "Sinais",
+    "Estratégias",
+    "Carteira",
+    "Diário",
+    "Aprender",
+    "Configurações",
+  ];
   for (const name of names) {
     const link = navigation.getByRole("link", { name });
     await expect(link).toBeVisible();
@@ -482,6 +495,7 @@ test("account menu opens the Como usar guide, one section per destination", asyn
     "Estratégias",
     "Carteira",
     "Diário",
+    "Aprender",
     "Configurações",
   ]) {
     await expect(main.getByRole("heading", { level: 2, name })).toBeVisible();
