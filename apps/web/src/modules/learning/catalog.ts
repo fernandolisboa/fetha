@@ -3,6 +3,8 @@ import {
   lessonSchema,
   type Lesson,
   type LessonCatalog,
+  type LevelId,
+  type TopicId,
 } from "@fetha/contracts";
 
 import buyingVsWriting from "./content/buying-vs-writing.json";
@@ -35,10 +37,18 @@ export function getLesson(id: string): Lesson | null {
   return lessonsById.get(id) ?? null;
 }
 
+// A lesson placed in the catalog: its own content plus the level and topic
+// that `catalog.json`'s `lessons` entry (the only place those live,
+// ADR-0081) assigns it.
+export type PlacedLesson = Lesson & { level: LevelId; topic: TopicId };
+
 // Jornada order: the catalog's own lesson listing, which is by level then by
 // position within it (the content check pins this).
-export function jornadaOrder(): readonly Lesson[] {
+export function jornadaOrder(): readonly PlacedLesson[] {
   return lessonCatalog.lessons
-    .map((entry) => lessonsById.get(entry.id))
-    .filter((lesson): lesson is Lesson => lesson !== undefined);
+    .map((entry) => {
+      const lesson = lessonsById.get(entry.id);
+      return lesson ? { ...lesson, level: entry.level, topic: entry.topic } : undefined;
+    })
+    .filter((placed): placed is PlacedLesson => placed !== undefined);
 }

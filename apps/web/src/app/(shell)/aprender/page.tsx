@@ -1,18 +1,12 @@
 import type { Metadata } from "next";
 
-import { getDb } from "@/db/client";
-import { forCurrentUser, requireUser } from "@/modules/auth";
+import { requireUser } from "@/modules/auth";
 import {
   ContinueCard,
-  jornadaGroups,
-  jornadaOrder,
-  LessonProgressRepository,
+  getMyLessonsOverview,
   LevelSection,
-  nextLesson,
   t,
-  temasGroups,
   TopicSection,
-  toProgressMap,
   ViewSwitch,
   type LessonsView,
 } from "@/modules/learning";
@@ -34,10 +28,7 @@ export default async function LearnPage({
   const params = await searchParams;
   const view: LessonsView = params.ver === "temas" ? "temas" : "jornada";
 
-  const repository = await forCurrentUser(getDb(), LessonProgressRepository);
-  const rows = await repository.findAll();
-  const progress = toProgressMap(rows, jornadaOrder());
-  const recommended = nextLesson(progress);
+  const { progress, jornadaGroups, temasGroups, recommended } = await getMyLessonsOverview();
 
   return (
     <div className="flex flex-col gap-8 px-5 py-8">
@@ -50,7 +41,7 @@ export default async function LearnPage({
 
       {view === "jornada" ? (
         <div className="grid items-start gap-[14px] lg:grid-cols-2">
-          {columns(jornadaGroups(progress, "pt")).map((column, index) => (
+          {columns(jornadaGroups).map((column, index) => (
             <div key={index} className="flex min-w-0 flex-col gap-[14px]">
               {column.map((group) => (
                 <LevelSection key={group.level} group={group} progress={progress} />
@@ -60,7 +51,7 @@ export default async function LearnPage({
         </div>
       ) : (
         <div className="grid items-start gap-[14px] lg:grid-cols-2">
-          {columns(temasGroups(progress, "pt")).map((column, index) => (
+          {columns(temasGroups).map((column, index) => (
             <div key={index} className="flex min-w-0 flex-col gap-[14px]">
               {column.map((group) => (
                 <TopicSection key={group.topic} group={group} />

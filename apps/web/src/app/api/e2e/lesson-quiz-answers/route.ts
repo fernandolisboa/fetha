@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { isProductionDeployment, readE2ESecret } from "@/modules/auth";
-import { getLesson } from "@/modules/learning";
+import { getLessonQuizAnswersForE2E } from "@/modules/learning";
 
 import { timingSafeEqualStrings } from "../verification-link/timing-safe-equal-strings";
 
@@ -22,21 +22,10 @@ export function GET(request: Request): Response {
   }
 
   const lessonId = new URL(request.url).searchParams.get("lesson") ?? "";
-  const lesson = getLesson(lessonId);
-  if (!lesson) {
+  const answers = getLessonQuizAnswersForE2E(lessonId);
+  if (!answers) {
     return NextResponse.json({ error: "unknown lesson" }, { status: 404 });
   }
 
-  return NextResponse.json({
-    answers: lesson.quiz.map((question) => {
-      const correctOption = question.options.find(
-        (option) => option.id === question.correctOptionId,
-      );
-      return {
-        questionId: question.id,
-        correctOptionId: question.correctOptionId,
-        correctOptionText: correctOption?.text.pt ?? "",
-      };
-    }),
-  });
+  return NextResponse.json({ answers });
 }

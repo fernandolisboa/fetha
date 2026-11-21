@@ -1,6 +1,6 @@
 import type { Lesson, LevelId, TopicId } from "@fetha/contracts";
 
-import { jornadaOrder, lessonCatalog } from "./catalog";
+import { jornadaOrder, lessonCatalog, type PlacedLesson } from "./catalog";
 
 export interface LessonProgressStatus {
   done: boolean;
@@ -64,7 +64,7 @@ export function temasGroups(progress: ProgressByLessonId, locale: "en" | "pt"): 
 
 // The recommended next lesson: the first lesson not done, in Jornada order.
 // `null` once every lesson is done.
-export function nextLesson(progress: ProgressByLessonId): Lesson | null {
+export function nextLesson(progress: ProgressByLessonId): PlacedLesson | null {
   return jornadaOrder().find((lesson) => !statusFor(lesson, progress).done) ?? null;
 }
 
