@@ -2,8 +2,9 @@ import { z } from "zod";
 
 // Learning tracks are one catalog of lessons, each carrying a level and a
 // topic; the lessons screen regroups the same lessons by either axis
-// (docs/adr/0081). `topic` names the subject of a lesson, never the visual
-// theme (`preferences.theme`, ADR-0015/0069).
+// (docs/adr/0081, which amends ADR-0059's web-engine-consumer list). `topic`
+// names the subject of a lesson, never the visual theme
+// (`preferences.theme`, ADR-0015/0069).
 
 export const levelIds = [
   "first-steps",
@@ -26,6 +27,20 @@ export const topicIds = [
 export const topicIdSchema = z.enum(topicIds);
 export type TopicId = z.infer<typeof topicIdSchema>;
 
+// The illustrative, fictitious market every payoff-example block and every
+// placeholder resolves against (`learning/illustrative-market.ts`): defined
+// here, once, so a lesson's `payoff-example` block is validated against the
+// same closed set `apps/web` prices, instead of an unchecked string plus a
+// cast at the call site.
+export const illustrativeExampleIds = [
+  "long-call",
+  "long-put",
+  "short-call",
+  "bull-call-spread",
+] as const;
+export const illustrativeExampleIdSchema = z.enum(illustrativeExampleIds);
+export type IllustrativeExampleId = z.infer<typeof illustrativeExampleIdSchema>;
+
 // English is the source locale, pt-BR the shipped one (CLAUDE.md i18n rule);
 // every lesson carries both so a content check can diff them.
 export const localizedTextSchema = z.strictObject({
@@ -47,11 +62,10 @@ export const lessonBlockSchema = z.discriminatedUnion("type", [
     tone: z.enum(["info", "warning"]).default("info"),
     text: localizedTextSchema,
   }),
-  // References an illustrative pricing example by id (illustrative-market.ts);
-  // the page resolves it into a PayoffChart + StatBlocks pair, never into text.
+  // The page resolves this into a PayoffChart + StatBlocks pair, never into text.
   z.strictObject({
     type: z.literal("payoff-example"),
-    exampleId: z.string().min(1),
+    exampleId: illustrativeExampleIdSchema,
     caption: localizedTextSchema,
   }),
 ]);
@@ -86,20 +100,23 @@ export const MIN_QUIZ_QUESTIONS = 3;
 export const MAX_QUIZ_QUESTIONS = 5;
 export const PASSING_SCORE_RATIO = 0.75;
 
-export const lessonSchema = z.strictObject({
-  id: z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/),
-  version: z.number().int().positive(),
-  level: levelIdSchema,
-  topic: topicIdSchema,
-  // Reserved for PR 2's "Estruturas" view (one lesson per option structure);
-  // left optional now so the format does not need to change to add it.
-  structures: z.array(z.string().min(1)).optional(),
-  minutes: z.number().int().positive().max(30),
-  title: localizedTextSchema,
-  summary: localizedTextSchema,
-  blocks: z.array(lessonBlockSchema).min(1),
-  quiz: z.array(quizQuestionSchema).min(MIN_QUIZ_QUESTIONS).max(MAX_QUIZ_QUESTIONS),
-});
+// Level and topic are not repeated here: `catalog.json`'s own `lessons`
+// entry is the one place a lesson's level and topic live (ADR-0081); a
+// lesson file only ever carries its own content.
+export const lessonSchema = z
+  .strictObject({
+    id: z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/),
+    version: z.number().int().positive(),
+    minutes: z.number().int().positive().max(30),
+    title: localizedTextSchema,
+    summary: localizedTextSchema,
+    blocks: z.array(lessonBlockSchema).min(1),
+    quiz: z.array(quizQuestionSchema).min(MIN_QUIZ_QUESTIONS).max(MAX_QUIZ_QUESTIONS),
+  })
+  .refine(
+    (lesson) => new Set(lesson.quiz.map((question) => question.id)).size === lesson.quiz.length,
+    { message: "quiz question ids must be unique within a lesson", path: ["quiz"] },
+  );
 export type Lesson = z.infer<typeof lessonSchema>;
 
 export const levelCatalogEntrySchema = z.strictObject({

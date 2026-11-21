@@ -1,6 +1,8 @@
 export { registrationModeSchema, type RegistrationMode } from "./registration-mode";
 export {
   catalogLessonEntrySchema,
+  illustrativeExampleIds,
+  illustrativeExampleIdSchema,
   lessonBlockSchema,
   lessonCatalogSchema,
   lessonSchema,
@@ -17,6 +19,7 @@ export {
   topicIds,
   topicIdSchema,
   type CatalogLessonEntry,
+  type IllustrativeExampleId,
   type Lesson,
   type LessonBlock,
   type LessonCatalog,

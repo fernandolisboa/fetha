@@ -22,8 +22,6 @@ function makeLesson(overrides: Partial<Lesson> = {}): unknown {
   return {
     id: "what-is-an-option",
     version: 1,
-    level: "first-steps",
-    topic: "options-basics",
     minutes: 4,
     title: localized,
     summary: localized,
@@ -61,8 +59,8 @@ describe("lessonSchema", () => {
     expect(lessonSchema.parse(makeLesson())).toBeDefined();
   });
 
-  it("rejects an unknown level", () => {
-    expect(() => lessonSchema.parse(makeLesson({ level: "expert" as never }))).toThrow();
+  it("rejects an unknown field such as a stray level or topic", () => {
+    expect(() => lessonSchema.parse(makeLesson({ level: "first-steps" } as never))).toThrow();
   });
 
   it("rejects a quiz with fewer than 3 questions", () => {
@@ -74,7 +72,18 @@ describe("lessonSchema", () => {
     expect(() => lessonSchema.parse(makeLesson({ quiz }))).toThrow();
   });
 
-  it("accepts an optional structures field, reserved for the Estruturas view", () => {
-    expect(lessonSchema.parse(makeLesson({ structures: ["bull-call-spread"] }))).toBeDefined();
+  it("rejects duplicate question ids within the same quiz", () => {
+    const quiz = [
+      makeQuestion({ id: "q1" }),
+      makeQuestion({ id: "q1" }),
+      makeQuestion({ id: "q2" }),
+    ];
+    expect(() => lessonSchema.parse(makeLesson({ quiz }))).toThrow();
+  });
+
+  it("no longer accepts a structures field: it ships in PR 2, not reserved here", () => {
+    expect(() =>
+      lessonSchema.parse(makeLesson({ structures: ["bull-call-spread"] } as never)),
+    ).toThrow();
   });
 });
