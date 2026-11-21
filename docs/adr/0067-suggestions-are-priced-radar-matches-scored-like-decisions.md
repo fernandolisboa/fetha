@@ -230,7 +230,7 @@ closed-by-default "Detalhes" with the greeks and the recipe's own track record. 
 now pairs each condition with the figure that matched it today instead of repeating a separate
 facts list beside it. None of this changes items 1–6, 8–10 or the terms; it is presentation only.
 
-## Amendment (2026-11-21, card B)
+## Amendment (2026-11-21, PR #399)
 
 A per-user Aparência preference, `preferences.suggestion_density` (`full` | `compact`, default
 `full`, migration 0052, next to `theme` and `layout`, set from Configurações › Aparência with
@@ -251,4 +251,6 @@ engine's own payoff points) — nothing is computed twice or differently for the
 single suggestion's own page (`/sugestoes/[id]`) always renders the full card, never the row,
 matching how it already ignores the structure-cap grouping. "Obter sugestões" keeps its own,
 differently-shaped card (`ResearchIdeaCard`) unchanged: card B only replaces `SuggestionCard`
-where `SuggestionList` already toggles behaviour on `onPage`.
+where `SuggestionList` already toggles behaviour on `onPage`. ADR-0074's seen-suggestions archive
+is unchanged by the density: a collapsed compact row on screen still counts as seen, since it
+already shows the risk, gain, zone and expiry the full card would.

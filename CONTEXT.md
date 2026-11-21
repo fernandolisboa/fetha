@@ -156,7 +156,7 @@ exposing module's interface, never through its tables.
    apart as a link, still open for decisions (ADR-0074). The same Aparência tab also lets a user
    switch "Sugestões de hoje" and the radar list between full cards (default) and compact rows,
    one line per suggestion that opens into the same full card; the single suggestion's own page
-   always shows the full card (ADR-0067, amended 2026-11-21).
+   always shows the full card (ADR-0067, amended 2026-11-21, PR #399).
 10. **Get suggestions on demand.** The "Sugestões de hoje" panel always carries "Obter sugestões"
     (ADR-0075): a Server Action that takes the radar's findings of its last 5 read sessions
     (deduplicated by underlying and recipe, newest wins), builds one market view per underlying at
