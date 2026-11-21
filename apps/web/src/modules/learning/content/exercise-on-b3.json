@@ -1,0 +1,153 @@
+{
+  "id": "exercise-on-b3",
+  "version": 1,
+  "level": "first-steps",
+  "topic": "b3-rules",
+  "minutes": 4,
+  "title": {
+    "en": "Exercise on B3",
+    "pt": "Exercício na B3"
+  },
+  "summary": {
+    "en": "What exercise means, American vs. European style, and assignment for the writer.",
+    "pt": "O que é exercício, o estilo americano vs. europeu, e a atribuição para quem lançou."
+  },
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Exercising an option means using the right it grants: a call's buyer exercising it buys the underlying stock at the strike; a put's buyer exercising it sells it at the strike. Exercise only makes sense when it is in the holder's favor — nobody exercises a right that loses money compared to just trading the stock directly.",
+        "pt": "Exercer uma opção significa usar o direito que ela dá: quem comprou uma call e a exerce compra a ação pelo strike; quem comprou uma put e a exerce vende a ação pelo strike. Exercer só faz sentido quando é favorável para quem tem a opção — ninguém exerce um direito que dá um resultado pior do que simplesmente negociar a ação direto no mercado."
+      }
+    },
+    {
+      "type": "callout",
+      "tone": "info",
+      "text": {
+        "en": "Exercise style says when exercise is allowed. On B3, most equity call options are American-style (exercisable any time up to expiry), while most equity put options are European-style (exercisable only at expiry). This is the general rule, not a guarantee for every single series — check a series' own style before relying on it.",
+        "pt": "O estilo de exercício diz quando o exercício é permitido. Na B3, a maioria das calls sobre ações é do estilo americano (pode ser exercida em qualquer momento até o vencimento), enquanto a maioria das puts sobre ações é do estilo europeu (só pode ser exercida no vencimento). Essa é a regra geral, não uma garantia para toda e qualquer série — confira o estilo da própria série antes de contar com isso."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "At expiry, B3 exercises in-the-money options automatically under its own rules, so a holder does not need to submit an exercise request by hand for that to happen; a European-style option can only ever be exercised this way, at expiry.",
+        "pt": "No vencimento, a B3 exerce automaticamente as opções que estão dentro do dinheiro, seguindo as próprias regras da bolsa, então quem detém a opção não precisa pedir o exercício manualmente para isso acontecer; uma opção de estilo europeu só pode ser exercida assim, no vencimento."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Assignment is the other side of exercise: when a holder exercises, B3 assigns the matching obligation to a writer of that same series. A writer who sold a call can be assigned the obligation to deliver (sell) the stock at the strike; a writer who sold a put, the obligation to buy it.",
+        "pt": "A atribuição é o outro lado do exercício: quando quem detém a opção exerce, a B3 atribui a obrigação correspondente a um lançador daquela mesma série. Quem lançou uma call pode ser atribuído à obrigação de entregar (vender) a ação pelo strike; quem lançou uma put, à obrigação de comprá-la."
+      }
+    }
+  ],
+  "quiz": [
+    {
+      "id": "q1",
+      "prompt": { "en": "Exercising a call means:", "pt": "Exercer uma call significa:" },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "Buying the underlying stock at the strike",
+            "pt": "Comprar a ação-objeto pelo strike"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "Selling the underlying stock at the strike",
+            "pt": "Vender a ação-objeto pelo strike"
+          }
+        },
+        { "id": "c", "text": { "en": "Canceling the contract", "pt": "Cancelar o contrato" } }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "A call's right is to buy; exercising it means buying the underlying at the strike.",
+        "pt": "O direito da call é de comprar; exercê-la significa comprar a ação-objeto pelo strike."
+      }
+    },
+    {
+      "id": "q2",
+      "prompt": {
+        "en": "On B3, which exercise style is most common for equity call options?",
+        "pt": "Na B3, qual estilo de exercício é mais comum nas calls sobre ações?"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "American (any time up to expiry)",
+            "pt": "Americano (em qualquer momento até o vencimento)"
+          }
+        },
+        {
+          "id": "b",
+          "text": { "en": "European (only at expiry)", "pt": "Europeu (só no vencimento)" }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "Most B3 equity calls are American-style; always check a specific series before assuming so.",
+        "pt": "A maioria das calls sobre ações da B3 é do estilo americano; sempre confira a série específica antes de supor isso."
+      }
+    },
+    {
+      "id": "q3",
+      "prompt": {
+        "en": "On B3, which exercise style is most common for equity put options?",
+        "pt": "Na B3, qual estilo de exercício é mais comum nas puts sobre ações?"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "American (any time up to expiry)",
+            "pt": "Americano (em qualquer momento até o vencimento)"
+          }
+        },
+        {
+          "id": "b",
+          "text": { "en": "European (only at expiry)", "pt": "Europeu (só no vencimento)" }
+        }
+      ],
+      "correctOptionId": "b",
+      "explanation": {
+        "en": "Most B3 equity puts are European-style, exercisable only at expiry; again, check the specific series.",
+        "pt": "A maioria das puts sobre ações da B3 é do estilo europeu, só exercível no vencimento; de novo, confira a série específica."
+      }
+    },
+    {
+      "id": "q4",
+      "prompt": {
+        "en": "When a holder exercises, who gets the matching obligation?",
+        "pt": "Quando quem detém a opção exerce, quem recebe a obrigação correspondente?"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "A writer of that same series, assigned by B3",
+            "pt": "Um lançador daquela mesma série, atribuído pela B3"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "Every writer of every series on that underlying",
+            "pt": "Todo lançador de toda série daquele ativo"
+          }
+        },
+        { "id": "c", "text": { "en": "B3 itself", "pt": "A própria B3" } }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "B3 assigns exercise to a writer of the same series; that writer is said to be “assigned”.",
+        "pt": "A B3 atribui o exercício a um lançador daquela mesma série; esse lançador é dito “atribuído”."
+      }
+    }
+  ]
+}

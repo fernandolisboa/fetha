@@ -1,0 +1,117 @@
+{
+  "id": "reading-the-series-code",
+  "version": 1,
+  "level": "first-steps",
+  "topic": "b3-rules",
+  "minutes": 4,
+  "title": {
+    "en": "Reading an option's series code",
+    "pt": "Lendo o código de uma série de opção"
+  },
+  "summary": {
+    "en": "The ticker's root, type-and-month letter, and the number that is not the strike.",
+    "pt": "A raiz do ticker, a letra de tipo e mês, e o número que não é o strike."
+  },
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "An option series' ticker is built from the underlying's own root, usually four letters (the illustrative EXMP3 behind this module's examples has the root EXMP), followed by one letter that encodes both the option's type (call or put) and its expiry month, followed by a number.",
+        "pt": "O ticker de uma série de opção é formado pela raiz do próprio ativo, geralmente com quatro letras (o EXMP3 fictício usado nos exemplos deste módulo tem raiz EXMP), seguida de uma letra que codifica o tipo da opção (call ou put) e o mês de vencimento, seguida de um número."
+      }
+    },
+    {
+      "type": "list",
+      "items": {
+        "en": [
+          "Letters A through L mark a call, one letter per month: A for January, B for February, and so on through L for December.",
+          "Letters M through X mark a put, the same way: M for January through X for December.",
+          "The illustrative EXMPC20 and EXMPP20 series used elsewhere in this module follow the same shape: a root, a type letter, and a number."
+        ],
+        "pt": [
+          "As letras de A a L marcam uma call, uma letra por mês: A para janeiro, B para fevereiro, e assim até L para dezembro.",
+          "As letras de M a X marcam uma put, do mesmo jeito: M para janeiro até X para dezembro.",
+          "As séries fictícias EXMPC20 e EXMPP20 usadas em outras partes deste módulo seguem o mesmo formato: uma raiz, uma letra de tipo, e um número."
+        ]
+      }
+    },
+    {
+      "type": "callout",
+      "tone": "warning",
+      "text": {
+        "en": "The number at the end of the ticker is not the strike price. It is a sequence number B3 assigns to tell series of the same underlying, type and month apart from one another; the actual strike is a separate field in the option's own data, never something to read off the ticker.",
+        "pt": "O número no final do ticker não é o preço de strike. É um número de sequência que a B3 atribui para diferenciar séries do mesmo ativo, tipo e mês entre si; o strike de fato é um campo separado nos dados da própria opção, nunca algo para ler direto do ticker."
+      }
+    }
+  ],
+  "quiz": [
+    {
+      "id": "q1",
+      "prompt": {
+        "en": "The letter in an option's series code encodes:",
+        "pt": "A letra no código de uma série de opção codifica:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "The option's type (call or put) and its expiry month",
+            "pt": "O tipo da opção (call ou put) e o mês de vencimento"
+          }
+        },
+        { "id": "b", "text": { "en": "The strike price", "pt": "O preço de strike" } },
+        { "id": "c", "text": { "en": "The underlying's sector", "pt": "O setor do ativo" } }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "One letter carries two pieces of information at once: call-or-put, and which month it expires.",
+        "pt": "Uma única letra carrega duas informações ao mesmo tempo: se é call ou put, e em que mês vence."
+      }
+    },
+    {
+      "id": "q2",
+      "prompt": {
+        "en": "A letter between A and L on a series code marks:",
+        "pt": "Uma letra entre A e L no código de uma série marca:"
+      },
+      "options": [
+        { "id": "a", "text": { "en": "A call", "pt": "Uma call" } },
+        { "id": "b", "text": { "en": "A put", "pt": "Uma put" } }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "A through L (12 letters, one per month) mark a call; M through X mark a put.",
+        "pt": "De A a L (12 letras, uma por mês) marcam uma call; de M a X marcam uma put."
+      }
+    },
+    {
+      "id": "q3",
+      "prompt": {
+        "en": "The number at the end of a series code is:",
+        "pt": "O número no final do código de uma série é:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "A sequence number telling series apart, not the strike",
+            "pt": "Um número de sequência para diferenciar séries, não o strike"
+          }
+        },
+        {
+          "id": "b",
+          "text": { "en": "The strike price, in reais", "pt": "O preço de strike, em reais" }
+        },
+        {
+          "id": "c",
+          "text": { "en": "The day of the month it expires", "pt": "O dia do mês em que vence" }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "Reading the number as a strike is a common mistake; the strike always comes from the option's own data, never from the ticker.",
+        "pt": "Ler esse número como strike é um erro comum; o strike sempre vem dos dados da própria opção, nunca do ticker."
+      }
+    }
+  ]
+}

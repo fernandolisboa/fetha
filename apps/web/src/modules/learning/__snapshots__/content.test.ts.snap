@@ -1,0 +1,413 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`the lesson catalog and its content files > pins every lesson's resolved pt-BR content, so drift in text or numbers fails the test > buying-vs-writing 1`] = `
+{
+  "blocks": [
+    {
+      "text": "Quem compra paga o prêmio e fica com um direito. Por mais que a ação se mova, o pior resultado é a opção vencer sem valor: uma perda travada no prêmio pago, R$ 1,50 na call desta lição.",
+      "type": "paragraph",
+    },
+    {
+      "text": "Quem lança recebe o prêmio e assume uma obrigação em vez de um direito. Vender uma call a descoberto — sem ter a ação por trás dela — significa que a perda cresce junto com a alta da ação, sem um teto natural.",
+      "type": "paragraph",
+    },
+    {
+      "caption": "Comprando a call: perda travada no prêmio de R$ 1,50, ganho sem limite acima do ponto de equilíbrio.",
+      "exampleId": "long-call",
+      "type": "payoff-example",
+    },
+    {
+      "caption": "Lançando a mesma call a descoberto: a imagem espelhada. Ganho travado no prêmio recebido de R$ 1,50, perda sem limite acima do ponto de equilíbrio.",
+      "exampleId": "short-call",
+      "type": "payoff-example",
+    },
+    {
+      "text": "Lançamento coberto vs. a descoberto, numa frase: lançar uma call tendo a ação (coberto) trava a perda na própria queda da ação e abre mão da alta acima do strike; lançar sem ter a ação (a descoberto) é a posição de perda sem limite acima.",
+      "tone": "warning",
+      "type": "callout",
+    },
+  ],
+  "quiz": [
+    {
+      "correctOptionId": "a",
+      "explanation": "Comprar uma opção arrisca, no pior caso, só o que foi pago por ela.",
+      "options": [
+        "O prêmio pago",
+        "Sem limite",
+        "O preço integral da ação-objeto",
+      ],
+      "prompt": "A perda máxima possível de quem compra a opção é:",
+    },
+    {
+      "correctOptionId": "a",
+      "explanation": "A perda de uma call vendida a descoberto cresce conforme a ação sobe além do ponto de equilíbrio, sem um teto próprio.",
+      "options": [
+        "Uma perda que cresce com a alta da ação, sem um teto natural",
+        "Uma perda travada no prêmio recebido",
+        "Nenhum risco",
+      ],
+      "prompt": "Lançar (vender) uma call a descoberto expõe quem lança a:",
+    },
+    {
+      "correctOptionId": "a",
+      "explanation": "O máximo que uma call vendida pode ganhar é o prêmio pelo qual foi vendida, se a ação ficar no strike ou abaixo dele.",
+      "options": [
+        "R$ 1,50, o prêmio recebido",
+        "Um valor sem limite superior",
+        "O preço do strike",
+      ],
+      "prompt": "No exemplo desta lição, lançar a call a descoberto trava o ganho em:",
+    },
+    {
+      "correctOptionId": "a",
+      "explanation": "Ter a ação por trás da call vendida transforma a perda sem limite do lançamento a descoberto na própria queda da ação, ao custo de abrir mão dos ganhos acima do strike.",
+      "options": [
+        "Trava a perda na própria queda da ação, em vez de deixá-la sem limite",
+        "Remove todo risco de lançar a call",
+        "Dobra o prêmio recebido",
+      ],
+      "prompt": "Um lançamento coberto — lançar uma call tendo a ação por trás — comparado a um a descoberto:",
+    },
+  ],
+  "summary": "O risco de quem compra para no prêmio; o de quem lança pode ser grande.",
+  "title": "Comprar vs. lançar",
+}
+`;
+
+exports[`the lesson catalog and its content files > pins every lesson's resolved pt-BR content, so drift in text or numbers fails the test > calls-and-puts 1`] = `
+{
+  "blocks": [
+    {
+      "text": "Existem só dois tipos de opção. A call dá a quem a compra o direito de comprar a ação por um preço fixo. A put dá o direito de vender por um preço fixo. Todo o resto — estruturas, estratégias, o catálogo inteiro — combina calls e puts, compradas ou vendidas, em strikes e quantidades diferentes.",
+      "type": "paragraph",
+    },
+    {
+      "caption": "Call comprada em EXMP3, com o ativo a R$ 20,00 e strike em R$ 20,00: a posição só fica no lucro depois que a ação passa o ponto de equilíbrio de R$ 21,50, o strike mais o prêmio de R$ 1,50 pago.",
+      "exampleId": "long-call",
+      "type": "payoff-example",
+    },
+    {
+      "caption": "Put comprada em EXMP3, com o ativo a R$ 20,00 e strike em R$ 20,00: fica no lucro abaixo do ponto de equilíbrio de R$ 18,80, o strike menos o prêmio de R$ 1,20 pago.",
+      "exampleId": "long-put",
+      "type": "payoff-example",
+    },
+    {
+      "text": "A call premia a ação subindo além do seu ponto de equilíbrio; a put premia a ação caindo além do dela. Nas duas, a perda de quem comprou para no prêmio pago.",
+      "tone": "info",
+      "type": "callout",
+    },
+  ],
+  "quiz": [
+    {
+      "correctOptionId": "a",
+      "explanation": "O nome call vem do inglês “to call away”: quem compra pode “chamar” a ação de quem vendeu, pelo strike.",
+      "options": [
+        "Comprar a ação-objeto por um preço fixo",
+        "Vender a ação-objeto por um preço fixo",
+      ],
+      "prompt": "Uma opção de call dá a quem a compra o direito de:",
+    },
+    {
+      "correctOptionId": "b",
+      "explanation": "O nome put vem do inglês “to put to someone”: quem compra pode “colocar” a ação em quem vendeu, pelo strike.",
+      "options": [
+        "Comprar a ação-objeto por um preço fixo",
+        "Vender a ação-objeto por um preço fixo",
+      ],
+      "prompt": "Uma opção de put dá a quem a compra o direito de:",
+    },
+    {
+      "correctOptionId": "a",
+      "explanation": "O ponto de equilíbrio é onde o resultado da posição cruza o zero; na call comprada, ele fica acima do strike, pela distância do prêmio pago.",
+      "options": [
+        "Ponto de equilíbrio",
+        "Strike",
+        "Prêmio",
+      ],
+      "prompt": "Nos exemplos desta lição, a call comprada precisa da ação acima de R$ 21,50 para dar lucro. Como esse valor é chamado?",
+    },
+    {
+      "correctOptionId": "a",
+      "explanation": "A call ganha conforme a ação sobe além do ponto de equilíbrio; comprá-la é a aposta direcional de que isso vai acontecer.",
+      "options": [
+        "Subir",
+        "Cair",
+        "Ficar exatamente no strike",
+      ],
+      "prompt": "Comprar uma call em vez de uma put é uma aposta de que a ação vai, de forma geral:",
+    },
+  ],
+  "summary": "A call é o direito de comprar; a put é o direito de vender, ambas por um preço fixo.",
+  "title": "Calls e puts",
+}
+`;
+
+exports[`the lesson catalog and its content files > pins every lesson's resolved pt-BR content, so drift in text or numbers fails the test > exercise-on-b3 1`] = `
+{
+  "blocks": [
+    {
+      "text": "Exercer uma opção significa usar o direito que ela dá: quem comprou uma call e a exerce compra a ação pelo strike; quem comprou uma put e a exerce vende a ação pelo strike. Exercer só faz sentido quando é favorável para quem tem a opção — ninguém exerce um direito que dá um resultado pior do que simplesmente negociar a ação direto no mercado.",
+      "type": "paragraph",
+    },
+    {
+      "text": "O estilo de exercício diz quando o exercício é permitido. Na B3, a maioria das calls sobre ações é do estilo americano (pode ser exercida em qualquer momento até o vencimento), enquanto a maioria das puts sobre ações é do estilo europeu (só pode ser exercida no vencimento). Essa é a regra geral, não uma garantia para toda e qualquer série — confira o estilo da própria série antes de contar com isso.",
+      "tone": "info",
+      "type": "callout",
+    },
+    {
+      "text": "No vencimento, a B3 exerce automaticamente as opções que estão dentro do dinheiro, seguindo as próprias regras da bolsa, então quem detém a opção não precisa pedir o exercício manualmente para isso acontecer; uma opção de estilo europeu só pode ser exercida assim, no vencimento.",
+      "type": "paragraph",
+    },
+    {
+      "text": "A atribuição é o outro lado do exercício: quando quem detém a opção exerce, a B3 atribui a obrigação correspondente a um lançador daquela mesma série. Quem lançou uma call pode ser atribuído à obrigação de entregar (vender) a ação pelo strike; quem lançou uma put, à obrigação de comprá-la.",
+      "type": "paragraph",
+    },
+  ],
+  "quiz": [
+    {
+      "correctOptionId": "a",
+      "explanation": "O direito da call é de comprar; exercê-la significa comprar a ação-objeto pelo strike.",
+      "options": [
+        "Comprar a ação-objeto pelo strike",
+        "Vender a ação-objeto pelo strike",
+        "Cancelar o contrato",
+      ],
+      "prompt": "Exercer uma call significa:",
+    },
+    {
+      "correctOptionId": "a",
+      "explanation": "A maioria das calls sobre ações da B3 é do estilo americano; sempre confira a série específica antes de supor isso.",
+      "options": [
+        "Americano (em qualquer momento até o vencimento)",
+        "Europeu (só no vencimento)",
+      ],
+      "prompt": "Na B3, qual estilo de exercício é mais comum nas calls sobre ações?",
+    },
+    {
+      "correctOptionId": "b",
+      "explanation": "A maioria das puts sobre ações da B3 é do estilo europeu, só exercível no vencimento; de novo, confira a série específica.",
+      "options": [
+        "Americano (em qualquer momento até o vencimento)",
+        "Europeu (só no vencimento)",
+      ],
+      "prompt": "Na B3, qual estilo de exercício é mais comum nas puts sobre ações?",
+    },
+    {
+      "correctOptionId": "a",
+      "explanation": "A B3 atribui o exercício a um lançador daquela mesma série; esse lançador é dito “atribuído”.",
+      "options": [
+        "Um lançador daquela mesma série, atribuído pela B3",
+        "Todo lançador de toda série daquele ativo",
+        "A própria B3",
+      ],
+      "prompt": "Quando quem detém a opção exerce, quem recebe a obrigação correspondente?",
+    },
+  ],
+  "summary": "O que é exercício, o estilo americano vs. europeu, e a atribuição para quem lançou.",
+  "title": "Exercício na B3",
+}
+`;
+
+exports[`the lesson catalog and its content files > pins every lesson's resolved pt-BR content, so drift in text or numbers fails the test > reading-the-series-code 1`] = `
+{
+  "blocks": [
+    {
+      "text": "O ticker de uma série de opção é formado pela raiz do próprio ativo, geralmente com quatro letras (o EXMP3 fictício usado nos exemplos deste módulo tem raiz EXMP), seguida de uma letra que codifica o tipo da opção (call ou put) e o mês de vencimento, seguida de um número.",
+      "type": "paragraph",
+    },
+    {
+      "items": [
+        "As letras de A a L marcam uma call, uma letra por mês: A para janeiro, B para fevereiro, e assim até L para dezembro.",
+        "As letras de M a X marcam uma put, do mesmo jeito: M para janeiro até X para dezembro.",
+        "As séries fictícias EXMPC20 e EXMPP20 usadas em outras partes deste módulo seguem o mesmo formato: uma raiz, uma letra de tipo, e um número.",
+      ],
+      "type": "list",
+    },
+    {
+      "text": "O número no final do ticker não é o preço de strike. É um número de sequência que a B3 atribui para diferenciar séries do mesmo ativo, tipo e mês entre si; o strike de fato é um campo separado nos dados da própria opção, nunca algo para ler direto do ticker.",
+      "tone": "warning",
+      "type": "callout",
+    },
+  ],
+  "quiz": [
+    {
+      "correctOptionId": "a",
+      "explanation": "Uma única letra carrega duas informações ao mesmo tempo: se é call ou put, e em que mês vence.",
+      "options": [
+        "O tipo da opção (call ou put) e o mês de vencimento",
+        "O preço de strike",
+        "O setor do ativo",
+      ],
+      "prompt": "A letra no código de uma série de opção codifica:",
+    },
+    {
+      "correctOptionId": "a",
+      "explanation": "De A a L (12 letras, uma por mês) marcam uma call; de M a X marcam uma put.",
+      "options": [
+        "Uma call",
+        "Uma put",
+      ],
+      "prompt": "Uma letra entre A e L no código de uma série marca:",
+    },
+    {
+      "correctOptionId": "a",
+      "explanation": "Ler esse número como strike é um erro comum; o strike sempre vem dos dados da própria opção, nunca do ticker.",
+      "options": [
+        "Um número de sequência para diferenciar séries, não o strike",
+        "O preço de strike, em reais",
+        "O dia do mês em que vence",
+      ],
+      "prompt": "O número no final do código de uma série é:",
+    },
+  ],
+  "summary": "A raiz do ticker, a letra de tipo e mês, e o número que não é o strike.",
+  "title": "Lendo o código de uma série de opção",
+}
+`;
+
+exports[`the lesson catalog and its content files > pins every lesson's resolved pt-BR content, so drift in text or numbers fails the test > strike-expiry-premium 1`] = `
+{
+  "blocks": [
+    {
+      "text": "O strike é o preço travado no contrato: é por ele que a call deixa comprar, ou a put deixa vender. No exemplo desta lição, o strike é R$ 20,00, com a ação cotada a R$ 20,00.",
+      "type": "paragraph",
+    },
+    {
+      "items": [
+        "O vencimento é o dia em que o contrato deixa de existir. Na B3, as opções sobre ações vencem uma vez por mês, geralmente na terceira sexta-feira (ou no pregão útil anterior, se cair em feriado).",
+        "A B3 também lista séries semanais entre as mensais, nos ativos líquidos que as têm; funcionam do mesmo jeito, só com um vencimento mais curto, de uma semana.",
+      ],
+      "type": "list",
+    },
+    {
+      "text": "O prêmio é o preço da opção: R$ 1,50 pela call do exemplo desta lição, pago por quem compra a quem vende, na abertura da posição.",
+      "type": "paragraph",
+    },
+    {
+      "text": "De forma simples: uma call está “dentro do dinheiro” quando a ação negocia acima do strike, “no dinheiro” exatamente no strike, e “fora do dinheiro” abaixo dele (a put, ao contrário). É uma etiqueta inicial útil, não o quadro completo — Fundamentos entra mais a fundo no que isso significa para o valor do prêmio.",
+      "tone": "info",
+      "type": "callout",
+    },
+  ],
+  "quiz": [
+    {
+      "correctOptionId": "a",
+      "explanation": "O strike é o preço de exercício; o prêmio é o custo, e o vencimento é a data.",
+      "options": [
+        "O preço travado no contrato",
+        "O custo da opção",
+        "O dia em que o contrato vence",
+      ],
+      "prompt": "O strike é:",
+    },
+    {
+      "correctOptionId": "a",
+      "explanation": "O ciclo mensal vence perto da terceira sexta-feira (um pregão antes, se cair em feriado); alguns ativos líquidos também têm séries semanais.",
+      "options": [
+        "Uma vez por mês, em torno da terceira sexta-feira",
+        "Todo dia",
+        "Só uma vez por ano",
+      ],
+      "prompt": "Na B3, as opções sobre ações costumam vencer:",
+    },
+    {
+      "correctOptionId": "a",
+      "explanation": "O prêmio muda de mãos uma única vez, de quem compra para quem vende, no momento da negociação — R$ 1,50 na call desta lição.",
+      "options": [
+        "Por quem compra a quem vende, na abertura da posição",
+        "Por quem vende a quem compra, no vencimento",
+        "À B3, como uma taxa",
+      ],
+      "prompt": "O prêmio é pago:",
+    },
+    {
+      "correctOptionId": "a",
+      "explanation": "O strike é igual ao preço do ativo neste exemplo, então a call está exatamente no dinheiro.",
+      "options": [
+        "No dinheiro (ativo no strike)",
+        "Bem dentro do dinheiro",
+        "Bem fora do dinheiro",
+      ],
+      "prompt": "Com a ação a R$ 20,00 e o strike da call em R$ 20,00, essa call está, de forma simples:",
+    },
+  ],
+  "summary": "Os três números que definem qualquer opção, e uma primeira olhada em dentro/no/fora do dinheiro.",
+  "title": "Strike, vencimento e prêmio",
+}
+`;
+
+exports[`the lesson catalog and its content files > pins every lesson's resolved pt-BR content, so drift in text or numbers fails the test > what-is-an-option 1`] = `
+{
+  "blocks": [
+    {
+      "text": "Uma opção é um contrato entre duas partes sobre uma ação: quem compra paga um prêmio pelo direito de fazer algo mais tarde (comprar ou vender aquela ação por um preço fixo), e quem vende recebe esse prêmio em troca da obrigação correspondente, caso quem comprou decida exercer o direito.",
+      "type": "paragraph",
+    },
+    {
+      "text": "A comparação de sempre é com um seguro: você paga um prêmio hoje por uma proteção que talvez nunca use. Se o que você segurou nunca acontece, o prêmio simplesmente se perde — e é exatamente assim que funciona uma opção comprada que vence sem valor.",
+      "type": "paragraph",
+    },
+    {
+      "items": [
+        "Quem compra (titular) paga o prêmio e fica com um direito: exercer ou deixar vencer.",
+        "Quem vende (lançador) recebe o prêmio e assume uma obrigação: atender ao exercício de quem comprou, se ele acontecer.",
+      ],
+      "type": "list",
+    },
+    {
+      "caption": "Uma call comprada no fictício EXMP3, cotado a R$ 20,00: pagando um prêmio de R$ 1,50 pelo direito de comprar depois. Não importa o quanto a ação caia, a perda para no prêmio pago.",
+      "exampleId": "long-call",
+      "type": "payoff-example",
+    },
+    {
+      "text": "Todo número acima vem do motor de cálculo da própria Fetha, rodado sobre um mercado fictício inventado para esta lição — nunca de uma cotação real.",
+      "tone": "info",
+      "type": "callout",
+    },
+  ],
+  "quiz": [
+    {
+      "correctOptionId": "a",
+      "explanation": "Quem compra paga um prêmio por um direito, nunca por uma obrigação; a obrigação é de quem vendeu a opção.",
+      "options": [
+        "Um direito, que pode ser exercido ou não",
+        "Uma obrigação de comprar ou vender a ação",
+        "A posse da ação-objeto",
+      ],
+      "prompt": "O que uma opção dá a quem a compra?",
+    },
+    {
+      "correctOptionId": "b",
+      "explanation": "Quem vende (lançador) recebe o prêmio de quem compra, na abertura da posição, em troca de assumir a obrigação.",
+      "options": [
+        "Quem compra (titular)",
+        "Quem vende (lançador)",
+        "A B3, como uma taxa",
+      ],
+      "prompt": "Quem recebe o prêmio?",
+    },
+    {
+      "correctOptionId": "b",
+      "explanation": "Assim como o prêmio de um seguro, ele não é devolvido: fica com quem vendeu desde a abertura da posição, exercendo ou não quem comprou.",
+      "options": [
+        "Ele é devolvido",
+        "Ele fica com quem o recebeu",
+        "Ele é transferido para o próximo contrato",
+      ],
+      "prompt": "Na comparação com seguro, o que acontece com o prêmio se o evento segurado nunca ocorre?",
+    },
+    {
+      "correctOptionId": "a",
+      "explanation": "A perda de uma opção comprada para no prêmio pago, não importa o quanto a ação se mova contra a posição.",
+      "options": [
+        "R$ 1,50, o prêmio pago",
+        "Um valor sem limite superior",
+        "O valor integral da ação-objeto",
+      ],
+      "prompt": "Comprando a call do exemplo desta lição, qual é o máximo que se pode perder?",
+    },
+  ],
+  "summary": "Um contrato que dá um direito, não uma obrigação, pago com um prêmio.",
+  "title": "O que é uma opção",
+}
+`;

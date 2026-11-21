@@ -1,0 +1,66 @@
+{
+  "levels": [
+    {
+      "id": "first-steps",
+      "title": { "en": "First steps", "pt": "Primeiros passos" },
+      "description": {
+        "en": "Never traded an option before? Start here.",
+        "pt": "Nunca operou opções? Comece por aqui."
+      }
+    },
+    {
+      "id": "fundamentals",
+      "title": { "en": "Fundamentals", "pt": "Fundamentos" },
+      "description": {
+        "en": "How options are priced and what moves that price.",
+        "pt": "Como as opções são precificadas e o que move esse preço."
+      }
+    },
+    {
+      "id": "beginner",
+      "title": { "en": "Beginner", "pt": "Iniciante" },
+      "description": {
+        "en": "Your first structures beyond a single call or put.",
+        "pt": "Suas primeiras estruturas além de uma call ou put isolada."
+      }
+    },
+    {
+      "id": "intermediate",
+      "title": { "en": "Intermediate", "pt": "Intermediário" },
+      "description": {
+        "en": "Combining structures with a view on risk.",
+        "pt": "Combinando estruturas com um olhar para o risco."
+      }
+    },
+    {
+      "id": "advanced",
+      "title": { "en": "Advanced", "pt": "Avançado" },
+      "description": {
+        "en": "Volatility, greeks in practice and portfolio-level risk.",
+        "pt": "Volatilidade, gregas na prática e risco em nível de carteira."
+      }
+    }
+  ],
+  "topics": [
+    {
+      "id": "options-basics",
+      "title": { "en": "The basics of options", "pt": "O básico das opções" }
+    },
+    {
+      "id": "pricing",
+      "title": { "en": "Price, volatility and greeks", "pt": "Preço, volatilidade e gregas" }
+    },
+    { "id": "structures", "title": { "en": "Structures", "pt": "Estruturas" } },
+    { "id": "risk", "title": { "en": "Risk and position sizing", "pt": "Risco e gestão" } },
+    { "id": "b3-rules", "title": { "en": "B3's own rules", "pt": "Regras da B3" } },
+    { "id": "using-fetha", "title": { "en": "Using Fetha", "pt": "Usando o Fetha" } }
+  ],
+  "lessons": [
+    { "id": "what-is-an-option", "level": "first-steps", "topic": "options-basics" },
+    { "id": "calls-and-puts", "level": "first-steps", "topic": "options-basics" },
+    { "id": "strike-expiry-premium", "level": "first-steps", "topic": "options-basics" },
+    { "id": "buying-vs-writing", "level": "first-steps", "topic": "options-basics" },
+    { "id": "exercise-on-b3", "level": "first-steps", "topic": "b3-rules" },
+    { "id": "reading-the-series-code", "level": "first-steps", "topic": "b3-rules" }
+  ]
+}
