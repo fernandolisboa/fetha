@@ -314,10 +314,15 @@ export const rollBacktestFixtureArbitrary: fc.Arbitrary<RollBacktestFixture> = f
         asOf: firstAsOf,
       },
       {
+        // #383 round-2 review Q2: kept off the roll rule's own "11.00" target (unlike the near
+        // series) so a late-listed, strictly closer candidate at the same target is a genuine
+        // look-ahead temptation for `i1-future-blind.property.test.ts`'s roll case — at an exact
+        // tie on distance, both series would otherwise resolve identically regardless of listing
+        // date, and the test could never fail under a look-ahead mutation.
         ticker: "PETR4C11F",
         underlying: "PETR4",
         right: "call",
-        strike: decimalString("11.00"),
+        strike: decimalString("11.50"),
         expiry: farExpiry,
         style: "european",
         asOf: firstAsOf,

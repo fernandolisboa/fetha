@@ -2290,33 +2290,85 @@ describe("runBacktest — roll adjustments executed (#383)", () => {
     expect(result.error.code).toBe("invalid_input");
   });
 
-  // Isolates the third overflow guard: two offsetting factors (one before the roll's own
-  // signal session, one at its fill session) leave splitFactor — and so both the closing
-  // option leg and the carried-forward stock leg above — exactly 1 (safe), while the new
-  // option leg's own entryFactor (computed from the later signal session alone, ADR-0080's
-  // "same ratio" rescale) sees only the second factor and overflows.
-  it("returns invalid_input, never throws, when a factor overflows only the roll's own new entry quantity", () => {
+  // #383 round-2 review C1: a factor whose own `exDate` falls on or before the roll's signal
+  // session, but whose own `asOf` lands strictly after that same session's close, was invisible
+  // to the old entry-factor rebase (computed over `(signalSession, fillSession]`, which does not
+  // contain this `exDate`) and to the signal-time proposal's own rebase alike (computed as of the
+  // signal instant, before this `asOf`) — silently carrying the new option leg in at its stale
+  // nominal quantity while the closing leg and the carried stock leg, both rebased through the
+  // one true interval `(openedAt, fillSession]` seen at the fill's own close, already saw it.
+  // The successor's own option leg must close and open the same quantity (every roll does).
+  it("closes and opens the same quantity on the rolled option leg, for a factor whose asOf lands strictly after the signal session's own close (#383 round-2 review C1)", () => {
     const { config, view, days } = coveredCallRollFixture();
-    const offsettingFactor: CorporateActionFactor = {
+    const signalSession = days[10] as string;
+    const lateAsOfFactor: CorporateActionFactor = {
       ticker: "PETR4",
-      exDate: days[3] as string,
-      asOf: `${days[3] as string}T13:00:00.000Z`,
-      factor: decimalString("1000000000000000"),
-    };
-    const overflowFactor: CorporateActionFactor = {
-      ticker: "PETR4",
-      exDate: days[11] as string,
-      asOf: `${days[11] as string}T13:00:00.000Z`,
-      factor: decimalString("0.000000000000001"),
+      exDate: signalSession,
+      asOf: `${signalSession}T20:00:00.001Z`,
+      factor: decimalString("0.5"),
     };
     const result = runBacktest({
-      view: { ...view, corporateActions: [offsettingFactor, overflowFactor] },
+      view: { ...view, corporateActions: [lateAsOfFactor] },
       config,
     });
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.error.code).toBe("invalid_input");
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete") throw new Error("expected complete");
+    const { run } = result.value;
+
+    const closeFill = run.fills.find((f) => f.ticker === "PETR4C11" && f.side === "buy");
+    const openFill = run.fills.find((f) => f.ticker === "PETR4C11F");
+    expect(closeFill).toBeDefined();
+    expect(openFill).toBeDefined();
+    // 100 nominal contracts, factor 0.5 (a split): effective 200 on both sides of the roll.
+    expect(openFill?.quantity).toBe(closeFill?.quantity);
+    expect(openFill?.quantity).toBe(quantity(200));
+
+    const reopened = run.operations.find(
+      (op) => op.status === "closed" && op.closeReason.kind === "period_end",
+    );
+    const reopenedCallLeg = reopened?.legs.find((leg) => leg.role === "call");
+    const reopenedStockLeg = reopened?.legs.find((leg) => leg.role === "stock");
+    expect(reopenedCallLeg?.quantity).toBe(quantity(200));
+    expect(reopenedStockLeg?.quantity).toBe(quantity(200));
   });
+
+  // General invariant behind C1's own golden above: whatever a grouping or split factor's own
+  // magnitude and timing (ex-dated on the signal session itself, visible anywhere from right
+  // after that session's own close up through the fill session's own close), every roll's
+  // closing option leg and its own opened successor leg land on the same effective quantity —
+  // the one position moving strikes, never two different rebases free to disagree.
+  it.each([
+    { factor: "0.5", asOfOffsetMs: 1 },
+    { factor: "0.5", asOfOffsetMs: 23 * 60 * 60 * 1000 },
+    { factor: "3", asOfOffsetMs: 1 },
+    { factor: "3", asOfOffsetMs: 23 * 60 * 60 * 1000 },
+  ])(
+    "closes and opens the same rolled option quantity for factor $factor, asOf $asOfOffsetMs ms after the signal session's close",
+    ({ factor, asOfOffsetMs }) => {
+      const { config, view, days } = coveredCallRollFixture();
+      const signalSession = days[10] as string;
+      const signalClose = new Date(`${signalSession}T20:00:00.000Z`);
+      const asOf = new Date(signalClose.getTime() + asOfOffsetMs).toISOString();
+      const corporateAction: CorporateActionFactor = {
+        ticker: "PETR4",
+        exDate: signalSession,
+        asOf,
+        factor: decimalString(factor),
+      };
+      const result = runBacktest({
+        view: { ...view, corporateActions: [corporateAction] },
+        config,
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok || result.value.status !== "complete") throw new Error("expected complete");
+      const { run } = result.value;
+      const closeFill = run.fills.find((f) => f.ticker === "PETR4C11" && f.side === "buy");
+      const openFill = run.fills.find((f) => f.ticker === "PETR4C11F");
+      expect(closeFill).toBeDefined();
+      expect(openFill).toBeDefined();
+      expect(openFill?.quantity).toBe(closeFill?.quantity);
+    },
+  );
 
   // Isolates the fourth overflow guard, at the roll's own fill (not evaluateStrategy's own
   // signal-time check above, which a stock-free leg selection never reaches with no factor
@@ -2919,7 +2971,11 @@ describe("runBacktest — roll adjustments executed (#383)", () => {
     expect(carriedStockLeg?.quantity).toBe(quantity(33));
   });
 
-  it("returns invalid_input, never throws, when a grouping factor leaves the carried stock leg with no whole share", () => {
+  // #383 round-2 review C2: a grouping this aggressive is not a corrupt factor, only too
+  // aggressive for this 100-share position to survive a roll with a whole share left — held
+  // without rolling instead of aborting the whole run, the same `roll_no_series_match` degrade
+  // an empty selection already gets.
+  it("holds the operation without rolling, never aborting the run, when a grouping factor leaves the carried stock leg with no whole share (#383 round-2 review C2)", () => {
     const { config, view, days } = coveredCallRollFixture();
     // Ex-dated on the roll's own fill session, exactly as the sibling overflow tests above
     // are, so this factor rescales only this fill's own legs and never an earlier session's
@@ -2934,9 +2990,16 @@ describe("runBacktest — roll adjustments executed (#383)", () => {
       view: { ...view, corporateActions: [extremeFactor] },
       config,
     });
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.error.code).toBe("invalid_input");
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.value.status !== "complete") throw new Error("expected complete");
+    const { run } = result.value;
+    const rolled = run.operations.find(
+      (op) => op.status === "closed" && op.closeReason.kind === "rolled",
+    );
+    expect(rolled).toBeUndefined();
+    const stillOpen = run.operations.find((op) => op.status === "closed");
+    expect(stillOpen).toBeDefined();
+    expect(run.notes.some((n) => n.code === "roll_no_series_match")).toBe(true);
   });
 
   // #383 round-1 review item 7 (coverage): a roll's own close/open fill retries, same as a

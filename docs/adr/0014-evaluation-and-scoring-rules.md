@@ -49,7 +49,12 @@ types in ADR-0013 encode; where a rule sharpens an earlier ADR it says so.
   operation is filled at the requested size and the breach is recorded in the run's
   `limitBreaches` with its session and ticker, plus note `limit_breach_warned`. The operation is
   never sized down silently. With `limits: "enforce"` the entry is refused and recorded as a
-  `MissedEntry` with reason `limit_breach`.
+  `MissedEntry` with reason `limit_breach`. A roll's own successor is checked the same way
+  (#383, round-2 review): under `enforce` the roll is refused and the operation is held, unrolled,
+  with note `roll_refused_limit_breach`; under `warn` the roll fills and the breach is recorded on
+  the successor, the same `limitBreaches` shape an entry's own breach already takes.
+  `maxOpenOperations` is exempt from a roll's own check either way, because a roll replaces one
+  operation with one — it can never be the operation that pushes the count over the limit.
 - **Counterfactual P&L for "do not enter" (Q40; sharpens ADR-0005).** The untaken operation is
   entered with the backtest fill model at the first fill opportunity after the decision. If the
   decision answered a signal, the operation is then closed by that strategy version's exit rules

@@ -1106,16 +1106,12 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
     for (const [oldOpId, pending] of Object.entries(state.pendingRolls)) {
       const opIndex = state.openOperations.findIndex((op) => op.id === oldOpId);
       // Every path that closes an operation also drops its own pendingRolls entry (an exit
-      // fill, a settlement, the period-end sweep): this can only be reached for a still-open
-      // operation. Kept as a skip, not a thrown invariant, since a future close site this
-      // comment cannot see would otherwise turn a dangling roll into a hard crash instead of a
-      // silently-dropped one.
-      /* v8 ignore start */
-      if (opIndex === -1) {
-        Reflect.deleteProperty(state.pendingRolls, oldOpId);
-        continue;
-      }
-      /* v8 ignore stop */
+      // fill, a settlement, the period-end sweep), matching resolvePendingExitFills's own
+      // invariant on pendingExits: this can only be reached for a still-open operation.
+      invariant(
+        opIndex !== -1,
+        "run-backtest: a pending roll always references a currently open operation",
+      );
       const op = assertDefined(state.openOperations[opIndex], "run-backtest: opIndex is valid");
 
       const closeLegFills = op.legs.map((leg) =>
@@ -1139,10 +1135,39 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
       );
       const entryCosts = state.entryCosts[op.id] ?? op.legs.map(() => toCentavos(0));
 
+      // A grouping this session's own splitFactor leaves a carried stock leg under one
+      // effective share is not a corrupt factor, only one too aggressive for this position's own
+      // size to survive a roll (round-2 review C2): held without rolling instead, the same
+      // `roll_no_series_match` degrade evaluate-strategy.ts's own signal-time check already gives
+      // the identical situation, rather than a run-wide `invalid_input` naming a path
+      // (`openOperations[?]`) a backtest's pending roll never actually has. Checked here, before
+      // the close loop below starts moving cash, so a doomed roll never partially executes.
+      const stockLegZeroed = op.legs.some(
+        (leg) =>
+          leg.role === "stock" &&
+          new Decimal(leg.quantity).div(splitFactor).floor().toNumber() <= 0,
+      );
+      if (stockLegZeroed) {
+        Reflect.deleteProperty(state.pendingRolls, oldOpId);
+        state.rollNoSeriesMatchNoted = true;
+        continue;
+      }
+
       // Close the old operation's option legs only: a carried-forward stock leg (a covered
       // call's shares) never trades on a roll (ADR-0080's own "carries forward untouched"), so
       // it contributes no realized pnl here — its unrealized position transfers whole into the
       // new operation below, same ticker and side, rebased onto this same session's own scale.
+      // Carries each option leg's own closed effective quantity out of this loop, by the same
+      // `op.legs` index `pending.newLegs` was built in (round-2 review C1): the successor's own
+      // opened quantity is this leg's closed quantity, not a second rebase of the signal-time
+      // proposal's own quantity through a different interval, `(signalSession, fillSession]`,
+      // which can miss a factor whose `exDate` falls on or before the signal session but whose
+      // `asOf` lands after that session's own close — invisible to the signal-time rebase
+      // (already past `exDate`, so outside its own forward-looking interval the other way) and
+      // to this later interval alike (its `exDate` is not inside `(signalSession, fillSession]`
+      // either), silently leaving the successor's option leg under-rebased relative to the
+      // stock leg beside it.
+      const closedOptionUnits: number[] = [];
       let optionPnl = new Decimal(0);
       for (const [legIndex, leg] of op.legs.entries()) {
         if (leg.role === "stock") continue;
@@ -1160,6 +1185,7 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         // leave a sub-one-unit residue, cash-settled right here at this same fill's price.
         const rawEffectiveQuantity = new Decimal(leg.quantity).div(splitFactor);
         const effectiveUnits = Math.floor(rawEffectiveQuantity.toNumber());
+        closedOptionUnits[legIndex] = effectiveUnits;
         if (
           (effectiveUnits > 0 && !Number.isSafeInteger(effectiveUnits)) ||
           !isSafeGrossCentavos(legFill.price, rawEffectiveQuantity)
@@ -1252,9 +1278,15 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           return unsafeRebasedAmount(leg.ticker);
         }
         /* v8 ignore stop */
+        // Never reached (round-2 review C2): the pre-check above already held this operation
+        // without rolling, before this loop ever started, for the one case this same
+        // `flooredQuantity` could be non-positive here — a stock leg grouped below one
+        // effective unit by this same `splitFactor`.
+        /* v8 ignore start */
         if (flooredQuantity <= 0) {
           return unsafeRebasedAmount(leg.ticker);
         }
+        /* v8 ignore stop */
         const residue = rawEffectiveQuantity.sub(flooredQuantity);
         // Unconditional, not `if (residue.isPositive())`: decimal.js's own `isPositive`
         // treats zero as positive, so that guard is always true here regardless of whether
@@ -1273,15 +1305,15 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
         newStockEntryCosts.push(entryCosts[legIndex] ?? toCentavos(0));
       }
 
-      // The new option legs' own quantity was decided at signal time (ADR-0080's "same ratio"):
-      // a split between that session and this fill session rescales it the same way a pending
-      // entry's own signal-time quantity already is (resolvePendingEntryFills).
-      const entryFactor = corporateActionFactorThrough(
-        op.underlying,
-        pending.signalSession,
-        session.date,
-        session.close,
-      );
+      // The new option legs' own opened quantity is the old operation's own leg, at this same
+      // index, closed just above at this same fill session's own `splitFactor` (round-2 review
+      // C1): the quantity a roll closes and the quantity it opens are the same position moving
+      // strikes, so they share one rebase, through one interval, `(op.openedAt, session.date]`
+      // seen at this session's own close — never two different rebases through two different
+      // intervals that a factor listed between them could fall through unseen by either. The
+      // signal-time rebase (evaluate-strategy.ts's `resolveRollTarget`) still stands on its own
+      // for the proposal's own pricing and limit check, never a second source of truth for this
+      // fill.
       const newOptionLegs: OperationLeg[] = [];
       const newOptionCosts: Centavos[] = [];
       for (const [legIndex, leg] of pending.newLegs.entries()) {
@@ -1291,9 +1323,10 @@ export function runBacktest(input: RunBacktestInput): Result<BacktestProgress> {
           "run-backtest: a non-stock new leg always has an open fill",
         );
         invariant(legFill.ready, "run-backtest: allReady already checked every leg");
-        const rescaled = entryFactor.eq(1)
-          ? leg.quantity
-          : Math.round(new Decimal(leg.quantity).div(entryFactor).toNumber());
+        const rescaled = assertDefined(
+          closedOptionUnits[legIndex],
+          "run-backtest: pending.newLegs and op.legs share one index per leg (checkRollLegConformance)",
+        );
         if (
           !Number.isSafeInteger(rescaled) ||
           rescaled <= 0 ||

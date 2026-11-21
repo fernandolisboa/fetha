@@ -6,24 +6,26 @@ import type {
   StrategyDefinition,
   Structure,
 } from "@fetha/contracts";
-import type {
-  Candle,
-  CorporateActionFactor,
-  DividendYieldPoint,
-  EvaluateStrategyInput,
-  ImpliedVolatilityIndexPoint,
-  MacroPoint,
-  MarketView,
-  Operation,
-  OptionDayPrice,
-  OptionSeries,
-  Signal,
-  StrategyVersion,
-  TradingSession,
+import {
+  ENGINE_VERSION,
+  type Candle,
+  type CorporateActionFactor,
+  type DividendYieldPoint,
+  type EvaluateStrategyInput,
+  type ImpliedVolatilityIndexPoint,
+  type MacroPoint,
+  type MarketView,
+  type Operation,
+  type OptionDayPrice,
+  type OptionSeries,
+  type Signal,
+  type StrategyVersion,
+  type TradingSession,
 } from "../api";
 import { centavos, decimalString, quantity } from "../test/support";
 import { dataWindow } from "./data-window";
 import { createStrategyEvaluator, evaluateStrategy } from "./evaluate-strategy";
+import { priceLegsAt } from "./price-operation";
 
 const emptyView: MarketView = {
   calendar: [],
@@ -2506,6 +2508,363 @@ describe("evaluateStrategy — option structures (#23)", () => {
   // #383 round-1 review item 14: `resolveRollTarget` indexes `op.legs[index]` by the
   // strategy's own structure template index with no check of its own; `checkRollLegConformance`
   // guards that assumption once a roll's own `when` has fired for a given op.
+  it("rebases the roll proposal's own stock leg the same way as its option leg, so maxLoss is bounded after a split (#383 round-2 review Q1)", () => {
+    const nearExpiry = sessionAt(15);
+    const farExpiry = sessionAt(32);
+    const view: MarketView = {
+      ...emptyView,
+      calendar: calendarSessions(40),
+      candles: [
+        dailyCandle("PETR4", 0, "10.00"),
+        dailyCandle("PETR4", 3, "10.00"),
+        dailyCandle("PETR4", 10, "5.00"),
+      ],
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: sessionAt(3),
+          asOf: `${sessionAt(3)}T13:00:00.000Z`,
+          factor: decimalString("0.5"),
+        } satisfies CorporateActionFactor,
+      ],
+      optionSeries: [
+        callSeries("PETR4C11", "11.00", nearExpiry, `${sessionAt(0)}T21:00:00.000Z`),
+        callSeries("PETR4C5F", "5.50", farExpiry, `${sessionAt(0)}T21:00:00.000Z`),
+      ],
+      optionPrices: [optionClose("PETR4C11", sessionAt(10), "1.00")],
+    };
+    const operation: Operation = {
+      id: "op-1",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "stock",
+          side: "buy",
+          ticker: "PETR4",
+          quantity: quantity(200),
+          entryPrice: decimalString("10.00"),
+        },
+        {
+          role: "call",
+          side: "sell",
+          ticker: "PETR4C11",
+          quantity: quantity(200),
+          entryPrice: decimalString("1.00"),
+        },
+      ],
+      expiry: nearExpiry,
+      openedAt: sessionAt(0),
+      strategyVersionId: "v1",
+      rolledFrom: null,
+    };
+    const input: EvaluateStrategyInput = {
+      view,
+      strategy: strategyVersion(
+        optionDef({
+          entry: alwaysTrue,
+          structureId: "covered_call",
+          strikes: [{ kind: "nearest", price: decimalString("11.00") }],
+          adjustments: [
+            {
+              kind: "roll",
+              when: { kind: "days_before_expiry", businessDays: 5 },
+              expiry: { kind: "business_days", min: 20, max: 25 },
+              strikes: [{ kind: "nearest", price: decimalString("5.50") }],
+            },
+          ],
+        }),
+        coveredCall,
+      ),
+      instruments: ["PETR4"],
+      at: `${sessionAt(10)}T21:00:00.000Z`,
+      openOperations: [operation],
+      riskProfile,
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const signal = result.value.signals.find((s) => s.kind === "adjust");
+    expect(signal).toBeDefined();
+    if (!signal) return;
+
+    // 200 nominal shares, factor 0.5 (a split): effective 400, matching the option leg's own
+    // effective 400 — a fully covered position, so maxLoss must be bounded, never "unbounded"
+    // (what a stale, un-rebased 200-share stock leg against a 400-contract short call would
+    // read as).
+    const stockLeg = signal.proposal.legs.find((leg) => leg.role === "stock");
+    expect(stockLeg?.quantity).toBe(quantity(400));
+    expect(signal.proposal.pricing.maxLoss).not.toBe("unbounded");
+
+    const freshPricing = priceLegsAt(
+      view,
+      `${sessionAt(10)}T21:00:00.000Z`,
+      "PETR4",
+      signal.proposal.legs,
+      riskProfile,
+      1,
+      {
+        engineVersion: ENGINE_VERSION,
+        pricingModel: "bsm_continuous_yield",
+        dataVersion: view.dataVersion ?? null,
+        datasetNotes: view.datasetNotes ?? [],
+      },
+      "spot",
+      { withPayoffNow: false },
+    );
+    expect(freshPricing.ok).toBe(true);
+    if (!freshPricing.ok) return;
+    expect(signal.proposal.pricing.maxLoss).toBe(freshPricing.value.maxLoss);
+  });
+
+  it("rolls, never refuses under limits: enforce, once the stock leg's own rebase brings the successor's maxLoss back under the limit (#383 round-2 review Q1)", () => {
+    const nearExpiry = sessionAt(15);
+    const farExpiry = sessionAt(32);
+    const view: MarketView = {
+      ...emptyView,
+      calendar: calendarSessions(40),
+      candles: [
+        dailyCandle("PETR4", 0, "10.00"),
+        dailyCandle("PETR4", 3, "10.00"),
+        dailyCandle("PETR4", 10, "30.00"),
+      ],
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: sessionAt(3),
+          asOf: `${sessionAt(3)}T13:00:00.000Z`,
+          factor: decimalString("3"),
+        } satisfies CorporateActionFactor,
+      ],
+      optionSeries: [
+        callSeries("PETR4C11", "11.00", nearExpiry, `${sessionAt(0)}T21:00:00.000Z`),
+        callSeries("PETR4C32F", "32.00", farExpiry, `${sessionAt(0)}T21:00:00.000Z`),
+      ],
+      optionPrices: [optionClose("PETR4C11", sessionAt(10), "1.00")],
+    };
+    const operation: Operation = {
+      id: "op-1",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "stock",
+          side: "buy",
+          ticker: "PETR4",
+          quantity: quantity(300),
+          entryPrice: decimalString("10.00"),
+        },
+        {
+          role: "call",
+          side: "sell",
+          ticker: "PETR4C11",
+          quantity: quantity(300),
+          entryPrice: decimalString("1.00"),
+        },
+      ],
+      expiry: nearExpiry,
+      openedAt: sessionAt(0),
+      strategyVersionId: "v1",
+      rolledFrom: null,
+    };
+    const tightRiskProfile = {
+      declaredCapital: riskProfile.declaredCapital,
+      limits: { ...riskProfile.limits, maxLossPerOperation: decimalString("0.2") },
+    };
+    const input: EvaluateStrategyInput = {
+      view,
+      strategy: strategyVersion(
+        optionDef({
+          entry: alwaysTrue,
+          structureId: "covered_call",
+          strikes: [{ kind: "nearest", price: decimalString("11.00") }],
+          adjustments: [
+            {
+              kind: "roll",
+              when: { kind: "days_before_expiry", businessDays: 5 },
+              expiry: { kind: "business_days", min: 20, max: 25 },
+              strikes: [{ kind: "nearest", price: decimalString("32.00") }],
+            },
+          ],
+        }),
+        coveredCall,
+      ),
+      instruments: ["PETR4"],
+      at: `${sessionAt(10)}T21:00:00.000Z`,
+      openOperations: [operation],
+      riskProfile: tightRiskProfile,
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const signal = result.value.signals.find((s) => s.kind === "adjust");
+    expect(signal).toBeDefined();
+    if (!signal) return;
+    // 300 nominal shares grouped 1-for-3: effective 100, matching the option leg's own
+    // effective 100 — a fully covered, correctly sized successor clears maxLossPerOperation,
+    // which a stale, un-rebased 300-share stock leg against a 100-contract short call would
+    // have wrongly breached (an uncovered 200-share net short tail).
+    expect(signal.proposal.pricing.limitBreaches).toEqual([]);
+  });
+
+  it("holds the operation without rolling, never a hard error, when a corporate-action factor since entry leaves a leg with no safe effective quantity to roll (#383 round-2 review C2)", () => {
+    const nearExpiry = sessionAt(15);
+    const farExpiry = sessionAt(32);
+    const view: MarketView = {
+      ...emptyView,
+      calendar: calendarSessions(40),
+      candles: [
+        dailyCandle("PETR4", 0, "10.00"),
+        dailyCandle("PETR4", 3, "10.00"),
+        dailyCandle("PETR4", 10, "1500.00"),
+      ],
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: sessionAt(3),
+          asOf: `${sessionAt(3)}T13:00:00.000Z`,
+          factor: decimalString("150"),
+        } satisfies CorporateActionFactor,
+      ],
+      optionSeries: [
+        callSeries("PETR4C11", "11.00", nearExpiry, `${sessionAt(0)}T21:00:00.000Z`),
+        callSeries("PETR4C1550F", "1550.00", farExpiry, `${sessionAt(0)}T21:00:00.000Z`),
+      ],
+      optionPrices: [optionClose("PETR4C11", sessionAt(10), "1.00")],
+    };
+    const operation: Operation = {
+      id: "op-1",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "stock",
+          side: "buy",
+          ticker: "PETR4",
+          quantity: quantity(100),
+          entryPrice: decimalString("10.00"),
+        },
+        {
+          role: "call",
+          side: "sell",
+          ticker: "PETR4C11",
+          quantity: quantity(100),
+          entryPrice: decimalString("1.00"),
+        },
+      ],
+      expiry: nearExpiry,
+      openedAt: sessionAt(0),
+      strategyVersionId: "v1",
+      rolledFrom: null,
+    };
+    const input: EvaluateStrategyInput = {
+      view,
+      strategy: strategyVersion(
+        optionDef({
+          entry: alwaysTrue,
+          structureId: "covered_call",
+          strikes: [{ kind: "nearest", price: decimalString("11.00") }],
+          adjustments: [
+            {
+              kind: "roll",
+              when: { kind: "days_before_expiry", businessDays: 5 },
+              expiry: { kind: "business_days", min: 20, max: 25 },
+              strikes: [{ kind: "nearest", price: decimalString("1550.00") }],
+            },
+          ],
+        }),
+        coveredCall,
+      ),
+      instruments: ["PETR4"],
+      at: `${sessionAt(10)}T21:00:00.000Z`,
+      openOperations: [operation],
+      riskProfile,
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // 100 nominal shares grouped 1-for-150: floor(100/150) = 0 effective, no safe quantity to
+    // roll — held without rolling, never `invalid_input`, never a path naming
+    // `openOperations[?]`, which this signal-time check has no such path for in a real caller.
+    expect(result.value.signals.some((s) => s.kind === "adjust")).toBe(false);
+    expect(result.value.notes.some((n) => n.code === "roll_no_series_match")).toBe(true);
+  });
+
+  it("returns invalid_input, never throws, when a roll's own rebase overflows a safe integer (genuinely corrupt factor, #383 round-2 review C2)", () => {
+    const nearExpiry = sessionAt(15);
+    const farExpiry = sessionAt(32);
+    const view: MarketView = {
+      ...emptyView,
+      calendar: calendarSessions(40),
+      candles: [
+        dailyCandle("PETR4", 0, "10.00"),
+        dailyCandle("PETR4", 3, "10.00"),
+        dailyCandle("PETR4", 10, "10.00"),
+      ],
+      corporateActions: [
+        {
+          ticker: "PETR4",
+          exDate: sessionAt(3),
+          asOf: `${sessionAt(3)}T13:00:00.000Z`,
+          factor: decimalString("0.0000000000001"),
+        } satisfies CorporateActionFactor,
+      ],
+      optionSeries: [
+        callSeries("PETR4C11", "11.00", nearExpiry, `${sessionAt(0)}T21:00:00.000Z`),
+        callSeries("PETR4C11F", "11.00", farExpiry, `${sessionAt(0)}T21:00:00.000Z`),
+      ],
+      optionPrices: [optionClose("PETR4C11", sessionAt(10), "1.00")],
+    };
+    const operation: Operation = {
+      id: "op-1",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "stock",
+          side: "buy",
+          ticker: "PETR4",
+          quantity: quantity(1_000_000),
+          entryPrice: decimalString("10.00"),
+        },
+        {
+          role: "call",
+          side: "sell",
+          ticker: "PETR4C11",
+          quantity: quantity(1_000_000),
+          entryPrice: decimalString("1.00"),
+        },
+      ],
+      expiry: nearExpiry,
+      openedAt: sessionAt(0),
+      strategyVersionId: "v1",
+      rolledFrom: null,
+    };
+    const input: EvaluateStrategyInput = {
+      view,
+      strategy: strategyVersion(
+        optionDef({
+          entry: alwaysTrue,
+          structureId: "covered_call",
+          strikes: [{ kind: "nearest", price: decimalString("11.00") }],
+          adjustments: [
+            {
+              kind: "roll",
+              when: { kind: "days_before_expiry", businessDays: 5 },
+              expiry: { kind: "business_days", min: 20, max: 25 },
+              strikes: [{ kind: "nearest", price: decimalString("11.00") }],
+            },
+          ],
+        }),
+        coveredCall,
+      ),
+      instruments: ["PETR4"],
+      at: `${sessionAt(10)}T21:00:00.000Z`,
+      openOperations: [operation],
+      riskProfile,
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("invalid_input");
+  });
+
   it("returns invalid_input, never throws, when a roll fires for an operation with the wrong number of legs", () => {
     const nearExpiry = sessionAt(15);
     const farExpiry = sessionAt(25);

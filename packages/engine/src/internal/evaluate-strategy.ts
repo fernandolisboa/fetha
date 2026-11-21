@@ -683,18 +683,23 @@ function resolveRollTarget(
       op.legs[index],
       "evaluateStrategy: resolveLegSelection returns one leg per structure leg, same order op.legs was built in",
     );
-    if (resolved.role === "stock") {
-      legs.push({
-        role: "stock",
-        side: opLeg.side,
-        ticker: opLeg.ticker,
-        quantity: opLeg.quantity,
-      });
-      continue;
-    }
+    // Rebased the same way for every role (round-2 review Q1): a stock leg left at its
+    // nominal quantity here, while the option legs beside it are already rebased, would price
+    // this proposal — and so its own maxLoss and limit check — against a mismatched structure,
+    // e.g. a covered call that reads as naked once the option leg's own effective count no
+    // longer matches the stock leg's stale one. `runBacktest` rebases the SAME stock leg again,
+    // independently, once the roll actually fills (ADR-0014 Q51: `Operation.legs` stay
+    // nominal, every consumer rebases at its own point of use), so this is this proposal's own
+    // point of use, not a second source of truth for the fill.
     const rawEffectiveQuantity = new Decimal(opLeg.quantity).div(splitFactor);
     const floored = rawEffectiveQuantity.floor().toNumber();
-    if (floored <= 0 || !Number.isSafeInteger(floored)) {
+    // A genuinely corrupt factor (one large enough to overflow a safe integer here) is still a
+    // hard `invalid_input`; a factor that merely groups this leg below one effective unit is not
+    // corrupt, only too aggressive a group for this position's own size to survive a roll — held
+    // without rolling instead (round-2 review C2), the same `no_series_match` outcome a roll
+    // whose own strike/expiry rule finds nothing already degrades to, never a run-wide error, and
+    // never a path naming `openOperations[?]`, which a backtest's own pending roll never has.
+    if (!Number.isSafeInteger(floored)) {
       return {
         outcome: "error",
         error: invalidInputError(
@@ -702,6 +707,18 @@ function resolveRollTarget(
           "a corporate-action factor since this operation's entry leaves this leg with no safe effective quantity to roll",
         ),
       };
+    }
+    if (floored <= 0) {
+      return { outcome: "no_series_match" };
+    }
+    if (resolved.role === "stock") {
+      legs.push({
+        role: "stock",
+        side: opLeg.side,
+        ticker: opLeg.ticker,
+        quantity: toQuantity(floored),
+      });
+      continue;
     }
     legs.push({
       role: resolved.role,
