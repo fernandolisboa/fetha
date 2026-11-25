@@ -107,6 +107,23 @@ export function resolvePlaceholder(token: string, examples: IllustrativeExamples
     // operation (DESIGN.md "Greeks"), unlike theta and vega, which DESIGN.md states as money.
     return formatDecimal(pricing.greeks[field], 4);
   }
+  if (field === "deltaShares" || field === "gammaShares") {
+    // The suggestion card's own "shares equivalent" reading (`sharesText`,
+    // radar/components/greek-notes.tsx), reproduced here rather than imported: `learning` has no
+    // dependency on `radar` (ARCHITECTURE.md), and the function is a handful of lines. ×100 for
+    // the lot (CLAUDE.md money rule), rounded to a whole share unless that would erase a nonzero
+    // value, in which case one decimal survives instead.
+    const perLotShares = new Decimal(pricing.greeks[field === "deltaShares" ? "delta" : "gamma"])
+      .mul(100)
+      .abs();
+    let decimals = 0;
+    let rounded = perLotShares.toDecimalPlaces(0, Decimal.ROUND_HALF_UP);
+    if (rounded.isZero() && !perLotShares.isZero()) {
+      decimals = 1;
+      rounded = perLotShares.toDecimalPlaces(1, Decimal.ROUND_HALF_UP);
+    }
+    return formatDecimal(decimalStringSchema.parse(rounded.toString()), decimals);
+  }
   if (field === "vega") {
     // Vega is money: the fair-value change per volatility point (DESIGN.md "Greeks": "vega in
     // R$ / ponto"). The engine returns it per share; a B3 lot is 100 options, one per share

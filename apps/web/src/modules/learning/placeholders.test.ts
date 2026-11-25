@@ -73,6 +73,34 @@ describe("resolvePlaceholder", () => {
     return new Decimal(perShare).mul(100).toFixed(6);
   }
 
+  // Same rounding as the suggestion card's own `sharesText`
+  // (radar/components/greek-notes.tsx): round to a whole share unless that would erase a
+  // nonzero value, in which case one decimal survives instead.
+  function sharesEquivalent(perShare: string): string {
+    const abs = new Decimal(perShare).mul(100).abs();
+    const whole = abs.toDecimalPlaces(0, Decimal.ROUND_HALF_UP);
+    if (whole.isZero() && !abs.isZero()) {
+      return formatDecimal(
+        decimalStringSchema.parse(abs.toDecimalPlaces(1, Decimal.ROUND_HALF_UP).toString()),
+        1,
+      );
+    }
+    return formatDecimal(decimalStringSchema.parse(whole.toString()), 0);
+  }
+
+  it("resolves delta and gamma as the suggestion card's own shares-equivalent reading", async () => {
+    const examples = await loadIllustrativeExamples();
+    const longCall = examples["long-call"];
+    expect(resolvePlaceholder("long-call.deltaShares", examples)).toBe(
+      sharesEquivalent(longCall.greeks.delta),
+    );
+    expect(resolvePlaceholder("long-call.deltaShares", examples)).toBe("54");
+    expect(resolvePlaceholder("long-call.gammaShares", examples)).toBe(
+      sharesEquivalent(longCall.greeks.gamma),
+    );
+    expect(resolvePlaceholder("long-call.gammaShares", examples)).toBe("10");
+  });
+
   it("resolves vega as money per lot, scaled from the engine's per-share value before rounding", async () => {
     const examples = await loadIllustrativeExamples();
     const longCall = examples["long-call"];
