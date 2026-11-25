@@ -64,9 +64,11 @@ export interface Idea {
 // `ResearchIdeaCard` is re-exported from `radar/client.ts` for a "use client" ancestor
 // (`decisions/components/research-panel.tsx`), and a component reachable from a client boundary
 // may never import `@/modules/learning`'s main entry point: that would bundle the DB, auth and
-// every lesson's own quiz answer key into the browser (ADR-0081 addendum).
+// every lesson's own quiz answer key into the browser (ADR-0081 addendum). It also carries the
+// probability of profit (ADR-0082) the card prints next to the other figures.
 export type IdeaCard = Omit<Idea, "pricing"> & {
   chart: Pick<OperationPricing, "payoff" | "spot">;
+  probabilityOfProfit: DecimalString | null;
   lessonHref: string | null;
 };
 
@@ -87,6 +89,7 @@ export function ideaCardOf(idea: Idea): IdeaCard {
     alerts: idea.alerts,
     suggestionId: idea.suggestionId,
     chart: { payoff: idea.pricing.payoff, spot: idea.pricing.spot },
+    probabilityOfProfit: idea.pricing.probabilityOfProfit?.probability ?? null,
     lessonHref: lessonHrefForStructure(idea.structure.id),
   };
 }

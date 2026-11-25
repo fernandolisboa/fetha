@@ -28,7 +28,9 @@ function normalPdf(x: number): number {
   return Math.exp(-0.5 * x * x) / Math.sqrt(2 * Math.PI);
 }
 
-function normalCdf(x: number): number {
+// Exported for probability-of-profit.ts (ADR-0082): the lognormal terminal-price CDF reuses
+// this same standard normal CDF, rather than a second approximation.
+export function normalCdf(x: number): number {
   const a1 = 0.254829592;
   const a2 = -0.284496736;
   const a3 = 1.421413741;

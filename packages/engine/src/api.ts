@@ -22,7 +22,7 @@ import type {
   Timeframe,
 } from "@fetha/contracts";
 
-export const ENGINE_VERSION = "0.20.0";
+export const ENGINE_VERSION = "0.21.0";
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: EngineError };
 
@@ -387,6 +387,12 @@ export type LegValuation = {
 
 export type PayoffPoint = { underlying: DecimalString; pnl: Centavos };
 
+export type ProbabilityOfProfit = {
+  probability: DecimalString;
+  volatility: DecimalString;
+  volatilityFrom: Ticker[];
+};
+
 export type OperationPricing = {
   at: Instant;
   underlying: Ticker;
@@ -403,6 +409,11 @@ export type OperationPricing = {
   // pricing and from pricing stored before 0.18.0.
   payoffNow?: PayoffPoint[] | null;
   breakEvens: DecimalString[];
+  // ADR-0082: model-implied P(expiry payoff > 0), lognormal with the risk-neutral drift and the
+  // sigma of the option leg(s) nearest spot; null with no option leg, no leg sigma, T = 0, legs
+  // on different expiries or a leg with no premium. Absent from `markToMarket`'s pricing and
+  // from pricing stored before 0.21.0.
+  probabilityOfProfit?: ProbabilityOfProfit | null;
   maxLoss: Centavos | "unbounded";
   maxGain: Centavos | "unbounded";
   limitBreaches: LimitBreach[];

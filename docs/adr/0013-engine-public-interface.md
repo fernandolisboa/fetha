@@ -80,7 +80,7 @@ import type {
   Timeframe,
 } from "@fetha/contracts";
 
-export const ENGINE_VERSION = "0.20.0";
+export const ENGINE_VERSION = "0.21.0";
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: EngineError };
 
@@ -445,6 +445,12 @@ export type LegValuation = {
 
 export type PayoffPoint = { underlying: DecimalString; pnl: Centavos };
 
+export type ProbabilityOfProfit = {
+  probability: DecimalString;
+  volatility: DecimalString;
+  volatilityFrom: Ticker[];
+};
+
 export type OperationPricing = {
   at: Instant;
   underlying: Ticker;
@@ -461,6 +467,11 @@ export type OperationPricing = {
   // pricing and from pricing stored before 0.18.0.
   payoffNow?: PayoffPoint[] | null;
   breakEvens: DecimalString[];
+  // ADR-0082: model-implied P(expiry payoff > 0), lognormal with the risk-neutral drift and the
+  // sigma of the option leg(s) nearest spot; null with no option leg, no leg sigma, T = 0, legs
+  // on different expiries or a leg with no premium. Absent from `markToMarket`'s pricing and
+  // from pricing stored before 0.21.0.
+  probabilityOfProfit?: ProbabilityOfProfit | null;
   maxLoss: Centavos | "unbounded";
   maxGain: Centavos | "unbounded";
   limitBreaches: LimitBreach[];
@@ -1611,7 +1622,8 @@ and landing with the first implementation ticket that makes it testable.
 - **I5 Numeric discipline** (`i5-numeric-discipline.property.test.ts`): every `Centavos`,
   `Quantity`, `SignedQuantity` and `tradedQuantity` in an artifact is an integer, `Quantity`
   positive and `SignedQuantity` non-zero; every `DecimalString` is
-  canonical at ADR-0001 scales (prices 2, greeks, volatilities and ratios 6);
+  canonical at ADR-0001 scales (prices 2, greeks, volatilities and ratios 6, probabilities 4
+  per the ADR-0082 addendum below);
   `JSON.parse(JSON.stringify(x))` is the identity on every artifact.
 - **I6 Provenance** (`i6-provenance.test.ts`): every artifact carries `provenance.engineVersion`
   equal to `ENGINE_VERSION`, the pricing model, the truncation report, the view's `dataVersion`
@@ -3527,3 +3539,28 @@ invariant property suites (`i1-future-blind.property.test.ts`, `i2-chunk-invaria
 and `i7-prefix-consistency.property.test.ts`, via a shared `rollBacktestFixtureArbitrary`) checking
 the roll obeys no-look-ahead, chunk-invariance and prefix-consistency the same way every other
 fixture in those suites already must.
+
+## Addendum: a model-implied probability of profit; `ENGINE_VERSION` bumped to `0.21.0` (2026-11-21, ADR-0082)
+
+`OperationPricing` gains `probabilityOfProfit?: ProbabilityOfProfit | null`: the model-implied
+probability that the operation's expiry payoff is strictly positive, under a lognormal terminal
+price for the underlying with the risk-neutral drift (`r` from the CDI, `q` the dividend yield,
+both already on the artifact) and one `sigma` taken from the option leg(s) whose strike sits
+nearest spot (an average when tied, the next-nearest leg with a model when the nearest one has
+none). `ProbabilityOfProfit.probability` is reported at a new `PROBABILITY_SCALE = 4`, the
+precision its break-even inputs (rounded to the cent) support — I5's scale list above is amended
+to add it. `volatility` is the sigma used (`RATIO_SCALE`) and `volatilityFrom` the tickers it came
+from, de-duplicated and sorted ascending.
+
+The field is `null` with no option leg, when no option leg carries a model, when the option legs'
+`timeToExpiryYears` differ, at `T = 0`, or when any leg's premium defaulted to zero for want of a
+price or a fair value. It is computed and omitted exactly where `payoffNow` already is (the
+ADR-0077 addendum above, `ENGINE_VERSION` 0.18.0): carried by every `priceOperation` result and
+every entry/adjust signal's proposal, omitted from `markToMarket`'s pricing (marks, not entries)
+and from `evaluateStrategy`'s own internal exit-rule and roll-target pricing. ADR-0082 is the full
+account, including the model, the reference values it was tested against and the UI consequence.
+
+`suggestions.pricing`, the research ideas' `pricing` and `signals.proposal` persist
+`OperationPricing` as `jsonb`, so this is a shape change to a persisted artifact: `ENGINE_VERSION`
+moves from `"0.20.0"` to `"0.21.0"`. The four backtest goldens change only by that version and, in
+`catch-up-evaluation.json`, the new field on each stock-only proposal (`null`).

@@ -37,9 +37,11 @@ import {
   STALE_PRICE_NOTE,
 } from "./notes";
 import { resolveOptionStrike } from "./option-strike";
-import { priceOptionLegWithModel, type OptionLegModel } from "./option-pricing";
+import { priceOptionLegWithModel } from "./option-pricing";
+import { payoffAt, type PricedLeg } from "./payoff-at";
 import { computePayoffNow } from "./payoff-now";
 import { resolvePriceFactor } from "./price-factor";
+import { computeProbabilityOfProfit } from "./probability-of-profit";
 import type { ProvenanceBase } from "./provenance";
 import { resolveDividendYield, resolveRiskFreeRate } from "./rates";
 import { resolveLegSelection } from "./resolve-leg-selection";
@@ -74,23 +76,10 @@ function withStaleRescaleNote(notes: readonly Note[]): Note[] {
   return next;
 }
 
-// Exported for score's own max-loss computation (ADR-0014 Q46/Q13): score builds this same
-// shape from an operation's legs priced at their entry premium rather than a fresh market
-// price, then reuses computePayoffProfile below instead of re-deriving max loss.
-export type PricedLeg = {
-  valuation: LegValuation;
-  strike: DecimalString | null;
-  premiumPerUnit: Decimal;
-  // ADR-0063: the series' own `priceFactor` (1 for a stock leg and for every equity option).
-  // `strike` above stays in the series' quotation unit; only `payoffAt` below needs this, to
-  // scale the intrinsic value it derives from `strike` back down to the same reais
-  // `premiumPerUnit` is already on before the two are combined.
-  priceFactor: Decimal;
-  // The sigma and time to expiry behind an option leg's fair value, so the T+0 curve
-  // (ADR-0077) values it with the same model; null for a stock leg and for an option leg
-  // without a model value.
-  model: OptionLegModel | null;
-};
+// Re-exported from the leaf module (payoff-at.ts) rather than moved: score.ts, payoff-now.ts
+// and their tests already import `PricedLeg` from this module, and this is the pricing seam
+// that actually builds it.
+export type { PricedLeg };
 
 // `expiredIntrinsicBasis` is the underlying's own close at the operation's expiry session,
 // supplied only when the caller (markToMarket) already knows the operation's
@@ -312,24 +301,6 @@ function legIntrinsicSlopeAtInfinity(
 }
 
 const PAYOFF_SPOT_RANGE_UPPER = 1.2;
-
-function payoffAt(legs: readonly PricedLeg[], underlying: Decimal): Decimal {
-  return legs.reduce((acc, leg) => {
-    const role = leg.valuation.leg.role;
-    // `underlying` and `leg.strike` are both on the series' quotation unit; an option leg's
-    // intrinsic value is scaled down to reais (ADR-0063) before it meets `premiumPerUnit`,
-    // which is already on that scale. A stock leg's own price factor is always 1.
-    const value =
-      role === "stock"
-        ? underlying
-        : role === "call"
-          ? Decimal.max(underlying.sub(leg.strike ?? "0"), 0).div(leg.priceFactor)
-          : Decimal.max(new Decimal(leg.strike ?? "0").sub(underlying), 0).div(leg.priceFactor);
-    const legSign = sign(leg.valuation.leg.side);
-    const pnlPerUnit = value.sub(leg.premiumPerUnit).mul(legSign);
-    return acc.add(pnlPerUnit.mul(leg.valuation.leg.quantity));
-  }, new Decimal(0));
-}
 
 export function computePayoffProfile(
   legs: readonly PricedLeg[],
@@ -686,10 +657,12 @@ function resolveOperationRates(
 type PriceLegsOptions = {
   expiredIntrinsicBasis?: DecimalString | null;
   legPathAt?: (index: number) => string;
-  // Off where nothing reads the T+0 curve: `evaluateStrategy`'s exit-rule pricing (every open
-  // operation, every session), where it more than doubled a backtest's run time, and
+  // Gates both `payoffNow` (ADR-0077) and `probabilityOfProfit` (ADR-0082), the two figures
+  // that only make sense against a fresh entry. Off where nothing reads either:
+  // `evaluateStrategy`'s exit-rule and roll-target pricing (every open operation, every
+  // session), where the T+0 curve alone more than doubled a backtest's run time, and
   // `markToMarket`, whose legs are priced against the current mark, not the user's entry.
-  withPayoffNow?: boolean;
+  withEntryFigures?: boolean;
 };
 
 function priceConcreteLegs(
@@ -704,7 +677,7 @@ function priceConcreteLegs(
   riskProfile: RiskProfile | undefined,
   openOperationCount: number | undefined,
   provenanceBase: ProvenanceBase,
-  { expiredIntrinsicBasis = null, legPathAt, withPayoffNow = true }: PriceLegsOptions = {},
+  { expiredIntrinsicBasis = null, legPathAt, withEntryFigures = true }: PriceLegsOptions = {},
 ): Result<OperationPricing> {
   const valued = valueLegs(
     view,
@@ -750,7 +723,7 @@ function priceConcreteLegs(
   if (anyPremiumRescaled) pushNoteOnce(notes, STALE_MARK_RESCALED_ACROSS_CORPORATE_ACTION_NOTE);
 
   const { payoff, breakEvens, maxLoss, maxGain } = computePayoffProfile(priced, spot);
-  const payoffNow = withPayoffNow
+  const payoffNow = withEntryFigures
     ? computePayoffNow(
         priced,
         spot,
@@ -758,6 +731,9 @@ function priceConcreteLegs(
         riskFreeRate,
         dividendYield,
       )
+    : undefined;
+  const probabilityOfProfit = withEntryFigures
+    ? computeProbabilityOfProfit(priced, spot, breakEvens, riskFreeRate, dividendYield)
     : undefined;
 
   const greeks: Greeks = GREEK_KEYS.reduce(
@@ -798,6 +774,7 @@ function priceConcreteLegs(
       payoff,
       ...(payoffNow === undefined ? {} : { payoffNow }),
       breakEvens,
+      ...(probabilityOfProfit === undefined ? {} : { probabilityOfProfit }),
       maxLoss,
       maxGain,
       limitBreaches,

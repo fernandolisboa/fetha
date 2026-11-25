@@ -85,3 +85,5 @@ supersedes or amends them and says so.
 | 0078 | Production runs at `fetha.filx.app` and sends mail from `filx.app`                                                                                                          |
 | 0079 | An operation plan is a contemplated operation plus its own rules table (#379)                                                                                               |
 | 0080 | A roll chain is a linked list of operations, not a new table (#382, amends 0021)                                                                                            |
+| 0081 | Learning tracks are one catalog of lessons, grouped by level and topic (amends 0059)                                                                                        |
+| 0082 | The engine computes a probability of profit at expiry for a priced operation (amends 0013, 0067)                                                                            |
