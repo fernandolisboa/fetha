@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { formatPriceBRL } from "@/lib/format/brl";
+import { formatDecimal } from "@/lib/format/decimal";
 
 import { loadIllustrativeExamples } from "./illustrative-market";
 import { placeholderTokens, resolvePlaceholder, resolveText } from "./placeholders";
@@ -44,6 +45,26 @@ describe("resolvePlaceholder", () => {
     expect(resolved).toMatch(/^R\$ \d/);
     expect(resolved).not.toBe("R$ 0,00");
     expect(Math.abs(Number(examples["long-call"].greeks.theta))).toBeGreaterThan(0);
+  });
+
+  it("resolves delta, gamma and vega to the engine's own signed ratio, four decimals", async () => {
+    const examples = await loadIllustrativeExamples();
+    const longCall = examples["long-call"];
+    const longPut = examples["long-put"];
+    expect(resolvePlaceholder("long-call.delta", examples)).toBe(
+      formatDecimal(longCall.greeks.delta, 4),
+    );
+    expect(resolvePlaceholder("long-put.delta", examples)).toBe(
+      formatDecimal(longPut.greeks.delta, 4),
+    );
+    expect(resolvePlaceholder("long-call.gamma", examples)).toBe(
+      formatDecimal(longCall.greeks.gamma, 4),
+    );
+    expect(resolvePlaceholder("long-call.vega", examples)).toBe(
+      formatDecimal(longCall.greeks.vega, 4),
+    );
+    expect(Number(longCall.greeks.delta)).toBeGreaterThan(0);
+    expect(Number(longPut.greeks.delta)).toBeLessThan(0);
   });
 
   it("throws resolving a break-even index the example does not have", async () => {

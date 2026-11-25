@@ -7,6 +7,7 @@ import {
 } from "@fetha/contracts";
 
 import { formatBRL, formatPriceBRL } from "@/lib/format/brl";
+import { formatDecimal } from "@/lib/format/decimal";
 
 import type { IllustrativeExamples } from "./illustrative-market";
 import { seriesLetterOf } from "./series-code";
@@ -61,8 +62,11 @@ export function resolvePlaceholder(token: string, examples: IllustrativeExamples
     }
     return formatPriceBRL(breakEven);
   }
+  if (field === "delta" || field === "gamma" || field === "vega") {
+    return formatDecimal(pricing.greeks[field], 4);
+  }
   if (field === "thetaAbs") {
-    // Theta is per share; a real option contract is a 100-share lot (CLAUDE.md money rule: never
+    // Theta is per share; a B3 lot is 100 options, one per share (CLAUDE.md money rule: never
     // show a per-share greek as if it were the position's own size), so this is the per-lot
     // magnitude — also keeps it from rounding away to R$0,00 for a cheap, far-dated option.
     const perLot = new Decimal(pricing.greeks.theta).abs().mul(100).toFixed(6);
