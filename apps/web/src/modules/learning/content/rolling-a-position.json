@@ -1,6 +1,6 @@
 {
   "id": "rolling-a-position",
-  "version": 3,
+  "version": 4,
   "minutes": 6,
   "title": {
     "en": "Rolling a position",
@@ -24,12 +24,12 @@
         "en": [
           "Rolling out moves to a later expiry, at the same or the nearest available strikes — more time for the view to play out.",
           "Rolling up or down moves to new strikes at the same (or a new) expiry — adjusting where the structure's own break-evens and max gain sit as the stock moves.",
-          "Rolling out, at the same or a nearby strike, follows the position's own side: a net-short (credit) position usually rolls for a credit, since the newly sold, further-dated option usually costs more than the one just closed; a net-long (debit) position usually rolls for a debit, paying for the extra time value the newly bought, further-dated option usually carries. The exception is a spread already priced beyond both its strikes — deep in the money on both legs — where the sign flips from what the position's own side would otherwise suggest."
+          "Rolling out, at the same or a nearby strike, follows whether time passing helps or hurts the position, not just its side. A positive theta — time helps it, usually a net-short or credit position — usually rolls for a credit, since the newly sold, further-dated option usually costs more than the one just closed. A negative theta — time hurts it, usually a net-long or debit position, but also a credit spread once the stock has moved far enough that its own theta turns negative — usually rolls for a debit instead."
         ],
         "pt": [
           "Rolar para fora leva a um vencimento mais distante, nos mesmos strikes ou nos mais próximos disponíveis — mais tempo para a visão se confirmar.",
           "Rolar para cima ou para baixo leva a novos strikes no mesmo vencimento (ou num novo) — ajustando onde ficam os próprios break-evens e o ganho máximo da estrutura conforme a ação se move.",
-          "Rolar para fora, no mesmo strike ou num próximo, segue o lado da própria posição: uma posição vendida líquida (a crédito) costuma rolar a crédito, já que a nova opção vendida, com vencimento mais distante, costuma custar mais do que a que acabou de ser encerrada; uma posição comprada líquida (a débito) costuma rolar a débito, pagando pelo valor do tempo extra que a nova opção comprada, mais distante, costuma carregar. A exceção é uma trava já precificada além dos dois strikes — bem dentro do dinheiro nas duas pernas —, onde o sinal se inverte em relação ao que o lado da posição sugeriria."
+          "Rolar para fora, no mesmo strike ou num próximo, segue se o tempo passando ajuda ou prejudica a posição, não só o lado dela. Um theta positivo — o tempo ajuda, geralmente numa posição vendida líquida ou a crédito — costuma rolar a crédito, já que a nova opção vendida, com vencimento mais distante, costuma custar mais do que a que acabou de ser encerrada. Um theta negativo — o tempo prejudica, geralmente numa posição comprada líquida ou a débito, mas também numa trava a crédito depois que a ação se moveu o bastante para o próprio theta virar negativo — costuma rolar a débito."
         ]
       }
     },
@@ -37,15 +37,30 @@
       "type": "callout",
       "tone": "info",
       "text": {
-        "en": "Fetha's own Rolar, today, moves an operation's option legs to the next monthly expiry, picking for each leg the traded strike nearest the one just closed — not necessarily the same strike, and a single leg carries no guard against landing on a lower or a higher one. There is no later monthly expiry, or no traded series at a leg's own strike-and-right at that expiry, keep the roll from reaching a plan at all; of a plan that does resolve, the whole roll is refused only when two legs would land on the same ticker or when the width between the legs' strikes would change — either would silently turn the held structure into a different one — and, separately, the roll can still turn out unpriceable against the day's data. Fetha never builds or sends an order (it has no broker connection): Rolar records, as one roll, the closing and opening fills the user already executed elsewhere.",
-        "pt": "O Rolar da Fetha, hoje, leva as pernas de opção de uma operação para o próximo vencimento mensal, escolhendo para cada perna o strike negociado mais próximo do que acabou de ser encerrado — não necessariamente o mesmo strike, e uma perna isolada não tem nenhuma garantia contra terminar num strike mais baixo ou mais alto. Não haver um vencimento mensal posterior, ou não haver série negociada no strike-e-tipo de uma perna naquele vencimento, impede a rolagem de chegar a um plano; de um plano que de fato se forma, a rolagem inteira só é recusada quando duas pernas terminariam no mesmo ticker ou quando a largura entre os strikes das pernas mudaria — qualquer um dos dois transformaria, em silêncio, a estrutura mantida em outra diferente —, e, separadamente, a rolagem ainda pode sair impossível de precificar contra os dados do dia. A Fetha nunca monta nem envia uma ordem (ela não tem conexão com corretora): o Rolar registra, como uma única rolagem, as execuções de encerramento e de abertura que o usuário já fez em outro lugar."
+        "en": "Fetha's own Rolar, today, moves an operation's option legs to the next monthly expiry, picking for each leg the traded strike nearest the one just closed — not necessarily the same strike, and a single leg carries no guard against landing on a lower or a higher one. Missing a later monthly expiry at all, or missing any traded series of a leg's own right (call or put) at that expiry, keeps the roll from reaching a plan.",
+        "pt": "O Rolar da Fetha, hoje, leva as pernas de opção de uma operação para o próximo vencimento mensal, escolhendo para cada perna o strike negociado mais próximo do que acabou de ser encerrado — não necessariamente o mesmo strike, e uma perna isolada não tem nenhuma garantia contra terminar num strike mais baixo ou mais alto. A falta de um vencimento mensal posterior, ou a falta de qualquer série negociada do tipo (call ou put) de uma perna naquele vencimento, impede a rolagem de chegar a um plano."
+      }
+    },
+    {
+      "type": "callout",
+      "tone": "info",
+      "text": {
+        "en": "Of a plan that does resolve, the whole roll is refused only when two legs would land on the same ticker or when the width between the legs' strikes would change — either would silently turn the held structure into a different one. Separately, the roll can still turn out unpriceable against the day's data. Fetha never builds or sends an order (it has no broker connection): Rolar records, as one roll, the closing and opening fills the user already executed elsewhere.",
+        "pt": "De um plano que de fato se forma, a rolagem inteira só é recusada quando duas pernas terminariam no mesmo ticker ou quando a largura entre os strikes das pernas mudaria — qualquer um dos dois transformaria, em silêncio, a estrutura mantida em outra diferente. Separadamente, a rolagem ainda pode sair impossível de precificar contra os dados do dia. A Fetha nunca monta nem envia uma ordem (ela não tem conexão com corretora): o Rolar registra, como uma única rolagem, as execuções de encerramento e de abertura que o usuário já fez em outro lugar."
       }
     },
     {
       "type": "paragraph",
       "text": {
-        "en": "On the portfolio screen, an open operation's own \"Agenda de rolagem\" flags a decision approaching expiry with one of a few actions: Rolar, Deixar virar pó (let an option expire worthless), Acompanhar (watch, no action yet) or \"Encerrar agora — risco de exercício\" (close now, when a short leg is in the money, or within 1% of spot, with one session or fewer left). Rolar there records the closing and opening fills together as one roll, with its own net credit or debit before costs.",
-        "pt": "Na tela de carteira, a \"Agenda de rolagem\" de uma operação aberta aponta uma decisão se aproximando do vencimento com uma de algumas ações: Rolar, Deixar virar pó (deixar uma opção vencer sem valor), Acompanhar (sem ação ainda) ou \"Encerrar agora — risco de exercício\" (quando uma perna vendida está dentro do dinheiro, ou a até 1% do preço da ação, faltando uma sessão ou menos). O Rolar ali registra as execuções de encerramento e de abertura juntas como uma única rolagem, com seu próprio crédito ou débito líquido antes de custos."
+        "en": "On the portfolio screen, an open operation's own \"Agenda de rolagem\" flags a decision approaching expiry with one of a few actions: Rolar, Deixar virar pó (let an option expire worthless), Acompanhar (watch, no action yet) or \"Encerrar agora — risco de exercício\" (close now, when a short leg is in the money, or within 1% of spot, with one session or fewer left).",
+        "pt": "Na tela de carteira, a \"Agenda de rolagem\" de uma operação aberta aponta uma decisão se aproximando do vencimento com uma de algumas ações: Rolar, Deixar virar pó (deixar uma opção vencer sem valor), Acompanhar (sem ação ainda) ou \"Encerrar agora — risco de exercício\" (quando uma perna vendida está dentro do dinheiro, ou a até 1% do preço da ação, faltando uma sessão ou menos)."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Rolar there records the closing and opening fills together as one roll, with its own net credit or debit before costs.",
+        "pt": "O Rolar ali registra as execuções de encerramento e de abertura juntas como uma única rolagem, com seu próprio crédito ou débito líquido antes de custos."
       }
     },
     {
@@ -67,22 +82,22 @@
         {
           "id": "c",
           "text": {
-            "en": "Doubling the number of lots held",
-            "pt": "Dobrar o número de lotes mantidos"
+            "en": "Doubling the number of lots held, right away",
+            "pt": "Dobrar o número de lotes mantidos, na hora"
           }
         },
         {
           "id": "a",
           "text": {
-            "en": "Closing the option legs and opening a similar operation at the same time",
-            "pt": "Encerrar as pernas de opção e abrir uma operação parecida ao mesmo tempo"
+            "en": "Closing the legs and opening a similar one at the same time",
+            "pt": "Encerrar as pernas e abrir uma parecida ao mesmo tempo"
           }
         },
         {
           "id": "b",
           "text": {
-            "en": "Letting every option expire without any action",
-            "pt": "Deixar toda opção vencer sem nenhuma ação"
+            "en": "Letting every single option expire without taking any action",
+            "pt": "Deixar toda opção vencer sem tomar nenhuma ação a respeito"
           }
         }
       ],
@@ -102,29 +117,29 @@
         {
           "id": "b",
           "text": {
-            "en": "The position's own side: net-short usually a credit, net-long usually a debit",
-            "pt": "O lado da própria posição: vendida líquida costuma ser crédito, comprada líquida costuma ser débito"
+            "en": "Whether theta is positive (credit) or negative (debit)",
+            "pt": "Se o theta é positivo (crédito) ou negativo (débito)"
           }
         },
         {
           "id": "c",
           "text": {
-            "en": "Always a credit, regardless of position type",
-            "pt": "Sempre um crédito, independente do tipo de posição"
+            "en": "Always a credit, no matter the position type involved",
+            "pt": "Sempre um crédito, não importa o tipo de posição envolvida"
           }
         },
         {
           "id": "a",
           "text": {
-            "en": "Always a debit, regardless of position type",
-            "pt": "Sempre um débito, independente do tipo de posição"
+            "en": "Always a debit, no matter the position type involved",
+            "pt": "Sempre um débito, não importa o tipo de posição envolvida"
           }
         }
       ],
       "correctOptionId": "b",
       "explanation": {
-        "en": "A net-short position usually sells a further-dated option worth more than the one just closed, a credit; a net-long position usually pays for the extra time value instead, a debit — except a spread already deep in the money on both legs, where the sign flips.",
-        "pt": "Uma posição vendida líquida costuma vender uma opção mais distante que vale mais do que a que acabou de ser encerrada, um crédito; uma posição comprada líquida costuma pagar pelo valor do tempo extra, um débito — exceto numa trava já bem dentro do dinheiro nas duas pernas, onde o sinal se inverte."
+        "en": "A positive theta usually sells a further-dated option worth more than the one just closed, a credit; a negative theta usually pays for the extra time value instead, a debit — net-short/credit and net-long/debit are the usual cases, but a credit spread's own theta can turn negative once the stock has moved far enough.",
+        "pt": "Um theta positivo costuma vender uma opção mais distante que vale mais do que a que acabou de ser encerrada, um crédito; um theta negativo costuma pagar pelo valor do tempo extra, um débito — vendida líquida/crédito e comprada líquida/débito são os casos comuns, mas o theta de uma trava a crédito pode virar negativo depois que a ação se move o bastante."
       }
     },
     {
@@ -137,22 +152,22 @@
         {
           "id": "a",
           "text": {
-            "en": "A free choice of any new strikes and any expiry",
-            "pt": "Uma escolha livre de quaisquer novos strikes e qualquer vencimento"
+            "en": "A completely free choice of any new strikes and any expiry at all",
+            "pt": "Uma escolha totalmente livre de quaisquer novos strikes e vencimento"
           }
         },
         {
           "id": "c",
           "text": {
-            "en": "A roll to the next monthly expiry, each leg at its own nearest traded strike, that can still fail to find an expiry or a traded series, or be refused for a width change or a duplicate ticker, or turn out unpriceable",
-            "pt": "Uma rolagem para o próximo vencimento mensal, cada perna no próprio strike negociado mais próximo, que ainda pode não achar um vencimento ou uma série negociada, ser recusada por mudança de largura ou ticker duplicado, ou sair impossível de precificar"
+            "en": "A roll to next expiry, nearest strike per leg, that can still fail or be refused",
+            "pt": "Uma rolagem para o próximo vencimento, no strike mais próximo, que ainda pode falhar"
           }
         },
         {
           "id": "b",
           "text": {
-            "en": "Something that happens automatically with no user action",
-            "pt": "Algo que acontece automaticamente, sem nenhuma ação do usuário"
+            "en": "Something that happens fully automatically, with no user action at all",
+            "pt": "Algo que acontece totalmente automático, sem nenhuma ação do usuário"
           }
         }
       ],
@@ -172,22 +187,22 @@
         {
           "id": "c",
           "text": {
-            "en": "They are the same feature under two names",
-            "pt": "São a mesma funcionalidade com dois nomes"
+            "en": "They are the exact same single feature under two different names",
+            "pt": "São exatamente a mesma funcionalidade única, com dois nomes diferentes"
           }
         },
         {
           "id": "a",
           "text": {
-            "en": "Montar plano only exists for structures that can never be rolled",
+            "en": "Montar plano only exists for structures that can never, ever be rolled",
             "pt": "O Montar plano só existe para estruturas que nunca podem ser roladas"
           }
         },
         {
           "id": "b",
           "text": {
-            "en": "Montar plano decides whether a position should be managed; Rolar is one of the actions once that decision keeps the market view",
-            "pt": "O Montar plano decide se uma posição deve ser gerida; o Rolar é uma das ações quando essa decisão mantém a visão de mercado"
+            "en": "Montar plano decides if a position gets managed; Rolar fires if it keeps the view",
+            "pt": "O Montar plano decide se gerir a posição; o Rolar entra se mantém a visão"
           }
         }
       ],
