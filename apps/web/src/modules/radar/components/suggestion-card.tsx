@@ -239,7 +239,11 @@ export function SuggestionCard({
       <div className="flex flex-col gap-3 @min-[44rem]:grid @min-[44rem]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] @min-[44rem]:gap-x-6 @min-[44rem]:gap-y-4 @min-[44rem]:[grid-template-areas:'lead_chart'_'why_chart'_'legs_chart']">
         <div className="@container flex min-w-0 flex-col gap-3 @min-[44rem]:[grid-area:lead]">
           <p className="text-[15px] text-pretty">{sentence}</p>
-          <PayoffFigures maxLoss={suggestion.maxLoss} maxGain={suggestion.pricing.maxGain} />
+          <PayoffFigures
+            maxLoss={suggestion.maxLoss}
+            maxGain={suggestion.pricing.maxGain}
+            probabilityOfProfit={suggestion.pricing.probabilityOfProfit?.probability ?? null}
+          />
         </div>
         <div className="min-w-0 @min-[44rem]:[grid-area:chart]">
           <PayoffChart

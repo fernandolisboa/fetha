@@ -663,6 +663,13 @@ _Avoid_: risk, reward, downside, upside
 An underlying price at which the payoff of an operation is zero.
 _Avoid_: zero point, ponto de equilíbrio (in code)
 
+**Probability of profit** (pt-BR: _Chance de lucro_):
+The model-implied probability that an operation's expiry payoff is strictly positive: a lognormal
+terminal price for the underlying under the risk-neutral drift, with one volatility taken from the
+option leg(s) nearest spot (ADR-0082). A property of the pricing model, not a forecast; null with
+no option leg, no leg volatility, legs on different expiries, `T = 0` or a leg with no premium.
+_Avoid_: win rate, chance of winning, probabilidade de acerto (in code)
+
 ### Decisions
 
 **Decision**:

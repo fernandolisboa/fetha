@@ -152,6 +152,8 @@ const en = {
       gainUnbounded: "No limit",
       gainToRisk: "Gain ÷ risk",
       gainToRiskHint: "best case",
+      probabilityOfProfit: "Chance of profit",
+      probabilityOfProfitHint: "By the pricing model, at expiry. Not a forecast.",
     },
     compactRow: {
       risked: "Risks",
@@ -487,6 +489,8 @@ const ptBR = {
       gainUnbounded: "Sem limite",
       gainToRisk: "Ganho ÷ risco",
       gainToRiskHint: "no melhor cenário",
+      probabilityOfProfit: "Chance de lucro",
+      probabilityOfProfitHint: "Pelo modelo de preços, no vencimento. Não é previsão.",
     },
     compactRow: {
       risked: "Arrisca",

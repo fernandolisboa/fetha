@@ -26,6 +26,16 @@ export const storedIdeaPricingSchema = z.looseObject({
   breakEvens: z.array(decimalStringSchema),
   spot: decimalStringSchema,
   payoff: z.array(z.object({ underlying: decimalStringSchema, pnl: centavosSchema })),
+  // ADR-0082: absent on an idea stored before 0.21.0, which is read back as `undefined` here,
+  // the same "no figure to show" the card already gives an explicit `null`.
+  probabilityOfProfit: z
+    .object({
+      probability: decimalStringSchema,
+      volatility: decimalStringSchema,
+      volatilityFrom: z.array(tickerSchema),
+    })
+    .nullable()
+    .optional(),
 });
 export type StoredIdeaPricing = z.infer<typeof storedIdeaPricingSchema>;
 

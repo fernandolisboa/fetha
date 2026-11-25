@@ -96,7 +96,8 @@ exposing module's interface, never through its tables.
    with a user's token are persisted in that user's space. Nothing polls when the app is closed.
 3. **Build and price a structure.** The user picks a structure from the catalog, instantiates
    legs on an underlying (series, strikes, expiry, quantities), and the engine returns payoff,
-   fair value per leg, implied volatility, greeks, break-evens, max loss and max gain, checked
+   fair value per leg, implied volatility, greeks, break-evens, a model-implied probability of
+   profit (ADR-0082), max loss and max gain, checked
    against the risk profile (warn on screen, refuse in backtests unless configured to warn).
    Saving the priced structure records a Contemplated Operation, a snapshot the user can revisit
    before deciding; it is not an Operation and opens no position.

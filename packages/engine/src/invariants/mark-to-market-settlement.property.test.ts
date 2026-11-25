@@ -90,8 +90,9 @@ describe("markToMarket equals priceOperation on freshly opened legs", () => {
         expect(priceResult.ok).toBe(true);
         if (!mtmResult.ok || !priceResult.ok) return;
         expect(mtmResult.value.operations[0]?.unrealizedPnl).toBe(0);
-        const { payoffNow, ...pricing } = priceResult.value;
+        const { payoffNow, probabilityOfProfit, ...pricing } = priceResult.value;
         expect(payoffNow).toBeNull();
+        expect(probabilityOfProfit).toBeNull();
         expect(mtmResult.value.operations[0]?.pricing).toEqual(pricing);
       }),
     );
