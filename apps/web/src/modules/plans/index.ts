@@ -1,5 +1,5 @@
 export { planViewSchema, type PlanView } from "./view";
-export { riskLimitCentavos } from "./risk-limit";
+export { riskLimitCentavos } from "@/modules/portfolio";
 export { PlanRulesDataExport } from "./data-export";
 export {
   buildPlanAction,

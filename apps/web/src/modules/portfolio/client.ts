@@ -10,3 +10,4 @@ export {
 export { StatBlocks } from "./builder/stat-blocks";
 export { RiskNotice } from "./builder/risk-notice";
 export { DEFAULT_RISK_PROFILE } from "./default-risk-profile";
+export { riskLimitCentavos } from "./risk-limit";

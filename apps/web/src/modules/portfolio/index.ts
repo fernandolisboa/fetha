@@ -8,6 +8,7 @@ export {
 export { priceOperationNow } from "./price-now";
 export { RiskNotice } from "./builder/risk-notice";
 export { DEFAULT_RISK_PROFILE } from "./default-risk-profile";
+export { riskLimitCentavos } from "./risk-limit";
 export { getMyRiskContext, type RiskContext } from "./risk-context";
 export { getMyLimitBreaches, type LimitCheck, type LimitCheckResult } from "./limit-breaches";
 export {

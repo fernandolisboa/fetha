@@ -47,6 +47,7 @@ import {
   DEFAULT_RISK_PROFILE,
   getCurrentRiskProfile,
   OperationsRepository,
+  riskLimitCentavos,
 } from "@/modules/portfolio";
 import { getSuggestion, SuggestionNotFoundError } from "@/modules/radar";
 import { catalog, recipes } from "@/modules/strategies";
@@ -66,7 +67,6 @@ import { legSelectionFor } from "./plan-selection";
 import { isWithinPlanWindow } from "./plan-window";
 import { PlanRulesRepository } from "./plan-rules-repository";
 import { priceFromProbe } from "./reprice-legs";
-import { riskLimitCentavos } from "./risk-limit";
 import { recipeForView } from "./select-recipe";
 import { validateStructuralAdjustment } from "./validate-adjustment";
 import { planViewSchema, type PlanView } from "./view";
