@@ -187,9 +187,10 @@ catalog.json` lists every level, every topic and every lesson's id with its leve
    `<exampleId>.maxLossPerLotAbs` / `.maxLossLotsAtDefaultCap` (an example's own per-lot max loss,
    and how many whole lots, rounded down, that cap allows; both throw rather than render a
    nonsensical "∞" or "0 lotes" when the per-lot loss is non-positive or the cap allows fewer than
-   one lot). `illustrative-market.ts`'s `ILLUSTRATIVE_EXPIRY` and `ILLUSTRATIVE_AT` constants, and
-   a new pure `illustrativeSessionsThroughExpiry()` function, are not exported: nothing outside
-   the module needs them. Every new lesson reads greeks already computed for an existing example
+   one lot). `illustrative-market.ts`'s `ILLUSTRATIVE_EXPIRY` and `ILLUSTRATIVE_AT` constants are
+   not exported: nothing outside the module needs them. A new pure `illustrativeSessionsThroughExpiry()`
+   function is exported from the module, for its own fixture test, though not from either of
+   `learning`'s entry points. Every new lesson reads greeks already computed for an existing example
    (the long call and long put for delta and gamma, the long and short call for vega, the iron
    condor for net portfolio greeks and position sizing), never a new leg combination or a second
    spot price.
