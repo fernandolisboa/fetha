@@ -1,6 +1,6 @@
 {
   "id": "rolling-a-position",
-  "version": 4,
+  "version": 1,
   "minutes": 6,
   "title": {
     "en": "Rolling a position",
@@ -96,8 +96,8 @@
         {
           "id": "b",
           "text": {
-            "en": "Letting every single option expire without taking any action",
-            "pt": "Deixar toda opção vencer sem tomar nenhuma ação a respeito"
+            "en": "Letting the options expire without reacting to it",
+            "pt": "Deixar as opções vencerem sem reagir a isso"
           }
         }
       ],
@@ -124,15 +124,15 @@
         {
           "id": "c",
           "text": {
-            "en": "Always a credit, no matter the position type involved",
-            "pt": "Sempre um crédito, não importa o tipo de posição envolvida"
+            "en": "Usually a credit, regardless of the position type",
+            "pt": "Geralmente um crédito, independente do tipo de posição"
           }
         },
         {
           "id": "a",
           "text": {
-            "en": "Always a debit, no matter the position type involved",
-            "pt": "Sempre um débito, não importa o tipo de posição envolvida"
+            "en": "Usually a debit, regardless of the position type",
+            "pt": "Geralmente um débito, independente do tipo de posição"
           }
         }
       ],
@@ -152,22 +152,22 @@
         {
           "id": "a",
           "text": {
-            "en": "A completely free choice of any new strikes and any expiry at all",
-            "pt": "Uma escolha totalmente livre de quaisquer novos strikes e vencimento"
+            "en": "A free choice of new strikes and a new expiry",
+            "pt": "Uma escolha livre de novos strikes e um novo vencimento"
           }
         },
         {
           "id": "c",
           "text": {
             "en": "A roll to next expiry, nearest strike per leg, that can still fail or be refused",
-            "pt": "Uma rolagem para o próximo vencimento, no strike mais próximo, que ainda pode falhar"
+            "pt": "Uma rolagem para o próximo vencimento, no strike mais próximo, que ainda pode falhar ou ser recusada"
           }
         },
         {
           "id": "b",
           "text": {
-            "en": "Something that happens fully automatically, with no user action at all",
-            "pt": "Algo que acontece totalmente automático, sem nenhuma ação do usuário"
+            "en": "Something that happens automatically, without the user choosing anything",
+            "pt": "Algo que acontece automaticamente, sem o usuário escolher nada"
           }
         }
       ],
@@ -187,22 +187,22 @@
         {
           "id": "c",
           "text": {
-            "en": "They are the exact same single feature under two different names",
-            "pt": "São exatamente a mesma funcionalidade única, com dois nomes diferentes"
+            "en": "The same feature, just shown under two different names",
+            "pt": "A mesma funcionalidade, só mostrada com dois nomes diferentes"
           }
         },
         {
           "id": "a",
           "text": {
-            "en": "Montar plano only exists for structures that can never, ever be rolled",
-            "pt": "O Montar plano só existe para estruturas que nunca podem ser roladas"
+            "en": "Montar plano exists mainly for structures that rarely get rolled",
+            "pt": "O Montar plano existe principalmente para estruturas raramente roladas"
           }
         },
         {
           "id": "b",
           "text": {
             "en": "Montar plano decides if a position gets managed; Rolar fires if it keeps the view",
-            "pt": "O Montar plano decide se gerir a posição; o Rolar entra se mantém a visão"
+            "pt": "O Montar plano decide se a posição é gerida; o Rolar age quando ela mantém a mesma visão"
           }
         }
       ],
