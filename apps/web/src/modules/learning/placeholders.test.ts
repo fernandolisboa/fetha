@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { formatPriceBRL } from "@/lib/format/brl";
+
 import { loadIllustrativeExamples } from "./illustrative-market";
 import { placeholderTokens, resolvePlaceholder, resolveText } from "./placeholders";
 
@@ -20,14 +22,39 @@ describe("resolvePlaceholder", () => {
   it("resolves spot and strike tokens to a formatted price", async () => {
     const examples = await loadIllustrativeExamples();
     expect(resolvePlaceholder("spot", examples)).toBe("R$ 20,00");
+    expect(resolvePlaceholder("lowestStrike", examples)).toBe("R$ 18,00");
     expect(resolvePlaceholder("lowerStrike", examples)).toBe("R$ 20,00");
+    expect(resolvePlaceholder("lowerMidStrike", examples)).toBe("R$ 19,00");
+    expect(resolvePlaceholder("upperMidStrike", examples)).toBe("R$ 21,00");
     expect(resolvePlaceholder("higherStrike", examples)).toBe("R$ 22,00");
+  });
+
+  it("resolves a second break-even on a structure that has two", async () => {
+    const examples = await loadIllustrativeExamples();
+    const straddle = examples["long-straddle"];
+    const [first, second] = straddle.breakEvens;
+    if (!first || !second) throw new Error("fixture straddle lacks two break-evens");
+    expect(resolvePlaceholder("long-straddle.breakEven0", examples)).toBe(formatPriceBRL(first));
+    expect(resolvePlaceholder("long-straddle.breakEven1", examples)).toBe(formatPriceBRL(second));
+  });
+
+  it("resolves theta's magnitude regardless of its sign, never to R$0,00", async () => {
+    const examples = await loadIllustrativeExamples();
+    const resolved = resolvePlaceholder("long-call.thetaAbs", examples);
+    expect(resolved).toMatch(/^R\$ \d/);
+    expect(resolved).not.toBe("R$ 0,00");
+    expect(Math.abs(Number(examples["long-call"].greeks.theta))).toBeGreaterThan(0);
+  });
+
+  it("throws resolving a break-even index the example does not have", async () => {
+    const examples = await loadIllustrativeExamples();
+    expect(() => resolvePlaceholder("long-call.breakEven1", examples)).toThrow();
   });
 
   it("resolves an example's premium and max loss to a positive amount", async () => {
     const examples = await loadIllustrativeExamples();
-    expect(resolvePlaceholder("long-call.premiumAbs", examples)).toBe("R$ 1,50");
-    expect(resolvePlaceholder("long-call.maxLossAbs", examples)).toBe("R$ 1,50");
+    expect(resolvePlaceholder("long-call.premiumAbs", examples)).toBe("R$ 1,51");
+    expect(resolvePlaceholder("long-call.maxLossAbs", examples)).toBe("R$ 1,51");
   });
 
   it("throws resolving an unbounded field instead of printing a wrong number", async () => {
@@ -60,6 +87,6 @@ describe("resolveText", () => {
   it("replaces every placeholder in a sentence", async () => {
     const examples = await loadIllustrativeExamples();
     const text = resolveText("Spot {{spot}}, premium {{long-call.premiumAbs}}.", examples);
-    expect(text).toBe("Spot R$ 20,00, premium R$ 1,50.");
+    expect(text).toBe("Spot R$ 20,00, premium R$ 1,51.");
   });
 });

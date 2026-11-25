@@ -1,10 +1,12 @@
 const en = {
   overline: "Learn",
   headline: "Learn",
+  learnStructureLink: (name: string) => `Learn: ${name}`,
   viewBy: {
     label: "View by",
     jornada: "Journey",
     temas: "Topics",
+    estruturas: "Structures",
   },
   continueCard: {
     title: "Continue",
@@ -40,10 +42,12 @@ const en = {
 const ptBR = {
   overline: "Aprender",
   headline: "Aprender",
+  learnStructureLink: (name: string) => `Aprender: ${name}`,
   viewBy: {
     label: "Ver por",
     jornada: "Jornada",
     temas: "Temas",
+    estruturas: "Estruturas",
   },
   continueCard: {
     title: "Continuar",

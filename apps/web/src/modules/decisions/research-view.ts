@@ -8,6 +8,7 @@ import {
 } from "@fetha/contracts";
 import type { DecisionKind } from "@fetha/engine";
 
+import { lessonHrefForStructure } from "@/modules/learning";
 import { recipeStructureById, type DropReason, type IdeaCard } from "@/modules/radar";
 
 import type { DecisionListItem } from "./decisions-repository";
@@ -69,10 +70,14 @@ function citedFacts(facts: AnalysisFacts, paths: readonly string[]): CitedFact[]
 }
 
 export function ideaCardOfStored(idea: StoredResearchIdea): IdeaCard {
+  const structure = recipeStructureById(idea.recipeId) ?? {
+    id: idea.recipeId,
+    name: idea.recipeId,
+  };
   return {
     underlying: tickerSchema.parse(idea.underlying),
     recipeId: idea.recipeId,
-    structure: recipeStructureById(idea.recipeId) ?? { id: idea.recipeId, name: idea.recipeId },
+    structure,
     foundOn: idea.foundOn,
     expiry: idea.horizon,
     sessionsToExpiry: idea.sessionsToExpiry,
@@ -86,6 +91,7 @@ export function ideaCardOfStored(idea: StoredResearchIdea): IdeaCard {
     suggestionId: idea.suggestionId,
     chart: { payoff: idea.pricing.payoff, spot: idea.pricing.spot },
     probabilityOfProfit: idea.pricing.probabilityOfProfit?.probability ?? null,
+    lessonHref: lessonHrefForStructure(structure.id),
   };
 }
 

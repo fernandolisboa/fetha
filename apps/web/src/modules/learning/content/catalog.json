@@ -61,6 +61,23 @@
     { "id": "strike-expiry-premium", "level": "first-steps", "topic": "options-basics" },
     { "id": "buying-vs-writing", "level": "first-steps", "topic": "options-basics" },
     { "id": "exercise-on-b3", "level": "first-steps", "topic": "b3-rules" },
-    { "id": "reading-the-series-code", "level": "first-steps", "topic": "b3-rules" }
+    { "id": "reading-the-series-code", "level": "first-steps", "topic": "b3-rules" },
+    { "id": "moneyness", "level": "fundamentals", "topic": "options-basics" },
+    { "id": "intrinsic-and-time-value", "level": "fundamentals", "topic": "pricing" },
+    { "id": "reading-a-payoff-diagram", "level": "fundamentals", "topic": "pricing" },
+    { "id": "implied-volatility-and-iv-rank", "level": "fundamentals", "topic": "pricing" },
+    { "id": "theta-and-time-decay", "level": "fundamentals", "topic": "pricing" },
+    { "id": "long-call", "level": "beginner", "topic": "structures" },
+    { "id": "long-put", "level": "beginner", "topic": "structures" },
+    { "id": "bull-call-spread", "level": "beginner", "topic": "structures" },
+    { "id": "bull-put-spread", "level": "beginner", "topic": "structures" },
+    { "id": "bear-put-spread", "level": "beginner", "topic": "structures" },
+    { "id": "bear-call-spread", "level": "beginner", "topic": "structures" },
+    { "id": "covered-call", "level": "beginner", "topic": "structures" },
+    { "id": "call-butterfly", "level": "intermediate", "topic": "structures" },
+    { "id": "put-butterfly", "level": "intermediate", "topic": "structures" },
+    { "id": "iron-condor", "level": "intermediate", "topic": "structures" },
+    { "id": "long-straddle", "level": "intermediate", "topic": "structures" },
+    { "id": "long-strangle", "level": "intermediate", "topic": "structures" }
   ]
 }

@@ -58,28 +58,28 @@
       },
       "options": [
         {
-          "id": "a",
+          "id": "c",
           "text": {
             "en": "The option's type (call or put) and its expiry month",
             "pt": "O tipo da opção (call ou put) e o mês de vencimento"
           }
         },
         {
-          "id": "b",
+          "id": "a",
           "text": {
             "en": "The strike price",
             "pt": "O preço de strike"
           }
         },
         {
-          "id": "c",
+          "id": "b",
           "text": {
             "en": "The underlying's sector",
             "pt": "O setor do ativo"
           }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "c",
       "explanation": {
         "en": "One letter carries two pieces of information at once: call-or-put, and which month it expires.",
         "pt": "Uma única letra carrega duas informações ao mesmo tempo: se é call ou put, e em que mês vence."
@@ -93,21 +93,21 @@
       },
       "options": [
         {
-          "id": "b",
+          "id": "a",
           "text": {
             "en": "A put expiring in February",
             "pt": "Uma put que vence em fevereiro"
           }
         },
         {
-          "id": "a",
+          "id": "b",
           "text": {
             "en": "A call expiring in February",
             "pt": "Uma call que vence em fevereiro"
           }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "b",
       "explanation": {
         "en": "Letters A through L (12, one per month) mark a call; B is the second letter, so February. Letters M through X mark a put the same way.",
         "pt": "As letras de A a L (12, uma por mês) marcam uma call; B é a segunda letra, logo fevereiro. As letras de M a X marcam uma put do mesmo jeito."
@@ -121,28 +121,28 @@
       },
       "options": [
         {
-          "id": "b",
+          "id": "c",
           "text": {
             "en": "The strike price, in reais",
             "pt": "O preço de strike, em reais"
           }
         },
         {
-          "id": "c",
+          "id": "a",
           "text": {
             "en": "The day of the month it expires",
             "pt": "O dia do mês em que vence"
           }
         },
         {
-          "id": "a",
+          "id": "b",
           "text": {
             "en": "An identifier telling series apart, which may look like a strike but is not one",
             "pt": "Um identificador para diferenciar séries, que pode parecer um strike, mas não é"
           }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "b",
       "explanation": {
         "en": "Reading the number as a strike is a common mistake; the strike always comes from the option's own data, and only that field moves when a corporate action adjusts it.",
         "pt": "Ler esse número como strike é um erro comum; o strike sempre vem dos dados da própria opção, e só esse campo muda quando um evento corporativo o ajusta."
@@ -163,21 +163,21 @@
           }
         },
         {
-          "id": "a",
+          "id": "c",
           "text": {
             "en": "A W1 through W5 suffix naming the week of the month it expires in",
             "pt": "Um sufixo de W1 a W5 dizendo em qual semana do mês ela vence"
           }
         },
         {
-          "id": "c",
+          "id": "a",
           "text": {
             "en": "The underlying's own class digit",
             "pt": "O dígito de classe do próprio ativo"
           }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "c",
       "explanation": {
         "en": "A weekly series keeps the same letter-and-number shape as a monthly one and only adds a W1-W5 suffix for which week it expires in.",
         "pt": "Uma série semanal mantém o mesmo formato de letra e número de uma mensal e só acrescenta um sufixo de W1 a W5 para a semana em que vence."

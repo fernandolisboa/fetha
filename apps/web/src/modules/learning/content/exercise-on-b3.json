@@ -85,21 +85,21 @@
       },
       "options": [
         {
-          "id": "b",
+          "id": "a",
           "text": {
             "en": "European (only at expiry)",
             "pt": "Europeu (só no vencimento)"
           }
         },
         {
-          "id": "a",
+          "id": "b",
           "text": {
             "en": "American (any time up to expiry)",
             "pt": "Americano (em qualquer momento até o vencimento)"
           }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "b",
       "explanation": {
         "en": "Most B3 equity calls are American-style; always check a specific series before assuming so.",
         "pt": "A maioria das calls sobre ações da B3 é do estilo americano; sempre confira a série específica antes de supor isso."
@@ -113,21 +113,21 @@
       },
       "options": [
         {
-          "id": "a",
+          "id": "b",
           "text": {
             "en": "American (any time up to expiry)",
             "pt": "Americano (em qualquer momento até o vencimento)"
           }
         },
         {
-          "id": "b",
+          "id": "a",
           "text": {
             "en": "European (only at expiry)",
             "pt": "Europeu (só no vencimento)"
           }
         }
       ],
-      "correctOptionId": "b",
+      "correctOptionId": "a",
       "explanation": {
         "en": "Most B3 equity puts are European-style, exercisable only at expiry; again, check the specific series.",
         "pt": "A maioria das puts sobre ações da B3 é do estilo europeu, só exercível no vencimento; de novo, confira a série específica."
@@ -141,28 +141,28 @@
       },
       "options": [
         {
-          "id": "b",
+          "id": "a",
           "text": {
             "en": "Every writer of every series on that underlying",
             "pt": "Todo lançador de toda série daquele ativo"
           }
         },
         {
-          "id": "c",
+          "id": "b",
           "text": {
             "en": "B3 itself",
             "pt": "A própria B3"
           }
         },
         {
-          "id": "a",
+          "id": "c",
           "text": {
             "en": "A writer of that same series, assigned by B3",
             "pt": "Um lançador daquela mesma série, atribuído pela B3"
           }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "c",
       "explanation": {
         "en": "B3 assigns exercise to a writer of the same series; that writer is said to be “assigned”.",
         "pt": "A B3 atribui o exercício a um lançador daquela mesma série; esse lançador é dito “atribuído”."

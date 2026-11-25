@@ -1,0 +1,209 @@
+{
+  "id": "long-put",
+  "version": 1,
+  "minutes": 6,
+  "title": {
+    "en": "Long put",
+    "pt": "Compra de put"
+  },
+  "summary": {
+    "en": "The simplest bearish bet: pay a premium for a drop, risk only that premium.",
+    "pt": "A aposta de baixa mais simples: paga um prêmio por uma queda, arriscando só esse prêmio."
+  },
+  "structure": "long-put",
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Use a long put when the view is that the stock falls, and falls by more than the premium costs. Like the long call, it works best with options cheap relative to this underlying's own recent normal (low IV rank) — a later rise in volatility, common when a stock actually falls, only helps.",
+        "pt": "Use uma compra de put quando a visão é de que a ação cai, e cai mais do que o prêmio custa. Como a call comprada, funciona melhor com opções baratas em relação ao normal recente deste ativo (IV rank baixo) — uma alta de volatilidade depois, comum quando uma ação de fato cai, só ajuda."
+      }
+    },
+    {
+      "type": "list",
+      "items": {
+        "en": ["One leg: buy one put."],
+        "pt": ["Uma perna: compra de uma put."]
+      }
+    },
+    {
+      "type": "payoff-example",
+      "exampleId": "long-put",
+      "caption": {
+        "en": "Buying a put struck at {{lowerStrike}} with the stock at {{spot}}.",
+        "pt": "Compra de uma put com strike {{lowerStrike}} e a ação a {{spot}}."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Max loss is the premium paid, {{long-put.maxLossAbs}} per share (×100 per lot), if the stock finishes at or above the strike. Max gain is capped, not unbounded — a stock can only fall to zero — at {{long-put.maxGainAbs}} per share, reached only if the stock falls all the way to R$ 0,00.",
+        "pt": "A perda máxima é o prêmio pago, {{long-put.maxLossAbs}} por ação (×100 por lote), se a ação terminar no strike ou acima. O ganho máximo é travado, não sem limite — uma ação só pode cair até zero — em {{long-put.maxGainAbs}} por ação, alcançado só se a ação cair até R$ 0,00."
+      }
+    },
+    {
+      "type": "callout",
+      "tone": "warning",
+      "text": {
+        "en": "Theta erodes this position the same way it erodes a long call; a drop in implied volatility after entry hurts on its own; a stock that falls slowly, without ever breaking the break-even before expiry, can still lose the full premium.",
+        "pt": "O theta corrói essa posição do mesmo jeito que corrói a call comprada; uma queda na volatilidade implícita depois da entrada machuca por conta própria; uma ação que cai devagar, sem nunca romper o break-even antes do vencimento, ainda pode perder o prêmio inteiro."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "As with the long call, there is no obligation to roll a long put. Fetha's Montar plano still sets the recipe's own profit target, stop and days-before-expiry exit, so the decision to leave is written down before the position even opens.",
+        "pt": "Como na call comprada, não há obrigação de rolar uma put comprada. O Montar plano da Fetha ainda define o alvo de lucro, o stop e a saída por dias até o vencimento da própria receita, então a decisão de saída já está escrita antes mesmo de a posição abrir."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "No Fetha: this is the “Compra de put” recipe.",
+        "pt": "No Fetha: essa é a receita “Compra de put”."
+      }
+    }
+  ],
+  "quiz": [
+    {
+      "id": "q1",
+      "prompt": {
+        "en": "A long put's max gain is:",
+        "pt": "O ganho máximo de uma put comprada é:"
+      },
+      "options": [
+        {
+          "id": "c",
+          "text": {
+            "en": "Unbounded",
+            "pt": "Sem limite"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Capped, because the stock can only fall to zero",
+            "pt": "Travado, porque a ação só pode cair até zero"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "The premium paid",
+            "pt": "O prêmio pago"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "A put's intrinsic value stops growing once the stock hits zero, so its max gain is a finite amount, not unbounded.",
+        "pt": "O valor intrínseco de uma put para de crescer quando a ação chega a zero, então o ganho máximo dela é um valor finito, não sem limite."
+      }
+    },
+    {
+      "id": "q2",
+      "prompt": {
+        "en": "A long put, like a long call, loses value every session the stock stays put because of:",
+        "pt": "Uma put comprada, como a call comprada, perde valor todo pregão em que a ação fica parada por causa do:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "Vega",
+            "pt": "Vega"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "Theta",
+            "pt": "Theta"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "Delta",
+            "pt": "Delta"
+          }
+        }
+      ],
+      "correctOptionId": "b",
+      "explanation": {
+        "en": "Theta erodes a long option's time value every session, regardless of whether it is a call or a put.",
+        "pt": "O theta corrói o valor do tempo de uma opção comprada a cada pregão, seja ela call ou put."
+      }
+    },
+    {
+      "id": "q3",
+      "prompt": {
+        "en": "A long put makes most sense with implied volatility:",
+        "pt": "Uma put comprada faz mais sentido com a volatilidade implícita:"
+      },
+      "options": [
+        {
+          "id": "b",
+          "text": {
+            "en": "Low relative to this underlying's own recent normal",
+            "pt": "Baixa em relação ao normal recente deste ativo"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "High relative to this underlying's own recent normal",
+            "pt": "Alta em relação ao normal recente deste ativo"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "It never matters for a long put",
+            "pt": "Nunca importa para uma put comprada"
+          }
+        }
+      ],
+      "correctOptionId": "b",
+      "explanation": {
+        "en": "Buying a put outright is cheaper, and leaves room for volatility to rise, when IV rank is low.",
+        "pt": "Comprar uma put direto fica mais barato, e deixa espaço para a volatilidade subir, quando o IV rank está baixo."
+      }
+    },
+    {
+      "id": "q4",
+      "prompt": {
+        "en": "For this position to turn a profit, the stock needs to finish:",
+        "pt": "Para essa posição dar lucro, a ação precisa terminar:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "Above the break-even of {{long-put.breakEven0}}",
+            "pt": "Acima do break-even de {{long-put.breakEven0}}"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "Exactly at the strike",
+            "pt": "Exatamente no strike"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "Below the break-even of {{long-put.breakEven0}}",
+            "pt": "Abaixo do break-even de {{long-put.breakEven0}}"
+          }
+        }
+      ],
+      "correctOptionId": "c",
+      "explanation": {
+        "en": "A put's payoff grows as the stock falls, so it only profits below its break-even.",
+        "pt": "O payoff de uma put cresce conforme a ação cai, então ela só dá lucro abaixo do break-even."
+      }
+    }
+  ]
+}

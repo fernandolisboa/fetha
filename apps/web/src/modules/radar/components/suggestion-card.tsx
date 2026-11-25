@@ -6,6 +6,8 @@ import type { LegValuation } from "@fetha/engine";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { formatPriceBRL } from "@/lib/format/brl";
+import { lessonHrefForStructure } from "@/modules/learning";
+import { StructureLessonLink } from "@/modules/learning/client";
 import { AssetReadingChips } from "@/modules/market-data";
 import { PayoffChart } from "@/modules/portfolio/client";
 import { conditionLines, recipeSummary, type RuleLine } from "@/modules/recipes";
@@ -164,12 +166,14 @@ export function SuggestionCardHeader({
   headline: boolean;
   chipKind: PremiumChipKind;
 }) {
+  const lessonHref = lessonHrefForStructure(suggestion.structure.id);
   return (
     <header className="flex flex-col gap-1">
       <p className="text-muted-foreground text-[11px]">
         {t.suggestions.eyebrow(displayDate(suggestion.session), suggestion.recipe.definition.name)}
       </p>
       {headline && <h3 className="text-[15px] font-medium">{suggestionHeadline(suggestion)}</h3>}
+      <StructureLessonLink href={lessonHref} name={suggestion.structure.name} />
       <ul className="mt-1 flex flex-wrap gap-1.5">
         <li>
           <Badge variant="outline" style={{ color: "var(--accent)", borderColor: "var(--accent)" }}>

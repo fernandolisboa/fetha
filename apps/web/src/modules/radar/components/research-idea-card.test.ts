@@ -83,6 +83,7 @@ function idea(overrides: Partial<IdeaCard> = {}): IdeaCard {
       spot: decimal("39.06"),
     },
     probabilityOfProfit: decimal("0.4085"),
+    lessonHref: "/aprender/bull-call-spread",
     ...overrides,
   };
 }
@@ -126,6 +127,19 @@ describe("ResearchIdeaCard", () => {
 
     expect(html).not.toContain("/sugestoes/");
     expect(html).toContain('href="/ativos/PETR4"');
+  });
+
+  it("links to the matching lesson", () => {
+    const html = render(idea());
+
+    expect(html).toContain('href="/aprender/bull-call-spread"');
+    expect(html).toContain("Aprender: Trava de alta com calls");
+  });
+
+  it("leaves out the lesson link for a structure with no lesson", () => {
+    const html = render(idea({ lessonHref: null }));
+
+    expect(html).not.toContain("/aprender/");
   });
 
   it("lists each alert: the rule that stopped holding, the breached limits and the near expiry", () => {

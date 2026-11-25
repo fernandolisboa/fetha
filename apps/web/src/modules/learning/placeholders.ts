@@ -1,5 +1,7 @@
+import { Decimal } from "decimal.js";
 import {
   centavosSchema,
+  decimalStringSchema,
   illustrativeExampleIdSchema,
   type IllustrativeExampleId,
 } from "@fetha/contracts";
@@ -22,7 +24,10 @@ function isExampleId(value: string): value is IllustrativeExampleId {
 // fails the content check instead of shipping a broken placeholder.
 export function resolvePlaceholder(token: string, examples: IllustrativeExamples): string {
   if (token === "spot") return formatPriceBRL(examples.spot);
+  if (token === "lowestStrike") return formatPriceBRL(examples.lowestStrike);
   if (token === "lowerStrike") return formatPriceBRL(examples.lowerStrike);
+  if (token === "lowerMidStrike") return formatPriceBRL(examples.lowerMidStrike);
+  if (token === "upperMidStrike") return formatPriceBRL(examples.upperMidStrike);
   if (token === "higherStrike") return formatPriceBRL(examples.higherStrike);
   if (token === "underlying") return examples.underlying;
 
@@ -47,12 +52,21 @@ export function resolvePlaceholder(token: string, examples: IllustrativeExamples
     }
     return formatBRL(centavosSchema.parse(Math.abs(pricing.maxGain)));
   }
-  if (field === "breakEven0") {
-    const breakEven = pricing.breakEvens[0];
+  const breakEvenMatch = /^breakEven(\d+)$/.exec(field);
+  if (breakEvenMatch) {
+    const index = Number(breakEvenMatch[1]);
+    const breakEven = pricing.breakEvens[index];
     if (breakEven === undefined) {
       throw new Error(`placeholder "${token}" has no break-even to resolve`);
     }
     return formatPriceBRL(breakEven);
+  }
+  if (field === "thetaAbs") {
+    // Theta is per share; a real option contract is a 100-share lot (CLAUDE.md money rule: never
+    // show a per-share greek as if it were the position's own size), so this is the per-lot
+    // magnitude — also keeps it from rounding away to R$0,00 for a cheap, far-dated option.
+    const perLot = new Decimal(pricing.greeks.theta).abs().mul(100).toFixed(6);
+    return formatPriceBRL(decimalStringSchema.parse(perLot));
   }
   if (field === "ticker" || field === "tickerLetter") {
     if (pricing.legs.length !== 1) {

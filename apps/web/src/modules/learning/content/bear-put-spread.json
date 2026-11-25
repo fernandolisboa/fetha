@@ -1,0 +1,215 @@
+{
+  "id": "bear-put-spread",
+  "version": 1,
+  "minutes": 6,
+  "title": {
+    "en": "Bear put spread",
+    "pt": "Trava de baixa com puts"
+  },
+  "summary": {
+    "en": "A cheaper, capped bet on a fall: sell a lower put to pay for the one you buy.",
+    "pt": "Uma aposta de baixa mais barata e travada: vende uma put mais baixa para pagar a que você compra."
+  },
+  "structure": "bear-put-spread",
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Use a bear put spread for the same bearish view as a long put, when giving up the gain below the lower strike is acceptable for a smaller net premium. It fits low IV rank, same as the long put: the bought leg sits closer to the money than the sold one, so its vega usually outweighs the sold leg's, leaving the spread's net vega positive like a bought put's — check both legs' own vega rather than assume it from the strikes alone.",
+        "pt": "Use uma trava de baixa com puts para a mesma visão de baixa da put comprada, quando abrir mão do ganho abaixo do strike mais baixo é aceitável por um prêmio líquido menor. Encaixa com IV rank baixo, como a put comprada: a perna comprada fica mais perto do dinheiro do que a vendida, então o vega dela costuma pesar mais, deixando o vega líquido da trava positivo como o de uma put comprada — confira o vega de cada perna em vez de supor pelos strikes."
+      }
+    },
+    {
+      "type": "list",
+      "items": {
+        "en": [
+          "Buy one put at the higher strike.",
+          "Sell one put at the lower strike, same expiry."
+        ],
+        "pt": [
+          "Compra de uma put no strike mais alto.",
+          "Venda de uma put no strike mais baixo, mesmo vencimento."
+        ]
+      }
+    },
+    {
+      "type": "payoff-example",
+      "exampleId": "bear-put-spread",
+      "caption": {
+        "en": "Buying the {{lowerStrike}} put and selling the {{lowerMidStrike}} put, stock at {{spot}}.",
+        "pt": "Compra da put de {{lowerStrike}} e venda da put de {{lowerMidStrike}}, ação a {{spot}}."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Max loss is the net debit paid, {{bear-put-spread.maxLossAbs}} per share (×100 per lot), kept in full at or above the higher strike bought; falling from there, it shrinks to zero exactly at the break-even of {{bear-put-spread.breakEven0}}, then turns into a growing gain. Max gain is capped at {{bear-put-spread.maxGainAbs}} per share once the stock reaches the lower strike — the width between the two strikes minus what was paid for the spread.",
+        "pt": "A perda máxima é o débito líquido pago, {{bear-put-spread.maxLossAbs}} por ação (×100 por lote), mantida por completo no strike comprado ou acima dele; caindo a partir daí, ela encolhe até zero exatamente no break-even de {{bear-put-spread.breakEven0}}, e então se torna um ganho crescente. O ganho máximo é travado em {{bear-put-spread.maxGainAbs}} por ação assim que a ação chega ao strike mais baixo — a distância entre os dois strikes menos o que foi pago pela trava."
+      }
+    },
+    {
+      "type": "callout",
+      "tone": "warning",
+      "text": {
+        "en": "The sold put is usually European-style on B3 equities (check the series), so limited early-assignment risk, but giving up gains below the lower strike wastes upside if the stock crashes much further; closing both legs at once still depends on both having real liquidity, not just the bought one.",
+        "pt": "A put vendida costuma ser do estilo europeu nas ações da B3 (confira a série), então com pouco risco de atribuição antecipada, mas abrir mão dos ganhos abaixo do strike mais baixo desperdiça potencial se a ação despencar bem mais; encerrar as duas pernas de uma vez ainda depende de as duas terem liquidez real, não só a comprada."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Fetha's Montar plano sets this recipe's own profit target, stop and days-before-expiry exit for both legs together; Rolar lets the whole spread move to a later expiry without closing it first.",
+        "pt": "O Montar plano da Fetha define, para as duas pernas juntas, o alvo de lucro, o stop e a saída por dias até o vencimento da própria receita; o Rolar permite levar a trava inteira para um vencimento mais distante sem encerrá-la antes."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "No Fetha: this is the “Trava de baixa com puts” recipe.",
+        "pt": "No Fetha: essa é a receita “Trava de baixa com puts”."
+      }
+    }
+  ],
+  "quiz": [
+    {
+      "id": "q1",
+      "prompt": {
+        "en": "A bear put spread profits most when the stock:",
+        "pt": "Uma trava de baixa com puts dá mais lucro quando a ação:"
+      },
+      "options": [
+        {
+          "id": "b",
+          "text": {
+            "en": "Rises above the higher strike",
+            "pt": "Sobe acima do strike mais alto"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "Falls to or below the lower strike",
+            "pt": "Cai até o strike mais baixo ou abaixo"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Stays exactly at the higher strike",
+            "pt": "Fica exatamente no strike mais alto"
+          }
+        }
+      ],
+      "correctOptionId": "c",
+      "explanation": {
+        "en": "Max gain is reached once the stock falls to or past the lower strike — further decline does not add to it.",
+        "pt": "O ganho máximo é alcançado quando a ação cai até o strike mais baixo ou além — queda adicional não aumenta mais."
+      }
+    },
+    {
+      "id": "q2",
+      "prompt": {
+        "en": "Compared to an outright long put, a bear put spread:",
+        "pt": "Comparada a uma put comprada direto, uma trava de baixa com puts:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "Costs more and has no cap on the gain",
+            "pt": "Custa mais e não tem teto no ganho"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "Costs less but caps the max gain",
+            "pt": "Custa menos, mas trava o ganho máximo"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "Has identical risk and reward",
+            "pt": "Tem risco e retorno idênticos"
+          }
+        }
+      ],
+      "correctOptionId": "b",
+      "explanation": {
+        "en": "Selling the lower put funds part of the bought put's premium, lowering the cost but capping the gain at the lower strike.",
+        "pt": "Vender a put mais baixa financia parte do prêmio da put comprada, baixando o custo mas travando o ganho no strike mais baixo."
+      }
+    },
+    {
+      "id": "q3",
+      "prompt": {
+        "en": "A bear put spread fits best with implied volatility:",
+        "pt": "Uma trava de baixa com puts encaixa melhor com a volatilidade implícita:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "Low relative to this underlying's own recent normal",
+            "pt": "Baixa em relação ao normal recente deste ativo"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "High relative to this underlying's own recent normal",
+            "pt": "Alta em relação ao normal recente deste ativo"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "It never matters here",
+            "pt": "Nunca importa aqui"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "Only the spread's net vega carries the bought put's positive sign — the sold leg's own vega is negative; cheap options (low IV rank) still suit the position overall, same as a long put.",
+        "pt": "Só o vega líquido da trava carrega o sinal positivo da put comprada — o vega da própria perna vendida é negativo; opções baratas (IV rank baixo) ainda servem bem para a posição como um todo, como na put comprada."
+      }
+    },
+    {
+      "id": "q4",
+      "prompt": {
+        "en": "Max loss on a bear put spread happens when the stock:",
+        "pt": "A perda máxima numa trava de baixa com puts acontece quando a ação:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "Finishes at or above the higher strike",
+            "pt": "Termina no strike mais alto ou acima"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "Falls to zero",
+            "pt": "Cai a zero"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "Finishes exactly between the two strikes",
+            "pt": "Termina exatamente entre os dois strikes"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "Above the higher strike, both puts expire worthless and the position loses exactly the net debit paid.",
+        "pt": "Acima do strike mais alto, as duas puts vencem sem valor e a posição perde exatamente o débito líquido pago."
+      }
+    }
+  ]
+}

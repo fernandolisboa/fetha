@@ -6,10 +6,12 @@ import { forCurrentUser } from "@/modules/auth";
 import { getLesson, jornadaOrder, type PlacedLesson } from "./catalog";
 import { publicQuiz, type PublicQuizQuestion } from "./grading";
 import {
+  estruturasGroups,
   jornadaGroups,
   nextLesson,
   temasGroups,
   type LevelGroup,
+  type MarketViewGroup,
   type ProgressByLessonId,
   type TopicGroup,
 } from "./grouping";
@@ -21,6 +23,7 @@ export interface LessonsOverview {
   progress: ProgressByLessonId;
   jornadaGroups: LevelGroup[];
   temasGroups: TopicGroup[];
+  estruturasGroups: MarketViewGroup[];
   recommended: PlacedLesson | null;
 }
 
@@ -37,6 +40,7 @@ export const getMyLessonsOverview = cache(async (): Promise<LessonsOverview> => 
     progress,
     jornadaGroups: jornadaGroups(progress, "pt"),
     temasGroups: temasGroups(progress, "pt"),
+    estruturasGroups: estruturasGroups(progress, "pt"),
     recommended: nextLesson(progress),
   };
 });

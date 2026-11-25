@@ -1,0 +1,194 @@
+{
+  "id": "implied-volatility-and-iv-rank",
+  "version": 1,
+  "minutes": 5,
+  "title": {
+    "en": "Implied volatility and IV rank",
+    "pt": "Volatilidade implícita e IV rank"
+  },
+  "summary": {
+    "en": "The volatility the market is pricing into an option, and how Fetha reads it as high, normal or low for this underlying.",
+    "pt": "A volatilidade que o mercado está precificando numa opção, e como a Fetha lê isso como alta, normal ou baixa para este ativo."
+  },
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Implied volatility is the volatility that, fed into the pricing model, reproduces an option's market price. It is not a historical measurement of how much the stock actually moved — it is the market's own expectation, backed out of what people are paying for the option right now.",
+        "pt": "Volatilidade implícita é a volatilidade que, colocada no modelo de precificação, reproduz o preço de mercado de uma opção. Não é uma medida histórica de quanto a ação de fato se moveu — é a expectativa do próprio mercado, extraída do que as pessoas estão pagando pela opção agora."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "A single implied volatility number is hard to judge on its own: 30% is high for one stock and low for another. Fetha reads each underlying's own implied volatility index against its own recent history and labels it low, normal or high — that reading is IV rank.",
+        "pt": "Um número de volatilidade implícita sozinho é difícil de julgar: 30% é alto para uma ação e baixo para outra. A Fetha lê o índice de volatilidade implícita de cada ativo contra o próprio histórico recente dele e rotula isso como baixa, normal ou alta — essa leitura é o IV rank."
+      }
+    },
+    {
+      "type": "callout",
+      "tone": "info",
+      "text": {
+        "en": "IV rank, in Fetha, is a percentile: it says what share of the underlying's own recent readings sat strictly below today's implied volatility — not a min-to-max scale from the lowest to the highest reading in the window, which is a different, more common calculation elsewhere and reads differently near the extremes.",
+        "pt": "O IV rank, na Fetha, é um percentil: diz qual fração das leituras recentes do próprio ativo ficou estritamente abaixo da volatilidade implícita de hoje — não uma escala de mínimo a máximo das leituras da janela, que é um cálculo diferente, mais comum em outros lugares, e que lê de outro jeito perto dos extremos."
+      }
+    },
+    {
+      "type": "list",
+      "items": {
+        "en": [
+          "High IV rank: options are pricier than this underlying's own recent normal — a recipe that sells premium (a bull put spread, an iron condor) looks for this.",
+          "Low IV rank: options are cheaper than usual — a recipe that buys premium outright (a long call, a long straddle) looks for this instead.",
+          "Recipes never read a raw implied volatility percentage directly; they read this underlying-relative rank, so the same recipe makes sense across very different stocks."
+        ],
+        "pt": [
+          "IV rank alto: as opções estão mais caras do que o normal recente deste ativo — uma receita que vende prêmio (uma trava de alta com puts, um condor de ferro) procura por isso.",
+          "IV rank baixo: as opções estão mais baratas do que o normal — uma receita que compra prêmio (uma compra de call, um straddle comprado) procura por isso em vez disso.",
+          "As receitas nunca leem um percentual bruto de volatilidade implícita direto; leem esse rank relativo ao próprio ativo, então a mesma receita faz sentido em ações bem diferentes."
+        ]
+      }
+    }
+  ],
+  "quiz": [
+    {
+      "id": "q1",
+      "prompt": {
+        "en": "Implied volatility is best described as:",
+        "pt": "Volatilidade implícita é melhor descrita como:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "The volatility the market is pricing into an option's current price",
+            "pt": "A volatilidade que o mercado está precificando no preço atual da opção"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "A measurement of how much the stock actually moved in the past",
+            "pt": "Uma medida de quanto a ação de fato se moveu no passado"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "The option's strike price",
+            "pt": "O preço do strike da opção"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "Implied volatility is backed out of the market price, not measured from the stock's past movement.",
+        "pt": "A volatilidade implícita é extraída do preço de mercado, não medida do movimento passado da ação."
+      }
+    },
+    {
+      "id": "q2",
+      "prompt": {
+        "en": "Fetha's IV rank is:",
+        "pt": "O IV rank da Fetha é:"
+      },
+      "options": [
+        {
+          "id": "b",
+          "text": {
+            "en": "A min-to-max scale of the window's lowest and highest reading",
+            "pt": "Uma escala de mínimo a máximo das leituras da janela"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "A percentile of this underlying's own recent implied volatility readings",
+            "pt": "Um percentil das próprias leituras recentes de volatilidade implícita deste ativo"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "The VIX index",
+            "pt": "O índice VIX"
+          }
+        }
+      ],
+      "correctOptionId": "c",
+      "explanation": {
+        "en": "IV rank, in Fetha, is a percentile against the underlying's own recent history, not a min-max scale and not a market-wide index like the VIX.",
+        "pt": "O IV rank, na Fetha, é um percentil contra o próprio histórico recente do ativo, não uma escala mínimo-máximo e não um índice de mercado como o VIX."
+      }
+    },
+    {
+      "id": "q3",
+      "prompt": {
+        "en": "A recipe that sells premium outright (a bull put spread, for example) tends to look for:",
+        "pt": "Uma receita que vende prêmio direto (uma trava de alta com puts, por exemplo) tende a procurar por:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "A falling stock price",
+            "pt": "Um preço de ação em queda"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "High IV rank",
+            "pt": "IV rank alto"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "Low IV rank",
+            "pt": "IV rank baixo"
+          }
+        }
+      ],
+      "correctOptionId": "b",
+      "explanation": {
+        "en": "Selling premium pays off best when options are pricier than usual — high IV rank.",
+        "pt": "Vender prêmio compensa mais quando as opções estão mais caras do que o normal — IV rank alto."
+      }
+    },
+    {
+      "id": "q4",
+      "prompt": {
+        "en": "Why does Fetha read IV rank instead of a raw implied volatility percentage?",
+        "pt": "Por que a Fetha lê o IV rank em vez de um percentual bruto de volatilidade implícita?"
+      },
+      "options": [
+        {
+          "id": "b",
+          "text": {
+            "en": "The same raw percentage can be high for one stock and low for another",
+            "pt": "O mesmo percentual bruto pode ser alto para uma ação e baixo para outra"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "A raw percentage cannot be computed from the chain",
+            "pt": "Um percentual bruto não pode ser calculado a partir da cadeia de opções"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "IV rank is always zero",
+            "pt": "O IV rank é sempre zero"
+          }
+        }
+      ],
+      "correctOptionId": "b",
+      "explanation": {
+        "en": "A rank reads implied volatility relative to this underlying's own history, so the same recipe makes sense across very different stocks.",
+        "pt": "Um rank lê a volatilidade implícita relativa ao próprio histórico do ativo, então a mesma receita faz sentido em ações bem diferentes."
+      }
+    }
+  ]
+}

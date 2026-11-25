@@ -1,6 +1,7 @@
 import type { Centavos, ExpectedMove, IvRegime } from "@fetha/contracts";
 
 import { formatBRL } from "@/lib/format/brl";
+import { lessonHrefForStructure } from "@/modules/learning";
 import { catalog, recipes } from "@/modules/strategies";
 
 import { payoffSketch, type SketchPoint } from "./payoff-sketch";
@@ -15,6 +16,7 @@ export type RecipeCard = {
   summary: string;
   maxLoss: string;
   sketch: SketchPoint[];
+  lessonHref: string | null;
 };
 
 export type RiskOption = { fraction: RecipeRiskFraction; label: string; amount: string };
@@ -42,6 +44,7 @@ export function recipeCards(): RecipeCard[] {
       name: recipe.definition.name,
       ...copyFor(recipe.id),
       sketch: payoffSketch(structure, recipe.definition.strikes),
+      lessonHref: lessonHrefForStructure(recipe.definition.structureId),
     };
   });
 }

@@ -1,0 +1,196 @@
+{
+  "id": "moneyness",
+  "version": 1,
+  "minutes": 4,
+  "title": {
+    "en": "In, at and out of the money",
+    "pt": "Dentro, no e fora do dinheiro"
+  },
+  "summary": {
+    "en": "Moneyness compares an option's strike with the stock's current price, for a call and for a put.",
+    "pt": "Moneyness compara o strike da opção com o preço atual da ação, para uma call e para uma put."
+  },
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "A call is in the money when the stock trades above its strike (exercising it would mean buying below the market price), at the money when the stock sits right at the strike, and out of the money when the stock trades below it.",
+        "pt": "Uma call está dentro do dinheiro quando a ação negocia acima do strike (exercê-la significaria comprar abaixo do preço de mercado), no dinheiro quando a ação está exatamente no strike, e fora do dinheiro quando a ação negocia abaixo dele."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "A put is the mirror image: in the money when the stock trades below its strike, at the money at the strike, out of the money above it.",
+        "pt": "A put é o espelho: está dentro do dinheiro quando a ação negocia abaixo do strike, no dinheiro no strike, fora do dinheiro acima dele."
+      }
+    },
+    {
+      "type": "list",
+      "items": {
+        "en": [
+          "With the stock at {{spot}}, a call struck at {{lowestStrike}} is in the money.",
+          "With the stock at {{spot}}, a call struck at {{lowerStrike}} is at the money.",
+          "With the stock at {{spot}}, a call struck at {{higherStrike}} is out of the money.",
+          "The same three strikes, read on a put, flip: {{lowestStrike}} is out of the money, {{lowerStrike}} is at the money, {{higherStrike}} is in the money."
+        ],
+        "pt": [
+          "Com a ação a {{spot}}, uma call com strike {{lowestStrike}} está dentro do dinheiro.",
+          "Com a ação a {{spot}}, uma call com strike {{lowerStrike}} está no dinheiro.",
+          "Com a ação a {{spot}}, uma call com strike {{higherStrike}} está fora do dinheiro.",
+          "Os mesmos três strikes, lidos numa put, se invertem: {{lowestStrike}} fica fora do dinheiro, {{lowerStrike}} no dinheiro, {{higherStrike}} dentro do dinheiro."
+        ]
+      }
+    },
+    {
+      "type": "callout",
+      "tone": "info",
+      "text": {
+        "en": "Moneyness moves every session as the stock price moves — it is not a fixed label on a series, only a reading of where the stock sits against that series' own strike right now.",
+        "pt": "A moneyness muda a cada pregão conforme a ação se move — não é um rótulo fixo de uma série, é só uma leitura de onde a ação está em relação ao strike daquela série, agora."
+      }
+    }
+  ],
+  "quiz": [
+    {
+      "id": "q1",
+      "prompt": {
+        "en": "With the stock trading above a call's strike, that call is:",
+        "pt": "Com a ação negociando acima do strike de uma call, essa call está:"
+      },
+      "options": [
+        {
+          "id": "b",
+          "text": {
+            "en": "In the money",
+            "pt": "Dentro do dinheiro"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "At the money",
+            "pt": "No dinheiro"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Out of the money",
+            "pt": "Fora do dinheiro"
+          }
+        }
+      ],
+      "correctOptionId": "b",
+      "explanation": {
+        "en": "A call is in the money whenever the stock trades above its strike.",
+        "pt": "Uma call está dentro do dinheiro sempre que a ação negocia acima do strike."
+      }
+    },
+    {
+      "id": "q2",
+      "prompt": {
+        "en": "With the stock trading below a put's strike, that put is:",
+        "pt": "Com a ação negociando abaixo do strike de uma put, essa put está:"
+      },
+      "options": [
+        {
+          "id": "c",
+          "text": {
+            "en": "Out of the money",
+            "pt": "Fora do dinheiro"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "At the money",
+            "pt": "No dinheiro"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "In the money",
+            "pt": "Dentro do dinheiro"
+          }
+        }
+      ],
+      "correctOptionId": "b",
+      "explanation": {
+        "en": "A put is in the money whenever the stock trades below its strike — the mirror of a call.",
+        "pt": "Uma put está dentro do dinheiro sempre que a ação negocia abaixo do strike — o espelho da call."
+      }
+    },
+    {
+      "id": "q3",
+      "prompt": {
+        "en": "With the stock at {{spot}}, a call struck at {{higherStrike}} is:",
+        "pt": "Com a ação a {{spot}}, uma call com strike {{higherStrike}} está:"
+      },
+      "options": [
+        {
+          "id": "c",
+          "text": {
+            "en": "In the money",
+            "pt": "Dentro do dinheiro"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Out of the money",
+            "pt": "Fora do dinheiro"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "At the money",
+            "pt": "No dinheiro"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "{{higherStrike}} sits above the {{spot}} spot, so a call there is out of the money.",
+        "pt": "{{higherStrike}} está acima do spot de {{spot}}, então uma call ali está fora do dinheiro."
+      }
+    },
+    {
+      "id": "q4",
+      "prompt": {
+        "en": "Moneyness is best described as:",
+        "pt": "Moneyness é melhor descrita como:"
+      },
+      "options": [
+        {
+          "id": "c",
+          "text": {
+            "en": "A reading that changes every session as the stock price moves",
+            "pt": "Uma leitura que muda a cada pregão conforme o preço da ação se move"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "A fixed label a series keeps for its whole life",
+            "pt": "Um rótulo fixo que a série mantém a vida toda"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "The same thing as the premium",
+            "pt": "A mesma coisa que o prêmio"
+          }
+        }
+      ],
+      "correctOptionId": "c",
+      "explanation": {
+        "en": "Moneyness only compares today's stock price with the strike, so it moves every session.",
+        "pt": "Moneyness só compara o preço de hoje da ação com o strike, então ela muda a cada pregão."
+      }
+    }
+  ]
+}
