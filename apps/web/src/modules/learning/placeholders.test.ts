@@ -1,6 +1,12 @@
+import { Decimal } from "decimal.js";
 import { describe, expect, it } from "vitest";
+import { centavosSchema, decimalStringSchema } from "@fetha/contracts";
 
-import { formatPriceBRL } from "@/lib/format/brl";
+import { formatBRL, formatPriceBRL } from "@/lib/format/brl";
+import { formatDecimal } from "@/lib/format/decimal";
+import { formatPercent } from "@/lib/format/percent";
+import { formatQuantity } from "@/lib/format/quantity";
+import { DEFAULT_RISK_PROFILE } from "@/modules/portfolio/client";
 
 import { loadIllustrativeExamples } from "./illustrative-market";
 import { placeholderTokens, resolvePlaceholder, resolveText } from "./placeholders";
@@ -44,6 +50,128 @@ describe("resolvePlaceholder", () => {
     expect(resolved).toMatch(/^R\$ \d/);
     expect(resolved).not.toBe("R$ 0,00");
     expect(Math.abs(Number(examples["long-call"].greeks.theta))).toBeGreaterThan(0);
+  });
+
+  it("resolves delta and gamma to the engine's own signed ratio, four decimals", async () => {
+    const examples = await loadIllustrativeExamples();
+    const longCall = examples["long-call"];
+    const longPut = examples["long-put"];
+    expect(resolvePlaceholder("long-call.delta", examples)).toBe(
+      formatDecimal(longCall.greeks.delta, 4),
+    );
+    expect(resolvePlaceholder("long-put.delta", examples)).toBe(
+      formatDecimal(longPut.greeks.delta, 4),
+    );
+    expect(resolvePlaceholder("long-call.gamma", examples)).toBe(
+      formatDecimal(longCall.greeks.gamma, 4),
+    );
+    expect(Number(longCall.greeks.delta)).toBeGreaterThan(0);
+    expect(Number(longPut.greeks.delta)).toBeLessThan(0);
+  });
+
+  function perLotFromShare(perShare: string): string {
+    return new Decimal(perShare).mul(100).toFixed(6);
+  }
+
+  // Same rounding as the suggestion card's own `sharesText`
+  // (radar/components/greek-notes.tsx): round to a whole share unless that would erase a
+  // nonzero value, in which case one decimal survives instead.
+  function sharesEquivalent(perShare: string): string {
+    const abs = new Decimal(perShare).mul(100).abs();
+    const whole = abs.toDecimalPlaces(0, Decimal.ROUND_HALF_UP);
+    if (whole.isZero() && !abs.isZero()) {
+      return formatDecimal(
+        decimalStringSchema.parse(abs.toDecimalPlaces(1, Decimal.ROUND_HALF_UP).toString()),
+        1,
+      );
+    }
+    return formatDecimal(decimalStringSchema.parse(whole.toString()), 0);
+  }
+
+  it("resolves delta and gamma as the suggestion card's own shares-equivalent reading", async () => {
+    const examples = await loadIllustrativeExamples();
+    const longCall = examples["long-call"];
+    expect(resolvePlaceholder("long-call.deltaShares", examples)).toBe(
+      sharesEquivalent(longCall.greeks.delta),
+    );
+    expect(resolvePlaceholder("long-call.deltaShares", examples)).toBe("54");
+    expect(resolvePlaceholder("long-call.gammaShares", examples)).toBe(
+      sharesEquivalent(longCall.greeks.gamma),
+    );
+    expect(resolvePlaceholder("long-call.gammaShares", examples)).toBe("10");
+  });
+
+  it("resolves vega as money per lot, scaled from the engine's per-share value before rounding", async () => {
+    const examples = await loadIllustrativeExamples();
+    const longCall = examples["long-call"];
+    const shortCall = examples["short-call"];
+    const ironCondor = examples["iron-condor"];
+    expect(resolvePlaceholder("long-call.vega", examples)).toBe(
+      formatPriceBRL(decimalStringSchema.parse(perLotFromShare(longCall.greeks.vega))),
+    );
+    expect(resolvePlaceholder("long-call.vega", examples)).toBe("R$ 3,00");
+    expect(resolvePlaceholder("short-call.vega", examples)).toBe(
+      formatPriceBRL(decimalStringSchema.parse(perLotFromShare(shortCall.greeks.vega))),
+    );
+    expect(resolvePlaceholder("short-call.vega", examples)).toBe("−R$ 3,00");
+    // The whole point of scaling before rounding: a per-share vega rounded to the centavo first,
+    // then multiplied by 100, would compound that rounding error far past a single cent (B1,
+    // review round 2) — this pins the iron condor's own case, where that error would show.
+    expect(resolvePlaceholder("iron-condor.vega", examples)).toBe(
+      formatPriceBRL(decimalStringSchema.parse(perLotFromShare(ironCondor.greeks.vega))),
+    );
+    expect(resolvePlaceholder("iron-condor.vega", examples)).toBe("−R$ 0,58");
+  });
+
+  it("resolves the default risk profile's own declared capital, limit and computed cap", async () => {
+    const examples = await loadIllustrativeExamples();
+    expect(resolvePlaceholder("defaultDeclaredCapitalAbs", examples)).toBe(
+      formatBRL(DEFAULT_RISK_PROFILE.declaredCapital),
+    );
+    expect(resolvePlaceholder("defaultMaxLossPerOperationPercent", examples)).toBe(
+      formatPercent(DEFAULT_RISK_PROFILE.limits.maxLossPerOperation),
+    );
+    expect(resolvePlaceholder("defaultMaxLossCapAbs", examples)).toBe("R$ 1.000,00");
+  });
+
+  it("resolves an example's own per-lot max loss and the lot count that cap allows", async () => {
+    const examples = await loadIllustrativeExamples();
+    const { maxLoss } = examples["iron-condor"];
+    if (maxLoss === "unbounded") throw new Error("fixture iron condor lacks a bounded max loss");
+    expect(resolvePlaceholder("iron-condor.maxLossPerLotAbs", examples)).toBe(
+      formatBRL(centavosSchema.parse(Math.abs(maxLoss) * 100)),
+    );
+    expect(resolvePlaceholder("iron-condor.maxLossLotsAtDefaultCap", examples)).toBe(
+      formatQuantity(31),
+    );
+  });
+
+  it("throws when a per-lot max loss is zero or the lot count would be below one", async () => {
+    const examples = await loadIllustrativeExamples();
+    const { maxLoss } = examples["long-call"];
+    if (maxLoss === "unbounded") throw new Error("fixture long call lacks a bounded max loss");
+    const zeroLossExamples = {
+      ...examples,
+      "long-call": { ...examples["long-call"], maxLoss: centavosSchema.parse(0) },
+    };
+    expect(() => resolvePlaceholder("long-call.maxLossPerLotAbs", zeroLossExamples)).toThrow();
+    const hugeLossExamples = {
+      ...examples,
+      "long-call": {
+        ...examples["long-call"],
+        maxLoss: centavosSchema.parse(maxLoss * 1_000_000),
+      },
+    };
+    expect(() =>
+      resolvePlaceholder("long-call.maxLossLotsAtDefaultCap", hugeLossExamples),
+    ).toThrow();
+  });
+
+  it("throws resolving maxLossPerLotAbs or the lot count on an unbounded example", async () => {
+    const examples = await loadIllustrativeExamples();
+    expect(() => resolvePlaceholder("long-call.maxLossPerLotAbs", examples)).not.toThrow();
+    expect(() => resolvePlaceholder("short-call.maxLossPerLotAbs", examples)).toThrow();
+    expect(() => resolvePlaceholder("short-call.maxLossLotsAtDefaultCap", examples)).toThrow();
   });
 
   it("throws resolving a break-even index the example does not have", async () => {

@@ -1,0 +1,216 @@
+{
+  "id": "rolling-a-position",
+  "version": 1,
+  "minutes": 6,
+  "title": {
+    "en": "Rolling a position",
+    "pt": "Rolagem de uma posição"
+  },
+  "summary": {
+    "en": "Closing a position and reopening a similar one further out, instead of just closing or just letting it run — and what Fetha's own Rolar does and does not do.",
+    "pt": "Encerrar uma posição e reabrir uma parecida mais adiante, em vez de simplesmente encerrar ou simplesmente deixar correr — e o que o Rolar da Fetha faz e não faz."
+  },
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Rolling means closing an open operation's option legs and opening a new, similar operation at the same time, instead of treating the close and the reopen as two separate decisions. It is a position management tool, not a new structure: the trader keeps the same market view, but changes the time or the strikes the view is expressed at.",
+        "pt": "Rolar significa encerrar as pernas de opção de uma operação aberta e abrir uma nova operação parecida ao mesmo tempo, em vez de tratar o encerramento e a reabertura como duas decisões separadas. É uma ferramenta de gestão de posição, não uma estrutura nova: o trader mantém a mesma visão de mercado, mas muda o tempo ou os strikes em que essa visão é expressa."
+      }
+    },
+    {
+      "type": "list",
+      "items": {
+        "en": [
+          "Rolling out moves to a later expiry, at the same or the nearest available strikes — more time for the view to play out.",
+          "Rolling up or down moves to new strikes at the same (or a new) expiry — adjusting where the structure's own break-evens and max gain sit as the stock moves.",
+          "Rolling out, at the same or a nearby strike, follows whether time passing helps or hurts the position, not just its side. A positive theta — time helps it, usually a net-short or credit position — usually rolls for a credit, since the newly sold, further-dated option usually costs more than the one just closed. A negative theta — time hurts it, usually a net-long or debit position, but also a credit spread once the stock has moved far enough that its own theta turns negative — usually rolls for a debit instead."
+        ],
+        "pt": [
+          "Rolar para fora leva a um vencimento mais distante, nos mesmos strikes ou nos mais próximos disponíveis — mais tempo para a visão se confirmar.",
+          "Rolar para cima ou para baixo leva a novos strikes no mesmo vencimento (ou num novo) — ajustando onde ficam os próprios break-evens e o ganho máximo da estrutura conforme a ação se move.",
+          "Rolar para fora, no mesmo strike ou num próximo, segue se o tempo passando ajuda ou prejudica a posição, não só o lado dela. Um theta positivo — o tempo ajuda, geralmente numa posição vendida líquida ou a crédito — costuma rolar a crédito, já que a nova opção vendida, com vencimento mais distante, costuma custar mais do que a que acabou de ser encerrada. Um theta negativo — o tempo prejudica, geralmente numa posição comprada líquida ou a débito, mas também numa trava a crédito depois que a ação se moveu o bastante para o próprio theta virar negativo — costuma rolar a débito."
+        ]
+      }
+    },
+    {
+      "type": "callout",
+      "tone": "info",
+      "text": {
+        "en": "Fetha's own Rolar, today, moves an operation's option legs to the next monthly expiry, picking for each leg the traded strike nearest the one just closed — not necessarily the same strike, and a single leg carries no guard against landing on a lower or a higher one. Missing a later monthly expiry at all, or missing any traded series of a leg's own right (call or put) at that expiry, keeps the roll from reaching a plan.",
+        "pt": "O Rolar da Fetha, hoje, leva as pernas de opção de uma operação para o próximo vencimento mensal, escolhendo para cada perna o strike negociado mais próximo do que acabou de ser encerrado — não necessariamente o mesmo strike, e uma perna isolada não tem nenhuma garantia contra terminar num strike mais baixo ou mais alto. A falta de um vencimento mensal posterior, ou a falta de qualquer série negociada do tipo (call ou put) de uma perna naquele vencimento, impede a rolagem de chegar a um plano."
+      }
+    },
+    {
+      "type": "callout",
+      "tone": "info",
+      "text": {
+        "en": "Of a plan that does resolve, the whole roll is refused only when two legs would land on the same ticker or when the width between the legs' strikes would change — either would silently turn the held structure into a different one. Separately, the roll can still turn out unpriceable against the day's data. Fetha never builds or sends an order (it has no broker connection): Rolar records, as one roll, the closing and opening fills the user already executed elsewhere.",
+        "pt": "De um plano que de fato se forma, a rolagem inteira só é recusada quando duas pernas terminariam no mesmo ticker ou quando a largura entre os strikes das pernas mudaria — qualquer um dos dois transformaria, em silêncio, a estrutura mantida em outra diferente. Separadamente, a rolagem ainda pode sair impossível de precificar contra os dados do dia. A Fetha nunca monta nem envia uma ordem (ela não tem conexão com corretora): o Rolar registra, como uma única rolagem, as execuções de encerramento e de abertura que o usuário já fez em outro lugar."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "On the portfolio screen, an open operation's own \"Agenda de rolagem\" flags a decision approaching expiry with one of a few actions: Rolar, Deixar virar pó (let an option expire worthless), Acompanhar (watch, no action yet) or \"Encerrar agora — risco de exercício\" (close now, when a short leg is in the money, or within 1% of spot, with one session or fewer left).",
+        "pt": "Na tela de carteira, a \"Agenda de rolagem\" de uma operação aberta aponta uma decisão se aproximando do vencimento com uma de algumas ações: Rolar, Deixar virar pó (deixar uma opção vencer sem valor), Acompanhar (sem ação ainda) ou \"Encerrar agora — risco de exercício\" (quando uma perna vendida está dentro do dinheiro, ou a até 1% do preço da ação, faltando uma sessão ou menos)."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Rolar there records the closing and opening fills together as one roll, with its own net credit or debit before costs.",
+        "pt": "O Rolar ali registra as execuções de encerramento e de abertura juntas como uma única rolagem, com seu próprio crédito ou débito líquido antes de custos."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Montar plano, by contrast, sets a recipe's own profit target, stop and days-before-expiry exit ahead of time, for every leg together — it decides when a position should be managed at all. Rolling is what happens once that decision says \"keep the view, change the time or the strikes\", rather than \"close it\".",
+        "pt": "O Montar plano, por outro lado, define de antemão o alvo de lucro, o stop e a saída por dias até o vencimento de uma receita, para todas as pernas juntas — ele decide se uma posição deve ser gerida. A rolagem é o que acontece quando essa decisão diz \"mantenha a visão, mude o tempo ou os strikes\", em vez de \"encerre\"."
+      }
+    }
+  ],
+  "quiz": [
+    {
+      "id": "q1",
+      "prompt": {
+        "en": "Rolling a position means:",
+        "pt": "Rolar uma posição significa:"
+      },
+      "options": [
+        {
+          "id": "c",
+          "text": {
+            "en": "Doubling the number of lots held, right away",
+            "pt": "Dobrar o número de lotes mantidos, na hora"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Closing the legs and opening a similar one at the same time",
+            "pt": "Encerrar as pernas e abrir uma parecida ao mesmo tempo"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "Letting the options expire without reacting to it",
+            "pt": "Deixar as opções vencerem sem reagir a isso"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "A roll closes the current option legs and opens a new, similar operation in the same move, rather than treating close and reopen as separate decisions.",
+        "pt": "Uma rolagem encerra as pernas de opção atuais e abre uma operação nova e parecida no mesmo movimento, em vez de tratar o encerramento e a reabertura como decisões separadas."
+      }
+    },
+    {
+      "id": "q2",
+      "prompt": {
+        "en": "Rolling a position out, at the same or nearby strikes, usually brings in a credit or pays a debit depending on:",
+        "pt": "Rolar uma posição para fora, nos mesmos strikes ou em strikes próximos, costuma trazer um crédito ou pagar um débito dependendo de:"
+      },
+      "options": [
+        {
+          "id": "b",
+          "text": {
+            "en": "Whether theta is positive (credit) or negative (debit)",
+            "pt": "Se o theta é positivo (crédito) ou negativo (débito)"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "Usually a credit, regardless of the position type",
+            "pt": "Geralmente um crédito, independente do tipo de posição"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Usually a debit, regardless of the position type",
+            "pt": "Geralmente um débito, independente do tipo de posição"
+          }
+        }
+      ],
+      "correctOptionId": "b",
+      "explanation": {
+        "en": "A positive theta usually sells a further-dated option worth more than the one just closed, a credit; a negative theta usually pays for the extra time value instead, a debit — net-short/credit and net-long/debit are the usual cases, but a credit spread's own theta can turn negative once the stock has moved far enough.",
+        "pt": "Um theta positivo costuma vender uma opção mais distante que vale mais do que a que acabou de ser encerrada, um crédito; um theta negativo costuma pagar pelo valor do tempo extra, um débito — vendida líquida/crédito e comprada líquida/débito são os casos comuns, mas o theta de uma trava a crédito pode virar negativo depois que a ação se move o bastante."
+      }
+    },
+    {
+      "id": "q3",
+      "prompt": {
+        "en": "Fetha's own Rolar, today, is best described as:",
+        "pt": "O Rolar da Fetha, hoje, é melhor descrito como:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "A free choice of new strikes and a new expiry",
+            "pt": "Uma escolha livre de novos strikes e um novo vencimento"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "A roll to next expiry, nearest strike per leg, that can still fail or be refused",
+            "pt": "Uma rolagem para o próximo vencimento, no strike mais próximo, que ainda pode falhar ou ser recusada"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "Something that happens automatically, without the user choosing anything",
+            "pt": "Algo que acontece automaticamente, sem o usuário escolher nada"
+          }
+        }
+      ],
+      "correctOptionId": "c",
+      "explanation": {
+        "en": "Each leg rolls to its own nearest traded strike at the next monthly expiry; a missing later expiry or traded series keeps a plan from forming at all, a plan that does form is refused only on a strike-width change between legs or a duplicate ticker, and even a refusal-free plan can still be unpriceable against the day's data — so a single leg can still land on a different strike.",
+        "pt": "Cada perna rola para o próprio strike negociado mais próximo no próximo vencimento mensal; a falta de um vencimento posterior ou de uma série negociada impede um plano de se formar; um plano que se forma só é recusado por uma mudança de largura entre os strikes das pernas ou por um ticker duplicado; e até um plano sem recusa ainda pode sair impossível de precificar contra os dados do dia — então uma perna isolada ainda pode terminar num strike diferente."
+      }
+    },
+    {
+      "id": "q4",
+      "prompt": {
+        "en": "Montar plano and Rolar relate as follows:",
+        "pt": "O Montar plano e o Rolar se relacionam assim:"
+      },
+      "options": [
+        {
+          "id": "c",
+          "text": {
+            "en": "The same feature, just shown under two different names",
+            "pt": "A mesma funcionalidade, só mostrada com dois nomes diferentes"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Montar plano exists mainly for structures that rarely get rolled",
+            "pt": "O Montar plano existe principalmente para estruturas raramente roladas"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "Montar plano decides if a position gets managed; Rolar fires if it keeps the view",
+            "pt": "O Montar plano decide se a posição é gerida; o Rolar age quando ela mantém a mesma visão"
+          }
+        }
+      ],
+      "correctOptionId": "b",
+      "explanation": {
+        "en": "Montar plano sets exits ahead of time for a recipe's own legs; rolling is what happens when the plan calls for keeping the view and changing the time or strikes instead of closing.",
+        "pt": "O Montar plano define saídas de antemão para as pernas de uma receita; a rolagem é o que acontece quando o plano pede para manter a visão e mudar o tempo ou os strikes, em vez de encerrar."
+      }
+    }
+  ]
+}

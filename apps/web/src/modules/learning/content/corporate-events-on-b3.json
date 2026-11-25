@@ -1,0 +1,222 @@
+{
+  "id": "corporate-events-on-b3",
+  "version": 1,
+  "minutes": 5,
+  "title": {
+    "en": "Corporate events on B3: dividends, JCP, splits and bonuses",
+    "pt": "Eventos corporativos na B3: dividendos, JCP, splits e bonificações"
+  },
+  "summary": {
+    "en": "On B3 a cash distribution moves an option's own strike, and a split or bonus moves the strike one way and the quantity the opposite way — built to leave moneyness, and the holder's own gain or loss, alone.",
+    "pt": "Na B3, um provento em dinheiro move o próprio strike de uma opção, e um split ou bonificação move o strike para um lado e a quantidade para o lado contrário — construídos para deixar em paz a condição de moneyness e o ganho ou a perda de quem detém a opção."
+  },
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "On a cash distribution's ex-date — a dividend, juros sobre capital próprio (JCP) or other income — B3 lowers the strike of every listed option on that underlying by the distribution's own amount, rounded to the cent.",
+        "pt": "Na data-ex de um provento em dinheiro — dividendo, juros sobre capital próprio (JCP) ou outro rendimento —, a B3 reduz o strike de toda opção listada daquele ativo pelo valor do provento, arredondado ao centavo."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "The adjustment is built to track the stock's own expected drop on that date, so an option holder is largely unaffected by the payment itself: the strike moves to absorb it, not the holder's own result.",
+        "pt": "O ajuste é construído para acompanhar a queda esperada da ação naquela data, então quem detém a opção fica, em boa parte, livre do efeito do próprio pagamento: é o strike que se move para absorvê-lo, não o resultado de quem detém a opção."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "The stock's actual move that day is set by the market, though, not forced to match the distribution to the cent, so the strike-vs-stock gap can drift a little — rarely enough to flip a series already very close to the money, but possible. The option is dividend-protected, not moneyness-frozen.",
+        "pt": "O movimento real da ação naquele dia, porém, é definido pelo mercado, não obrigado a bater com o provento centavo a centavo, então a diferença entre strike e ação pode deslizar um pouco — raramente o bastante para virar uma série já bem perto do dinheiro, mas possível. A opção é protegida contra dividendos, não congelada na própria condição de moneyness."
+      }
+    },
+    {
+      "type": "callout",
+      "tone": "warning",
+      "text": {
+        "en": "This is the opposite of the classic US-market heuristic: because B3 adjusts the strike, there is rarely a reason to exercise a call early just to capture a dividend — a reason that heuristic rests on, and that does not hold here.",
+        "pt": "Isso é o contrário da heurística clássica de mercados americanos: como a B3 ajusta o strike, raramente há motivo para exercer uma call antes do vencimento só para capturar um dividendo — motivo em que essa heurística se apoia, e que não vale aqui."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "A split or a bonus (a free share distribution) works differently, and mechanically rather than approximately: strike and quantity move by the same ratio, in opposite directions, so strike times quantity — and the position's own total value — stays the same, up to the cent the strike rounds to.",
+        "pt": "Um split ou uma bonificação (distribuição gratuita de ações) funciona diferente, e de forma mecânica em vez de aproximada: strike e quantidade se movem pela mesma proporção, em direções opostas, de modo que strike vezes quantidade — e o valor total da posição — permanece igual, a menos do centavo em que o strike é arredondado."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "A 2-for-1 split, for instance, halves the strike and doubles the quantity; a 1-for-2 bonus (one new share for every two held, raising the share count by half) cuts the strike by a third and raises the quantity by half instead.",
+        "pt": "Um split de 2 para 1, por exemplo, reduz o strike à metade e dobra a quantidade; uma bonificação de 1 para 2 (uma ação nova para cada duas já em carteira, elevando a quantidade de ações em metade) reduz o strike em um terço e eleva a quantidade em metade, em vez disso."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "The stock itself moves by that same ratio, so moneyness is preserved here by construction, unlike a dividend's own approximation — both sides of the strike-vs-stock gap scale together, not by a market move that merely tends to match.",
+        "pt": "A própria ação se move nessa mesma proporção, então a condição de moneyness é preservada aqui por construção, diferente da aproximação de um dividendo — os dois lados da diferença entre strike e ação se ajustam juntos, não por um movimento de mercado que só tende a bater."
+      }
+    },
+    {
+      "type": "list",
+      "items": {
+        "en": [
+          "A split or bonus's own adjustment is mechanical: strike and stock scale by the exact same ratio, so a series' moneyness barely shifts, if at all — only as far as the strike's own rounding to the cent allows. A dividend's adjustment only tracks the stock's expected ex-date drop, which the market sets and does not have to match to the cent, so a series already very close to the money can occasionally end up on the other side. What is worth watching for, either way, is the strike's own number on the next session.",
+          "A quoted series code never changes on its own account for either kind of event; only the strike (and, for a split or bonus, the quantity) adjusts underneath it.",
+          "Fetha reads a series' own strike from B3's own point-in-time data — never from a hand-typed number. A split or bonus ratio, by contrast, is typed in by the owner from the company's own public notice, since B3 publishes no automatic feed of these events yet: a missed or late one reads, to an indicator or a backtest, as a plain price jump until it is entered. The engine marks a strike it cannot confirm against a known ratio as unconfirmed rather than assuming it is correct."
+        ],
+        "pt": [
+          "O ajuste de um split ou bonificação é mecânico: strike e ação escalam pela mesma proporção exata, então a condição de moneyness de uma série quase não muda — só até o ponto que o arredondamento do strike ao centavo permite. O ajuste de um dividendo só acompanha a queda esperada da ação na data-ex, que o mercado define e não precisa bater centavo a centavo, então uma série já bem perto do dinheiro pode, vez ou outra, terminar do outro lado. O que vale observar, nos dois casos, é o próprio número do strike no pregão seguinte.",
+          "O código da série cotada nunca muda por conta própria em nenhum dos dois casos; só o strike (e, num split ou bonificação, a quantidade) se ajusta por baixo dele.",
+          "A Fetha lê o strike de uma série a partir dos próprios dados da B3, pontuais no tempo — nunca de um número digitado à mão. Uma proporção de split ou bonificação, por outro lado, é digitada pelo próprio proprietário a partir do comunicado público da empresa, já que a B3 ainda não publica uma fonte automática desses eventos: um evento perdido ou tardio é lido, por um indicador ou um backtest, como um salto de preço comum até ser digitado. O motor marca um strike que não consegue confirmar contra uma proporção conhecida como não confirmado, em vez de supor que está correto."
+        ]
+      }
+    }
+  ],
+  "quiz": [
+    {
+      "id": "q1",
+      "prompt": {
+        "en": "On a cash distribution's ex-date, B3:",
+        "pt": "Na data-ex de um provento em dinheiro, a B3:"
+      },
+      "options": [
+        {
+          "id": "c",
+          "text": {
+            "en": "Closes the open options on that underlying and refunds the full premium",
+            "pt": "Encerra as opções abertas daquele ativo e devolve o prêmio inteiro"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Lowers each option's own strike by the distribution's amount",
+            "pt": "Reduz o strike de cada opção pelo valor do provento"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "Doubles the premium of the options traded that day",
+            "pt": "Dobra o prêmio das opções negociadas naquele dia"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "B3 lowers the strike by the distribution's own amount, rounded to the cent, so the holder is protected against the stock's own drop on the ex-date.",
+        "pt": "A B3 reduz o strike pelo valor da própria distribuição, arredondado ao centavo, para proteger quem detém a opção da própria queda da ação na data-ex."
+      }
+    },
+    {
+      "id": "q2",
+      "prompt": {
+        "en": "Because B3 adjusts the strike on a cash distribution, exercising a call early just to capture the dividend is:",
+        "pt": "Como a B3 ajusta o strike num provento em dinheiro, exercer uma call antes do vencimento só para capturar o dividendo é:"
+      },
+      "options": [
+        {
+          "id": "b",
+          "text": {
+            "en": "Rarely the rational move once B3 already adjusted the strike",
+            "pt": "Raramente a jogada racional, já que a B3 já ajustou o strike"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "Usually the better move for a call holder on B3",
+            "pt": "Normalmente a melhor jogada para quem detém a opção"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Impossible, since B3 doesn't allow exercising before expiry",
+            "pt": "Impossível, já que a B3 não permite exercício antes do vencimento"
+          }
+        }
+      ],
+      "correctOptionId": "b",
+      "explanation": {
+        "en": "Dividend protection removes the usual reason to exercise early: the strike itself already absorbs the distribution.",
+        "pt": "A proteção contra dividendos remove o motivo usual para exercer antes do vencimento: o próprio strike já absorve o provento."
+      }
+    },
+    {
+      "id": "q3",
+      "prompt": {
+        "en": "In a 2-for-1 split, unlike a cash distribution, an open option's strike and quantity:",
+        "pt": "Num split de 2 para 1, diferente de um provento em dinheiro, o strike e a quantidade de uma opção aberta:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "Move by the same ratio, in the same direction, like a cash distribution does",
+            "pt": "Se movem pela mesma proporção, na mesma direção, como num provento em dinheiro"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "Cancel the option instead, refunding the full premium paid",
+            "pt": "Cancelam a opção em vez disso, devolvendo o prêmio inteiro pago"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "Move opposite ways: strike halves, quantity doubles",
+            "pt": "Se movem ao contrário: strike cai à metade, quantidade dobra"
+          }
+        }
+      ],
+      "correctOptionId": "b",
+      "explanation": {
+        "en": "Strike and quantity move by the same ratio in opposite directions — in a 2-for-1 split, the strike halves and the quantity doubles — so strike times quantity, and the position's total value, stays the same.",
+        "pt": "Strike e quantidade se movem pela mesma proporção em direções opostas — num split de 2 para 1, o strike cai à metade e a quantidade dobra — então strike vezes quantidade, e o valor total da posição, permanece igual."
+      }
+    },
+    {
+      "id": "q4",
+      "prompt": {
+        "en": "A dividend's strike adjustment, in practice:",
+        "pt": "O ajuste de strike por um dividendo, na prática:"
+      },
+      "options": [
+        {
+          "id": "c",
+          "text": {
+            "en": "Tracks the expected drop, so a series near the money can occasionally flip sides",
+            "pt": "Acompanha a queda esperada, então uma série perto do dinheiro pode, vez ou outra, virar de lado"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Says a series can not move from out of the money into the money",
+            "pt": "Diz que uma série não pode ir de fora do dinheiro para dentro do dinheiro"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "Gives the affected series a brand-new ticker, since the code changes with it",
+            "pt": "Dá à série afetada um ticker novo, já que o próprio código muda com ela"
+          }
+        }
+      ],
+      "correctOptionId": "c",
+      "explanation": {
+        "en": "The strike moves by the distribution's own amount, but the stock's actual ex-date drop is set by the market and only approximates it, so a series already very close to the money can occasionally end up on the other side.",
+        "pt": "O strike se move pelo valor do próprio provento, mas a queda real da ação na data-ex é definida pelo mercado e só aproxima esse valor, então uma série já bem perto do dinheiro pode, vez ou outra, terminar do outro lado."
+      }
+    }
+  ]
+}

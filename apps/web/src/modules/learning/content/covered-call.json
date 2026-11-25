@@ -51,8 +51,8 @@
       "type": "callout",
       "tone": "warning",
       "text": {
-        "en": "The sold call is usually American-style, so it can be assigned early if it goes deep in the money; on B3, though, a cash distribution adjusts the strike itself (ADR-0070), so a dividend date alone is rarely a reason for the buyer to exercise early — assignment, if it happens, simply delivers the stock at the strike, giving up any further upside. The stock's own downside is not covered by the premium, only cushioned by it.",
-        "pt": "A call vendida costuma ser do estilo americano, então pode ser atribuída antes do vencimento se ficar bem dentro do dinheiro; na B3, porém, um provento em dinheiro ajusta o próprio strike (ADR-0070), então uma data de dividendo por si só raramente é motivo para quem comprou exercer antecipadamente — a atribuição, se acontecer, simplesmente entrega a ação pelo strike, abrindo mão de qualquer alta adicional. A queda da própria ação não é coberta pelo prêmio, só amortecida por ele."
+        "en": "The sold call is usually American-style, so it can be assigned early if it goes deep in the money; on B3, though, a cash distribution adjusts the strike itself, so a dividend date alone is rarely a reason for the buyer to exercise early — assignment, if it happens, simply delivers the stock at the strike, giving up any further upside. The stock's own downside is not covered by the premium, only cushioned by it.",
+        "pt": "A call vendida costuma ser do estilo americano, então pode ser atribuída antes do vencimento se ficar bem dentro do dinheiro; na B3, porém, um provento em dinheiro ajusta o próprio strike, então uma data de dividendo por si só raramente é motivo para quem comprou exercer antecipadamente — a atribuição, se acontecer, simplesmente entrega a ação pelo strike, abrindo mão de qualquer alta adicional. A queda da própria ação não é coberta pelo prêmio, só amortecida por ele."
       }
     },
     {
@@ -172,8 +172,8 @@
       ],
       "correctOptionId": "b",
       "explanation": {
-        "en": "ADR-0070: B3 adjusts the strike itself for a cash distribution, so exercising early just to capture it rarely gains the buyer anything — unlike exchanges that leave the strike untouched.",
-        "pt": "ADR-0070: a própria B3 ajusta o strike por um provento em dinheiro, então exercer antes do vencimento só para capturá-lo raramente dá alguma vantagem a quem comprou — diferente de bolsas que deixam o strike intocado."
+        "en": "B3 adjusts the strike itself for a cash distribution, so exercising early just to capture it rarely gains the buyer anything — unlike exchanges that leave the strike untouched.",
+        "pt": "A própria B3 ajusta o strike por um provento em dinheiro, então exercer antes do vencimento só para capturá-lo raramente dá alguma vantagem a quem comprou — diferente de bolsas que deixam o strike intocado."
       }
     },
     {

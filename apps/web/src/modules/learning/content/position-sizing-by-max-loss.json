@@ -1,0 +1,208 @@
+{
+  "id": "position-sizing-by-max-loss",
+  "version": 1,
+  "minutes": 6,
+  "title": {
+    "en": "Position sizing by max loss",
+    "pt": "Dimensionamento pela perda máxima"
+  },
+  "summary": {
+    "en": "Sizing a trade by what it can cost, declared as a share of your own capital, before a single number from a recipe ever matters.",
+    "pt": "Dimensionar uma operação pelo que ela pode custar, declarado como uma fração do seu próprio capital, antes de qualquer número de uma receita importar."
+  },
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Every structure this track has covered has a max loss: a long call or put loses at most the premium paid; a credit spread or an iron condor loses at most the width of its wings minus the credit received; a covered call's downside is the stock's own, minus the premium collected.",
+        "pt": "Toda estrutura que esta trilha cobriu tem uma perda máxima: uma call ou put comprada perde no máximo o prêmio pago; uma trava de crédito ou um condor de ferro perde no máximo a largura das pontas menos o crédito recebido; a queda de um lançamento coberto é a da própria ação, menos o prêmio recolhido."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "None of that number means anything on its own — it only matters next to how much capital is behind the decision.",
+        "pt": "Esse número, isolado, não significa nada — só importa diante de quanto capital está por trás da decisão."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Position sizing by max loss means fixing, ahead of any single trade, the largest share of declared capital one operation is allowed to risk — then sizing the number of lots so the structure's own max loss, at that size, stays inside that share.",
+        "pt": "Dimensionar pela perda máxima significa fixar, antes de qualquer operação específica, a maior fração do capital declarado que uma operação pode arriscar — e então ajustar o número de lotes para que a perda máxima da estrutura, nesse tamanho, fique dentro dessa fração."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "A trader who never sets this rule tends to size by how many lots \"feel right\", which quietly lets one bad structure or one wide spread risk far more than any other.",
+        "pt": "Quem nunca fixa essa regra tende a dimensionar pela quantidade de lotes que \"parece certa\", o que deixa passar, sem perceber, uma estrutura ruim ou uma trava larga arriscando muito mais do que qualquer outra."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Fetha's risk profile (Configurações › Risco, \"Capital declarado e limites\") holds exactly this: a declared capital and a \"Perda máxima por operação\" limit, set as a percent of that capital. Every operation the builder prices, and every suggestion the radar surfaces, checks its own max loss against that limit and flags a breach instead of staying silent about it.",
+        "pt": "O perfil de risco da Fetha (Configurações › Risco, \"Capital declarado e limites\") guarda exatamente isso: um capital declarado e um limite de \"Perda máxima por operação\", definido como um percentual desse capital. Toda operação que o simulador precifica, e toda sugestão que o radar traz, confere a própria perda máxima contra esse limite e aponta quando ele é rompido, em vez de ficar em silêncio sobre isso."
+      }
+    },
+    {
+      "type": "payoff-example",
+      "exampleId": "iron-condor",
+      "caption": {
+        "en": "This lesson's iron condor, stock at {{spot}}: max loss is {{iron-condor.maxLossAbs}} per share, {{iron-condor.maxLossPerLotAbs}} per lot. Against the profile Fetha proposes before anyone declares their own — {{defaultDeclaredCapitalAbs}} of capital and a {{defaultMaxLossPerOperationPercent}} max-loss-per-operation limit — the cap on a single operation's loss is {{defaultMaxLossCapAbs}}, which this condor's own per-lot loss divides into {{iron-condor.maxLossLotsAtDefaultCap}} lots, rounded down to a whole lot.",
+        "pt": "O condor de ferro desta lição, ação a {{spot}}: a perda máxima é {{iron-condor.maxLossAbs}} por ação, {{iron-condor.maxLossPerLotAbs}} por lote. Contra o perfil que a Fetha propõe antes de alguém declarar o próprio — {{defaultDeclaredCapitalAbs}} de capital e um limite de {{defaultMaxLossPerOperationPercent}} de perda máxima por operação —, o teto da perda de uma única operação é {{defaultMaxLossCapAbs}}, e é por essa perda por lote deste condor que esse teto se divide em {{iron-condor.maxLossLotsAtDefaultCap}} lotes, arredondados para baixo até um lote inteiro."
+      }
+    },
+    {
+      "type": "callout",
+      "tone": "info",
+      "text": {
+        "en": "A structure with an unbounded max loss (a naked short call, for one) cannot be sized this way at all until it is capped — buying an option at a strike further out of the money turns it into a spread with a known worst case, which is exactly why Fetha's recipes never leave a leg naked on its own.",
+        "pt": "Uma estrutura com perda máxima sem limite (uma call vendida a descoberto, por exemplo) não pode ser dimensionada assim enquanto não for travada — comprar uma opção num strike mais fora do dinheiro a transforma numa trava com um pior cenário conhecido, que é exatamente por que as receitas da Fetha nunca deixam uma perna a descoberto por conta própria."
+      }
+    }
+  ],
+  "quiz": [
+    {
+      "id": "q1",
+      "prompt": {
+        "en": "Position sizing by max loss means:",
+        "pt": "Dimensionar pela perda máxima significa:"
+      },
+      "options": [
+        {
+          "id": "b",
+          "text": {
+            "en": "Sizing lots so the max loss stays within a fixed share of capital",
+            "pt": "Ajustar os lotes para a perda máxima caber numa fração fixa do capital"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "Trading the same number of lots, regardless of the structure",
+            "pt": "Operar o mesmo número de lotes, independente da estrutura"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Betting most of the declared capital on one operation",
+            "pt": "Apostar a maior parte do capital declarado numa operação"
+          }
+        }
+      ],
+      "correctOptionId": "b",
+      "explanation": {
+        "en": "Max-loss sizing fixes a risk-per-trade share of capital first, then sizes the lots to fit the structure's own worst case inside it.",
+        "pt": "O dimensionamento pela perda máxima fixa primeiro uma fração de risco por operação, e depois ajusta os lotes para o pior cenário da estrutura caber dentro dela."
+      }
+    },
+    {
+      "id": "q2",
+      "prompt": {
+        "en": "In Fetha, declared capital and the max-loss-per-operation limit live in:",
+        "pt": "Na Fetha, o capital declarado e o limite de perda máxima por operação ficam em:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "The decision journal",
+            "pt": "O diário de decisões"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "Configurações › Risco",
+            "pt": "Configurações › Risco"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "The payoff diagram of each operation",
+            "pt": "O diagrama de payoff de cada operação"
+          }
+        }
+      ],
+      "correctOptionId": "b",
+      "explanation": {
+        "en": "The risk profile, under Configurações › Risco, holds the declared capital and every risk-profile limit, including max loss per operation.",
+        "pt": "O perfil de risco, em Configurações › Risco, guarda o capital declarado e todos os limites do perfil de risco, incluindo a perda máxima por operação."
+      }
+    },
+    {
+      "id": "q3",
+      "prompt": {
+        "en": "A structure with an unbounded max loss, like a naked short call:",
+        "pt": "Uma estrutura com perda máxima sem limite, como uma call vendida a descoberto:"
+      },
+      "options": [
+        {
+          "id": "c",
+          "text": {
+            "en": "Can be sized the same way once the max loss is estimated",
+            "pt": "Pode ser dimensionada do mesmo jeito, uma vez estimada a perda máxima"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Cannot be sized until a leg caps the worst case",
+            "pt": "Não pode ser dimensionada até outra perna travar o pior caso"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "Carries little risk as long as the stock doesn't move much",
+            "pt": "Carrega pouco risco enquanto a ação não se move muito"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "An unbounded max loss gives sizing no worst case to divide capital by, until a leg like a bought option further out of the money caps it into a spread.",
+        "pt": "Uma perda máxima sem limite não dá ao dimensionamento nenhum pior cenário para dividir o capital, até que uma perna, como uma opção comprada num strike mais fora do dinheiro, a trave numa trava com limite."
+      }
+    },
+    {
+      "id": "q4",
+      "prompt": {
+        "en": "Sizing lots by \"how many feel right\" instead of by max loss tends to:",
+        "pt": "Dimensionar lotes por \"quantos parecem certos\" em vez de pela perda máxima tende a:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "Let a bad structure or wide spread risk far more, unnoticed",
+            "pt": "Deixar uma estrutura ruim ou trava larga arriscar muito mais, sem perceber"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "Risk about the same amount of capital, regardless of structure",
+            "pt": "Arriscar cerca do mesmo valor de capital, independente da estrutura"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "Make the declared capital less relevant to the decision",
+            "pt": "Tornar o capital declarado menos relevante para a decisão"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "Without a fixed risk-per-trade rule, a structure with a wider worst case quietly risks more capital than one sized the same way by feel.",
+        "pt": "Sem uma regra fixa de risco por operação, uma estrutura com pior cenário mais largo arrisca, sem aviso, mais capital do que outra dimensionada por sensação do mesmo jeito."
+      }
+    }
+  ]
+}

@@ -51,8 +51,8 @@
       "type": "callout",
       "tone": "warning",
       "text": {
-        "en": "The sold call is usually American-style, so it carries early-assignment risk if it goes deep in the money; on B3, though, a cash distribution adjusts the strike itself (ADR-0070), so a dividend date alone rarely makes early exercise worth it. Size by the max loss, not the credit — here {{bear-call-spread.maxLossAbs}} per share against a {{bear-call-spread.maxGainAbs}} per-share credit; a sharp, fast rally can breach the break-even before there is time to react.",
-        "pt": "A call vendida costuma ser do estilo americano, então carrega risco de atribuição antecipada se ficar bem dentro do dinheiro; na B3, porém, um provento em dinheiro ajusta o próprio strike (ADR-0070), então uma data de dividendo por si só raramente torna vantajoso exercer antecipadamente. Dimensione pela perda máxima, não pelo crédito — aqui {{bear-call-spread.maxLossAbs}} por ação contra um crédito de {{bear-call-spread.maxGainAbs}} por ação; uma alta forte e rápida pode romper o break-even antes de dar tempo de reagir."
+        "en": "The sold call is usually American-style, so it carries early-assignment risk if it goes deep in the money; on B3, though, a cash distribution adjusts the strike itself, so a dividend date alone rarely makes early exercise worth it. Size by the max loss, not the credit — here {{bear-call-spread.maxLossAbs}} per share against a {{bear-call-spread.maxGainAbs}} per-share credit; a sharp, fast rally can breach the break-even before there is time to react.",
+        "pt": "A call vendida costuma ser do estilo americano, então carrega risco de atribuição antecipada se ficar bem dentro do dinheiro; na B3, porém, um provento em dinheiro ajusta o próprio strike, então uma data de dividendo por si só raramente torna vantajoso exercer antecipadamente. Dimensione pela perda máxima, não pelo crédito — aqui {{bear-call-spread.maxLossAbs}} por ação contra um crédito de {{bear-call-spread.maxGainAbs}} por ação; uma alta forte e rápida pode romper o break-even antes de dar tempo de reagir."
       }
     },
     {

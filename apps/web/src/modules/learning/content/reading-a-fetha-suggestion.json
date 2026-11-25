@@ -1,0 +1,210 @@
+{
+  "id": "reading-a-fetha-suggestion",
+  "version": 1,
+  "minutes": 6,
+  "title": {
+    "en": "Reading a Fetha suggestion",
+    "pt": "Lendo uma sugestão da Fetha"
+  },
+  "summary": {
+    "en": "What a suggestion card actually shows, and what to do next once it makes sense.",
+    "pt": "O que um card de sugestão de fato mostra, e o que fazer depois que ele fizer sentido."
+  },
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Every night, after the close, Fetha's radar reads each underlying with liquid options against its ready-made recipes and surfaces the ones where a recipe found an entry. Each one becomes a suggestion card — never an order, never a promise, just a reading the radar found that night, for a recipe to review.",
+        "pt": "Toda noite, depois do fechamento, o radar da Fetha lê cada ativo com opções líquidas contra as receitas prontas e traz à tona aquelas em que uma receita encontrou uma entrada. Cada uma vira um card de sugestão — nunca uma ordem, nunca uma promessa, só uma leitura que o radar encontrou naquela noite, para revisar com a própria receita."
+      }
+    },
+    {
+      "type": "list",
+      "items": {
+        "en": [
+          "A plain-language summary leads the card: which recipe found an entry, on which underlying, and the shape of the bet (a credit for a sideways view, a debit for a directional one, for example).",
+          "The figures \"Arrisca\", \"Ganha até\" and \"Ganho ÷ risco\" give the worst case, the best case and the ratio between them for one lot, with no probability judgment baked in. A fourth figure, \"Chance de lucro\" — shown only when Fetha can compute one — is the pricing model's own probability of finishing in profit at expiry, stated as \"Pelo modelo de preços, no vencimento. Não é previsão.\": a model output read alongside the other three, not a promise about what the stock will actually do.",
+          "\"Por que agora\" states the reading that made the recipe fire that night — the indicator or implied-volatility condition it checked, not a forecast.",
+          "\"Detalhes\" opens the lot's own greeks, each told as a plain sentence (direction, acceleration, time, volatility), plus the recipe's own calibration when it has scored suggestions to show one — how many of its own past, now-expired suggestions actually held."
+        ],
+        "pt": [
+          "Um resumo em linguagem simples lidera o card: qual receita encontrou uma entrada, em qual ativo, e o formato da aposta (um crédito para uma visão de lateralização, um débito para uma direcional, por exemplo).",
+          "Os números \"Arrisca\", \"Ganha até\" e \"Ganho ÷ risco\" dão o pior cenário, o melhor cenário e a razão entre eles para um lote, sem nenhum julgamento de probabilidade embutido. Um quarto número, \"Chance de lucro\" — exibido só quando a Fetha consegue calculá-la —, é a própria probabilidade do modelo de preços de terminar em lucro no vencimento, descrita como \"Pelo modelo de preços, no vencimento. Não é previsão.\": um resultado de modelo lido junto dos outros três, não uma promessa sobre o que a ação de fato vai fazer.",
+          "\"Por que agora\" conta a leitura que fez a receita disparar naquela noite — a condição de indicador ou de volatilidade implícita que ela checou, não uma previsão.",
+          "\"Detalhes\" abre as gregas do lote, cada uma contada como uma frase simples (direção, aceleração, tempo, volatilidade), além da calibração da própria receita quando ela já tem sugestões vencidas avaliadas — quantas das próprias sugestões passadas, já vencidas, de fato se confirmaram."
+        ]
+      }
+    },
+    {
+      "type": "callout",
+      "tone": "info",
+      "text": {
+        "en": "The card also checks the lot against the user's own risk profile, when one is declared, and says plainly whether it stays within the user's own limits — never silently.",
+        "pt": "O card também confere o lote contra o perfil de risco do próprio usuário, quando um está declarado, e diz claramente se o lote fica dentro dos próprios limites — nunca em silêncio."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "From there, \"Ver receita\" opens the recipe's own definition, and \"Montar no simulador\" loads the legs into the operation builder to explore before committing to anything. \"Montar plano\" is the actual next step for a suggestion a user decides to act on.",
+        "pt": "A partir daí, \"Ver receita\" abre a definição da própria receita, e \"Montar no simulador\" carrega as pernas no simulador para explorar antes de se comprometer com qualquer coisa. \"Montar plano\" é o passo seguinte de fato, para uma sugestão que o usuário decide seguir."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "It saves the legs as a contemplated operation with its own profit target, stop and expiry exit, and auto-records an \"Entrar\" decision in the journal (for every recipe but the rare one with no horizon to date it by), scored later against what actually happened.",
+        "pt": "Ele guarda as pernas como uma operação contemplada, com seu próprio alvo de lucro, stop e saída por vencimento, e registra automaticamente uma decisão de \"Entrar\" no diário (para toda receita menos a rara que não tem horizonte para datá-lo), avaliada depois contra o que de fato aconteceu."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "The plan only starts being tracked and alerted on once \"Executei\" links it, later, to the fills a user actually got — that step records no new decision of its own, since it is the user acting on the one already recorded.",
+        "pt": "O plano só passa a ser acompanhado e gerar alertas quando o \"Executei\" o liga, depois, aos preenchimentos que o usuário de fato conseguiu — esse passo não registra uma nova decisão própria, já que é o usuário agindo sobre a que já foi registrada."
+      }
+    }
+  ],
+  "quiz": [
+    {
+      "id": "q1",
+      "prompt": {
+        "en": "A Fetha suggestion card is best understood as:",
+        "pt": "Um card de sugestão da Fetha é melhor entendido como:"
+      },
+      "options": [
+        {
+          "id": "c",
+          "text": {
+            "en": "An order already sent straight to the broker, waiting to fill",
+            "pt": "Uma ordem já enviada direto à corretora, esperando para ser executada"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "A reading the radar found that night, never a promise",
+            "pt": "Uma leitura que o radar encontrou naquela noite, nunca uma promessa"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "A strong hint that the recipe is very likely to hold",
+            "pt": "Uma pista forte de que a receita tem boa chance de se confirmar"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "A suggestion is a nightly reading the radar surfaces for review, never an order and never a promise of an outcome.",
+        "pt": "Uma sugestão é uma leitura que o radar traz à tona todas as noites para revisão, nunca uma ordem e nunca uma promessa de resultado."
+      }
+    },
+    {
+      "id": "q2",
+      "prompt": {
+        "en": "On the card, \"Arrisca\", \"Ganha até\" and \"Ganho ÷ risco\" are sizes of outcomes; \"Chance de lucro\", the fourth figure, is:",
+        "pt": "No card, \"Arrisca\", \"Ganha até\" e \"Ganho ÷ risco\" são tamanhos de resultados; \"Chance de lucro\", o quarto número, é:"
+      },
+      "options": [
+        {
+          "id": "b",
+          "text": {
+            "en": "A strong hint that the suggestion is likely to work out",
+            "pt": "Uma pista forte de que a sugestão tem boa chance de dar certo"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Fetha's own recommended lot size for that suggestion specifically",
+            "pt": "O tamanho de lote recomendado pela própria Fetha para aquela sugestão"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "The model's own probability of profit at expiry, not a forecast",
+            "pt": "A probabilidade do próprio modelo de lucro no vencimento, não uma previsão"
+          }
+        }
+      ],
+      "correctOptionId": "c",
+      "explanation": {
+        "en": "\"Arrisca\", \"Ganha até\" and \"Ganho ÷ risco\" give the worst case, best case and their ratio for one lot, with no likelihood baked in; \"Chance de lucro\", shown only when Fetha can compute it, adds the model's own probability of profit at expiry, stated as a model output, not a forecast.",
+        "pt": "\"Arrisca\", \"Ganha até\" e \"Ganho ÷ risco\" dão o pior cenário, o melhor cenário e a razão entre eles para um lote, sem probabilidade embutida; \"Chance de lucro\", exibida só quando a Fetha consegue calculá-la, soma a probabilidade do próprio modelo de terminar em lucro no vencimento, descrita como resultado de modelo, não como previsão."
+      }
+    },
+    {
+      "id": "q3",
+      "prompt": {
+        "en": "\"Por que agora\" on a suggestion card states:",
+        "pt": "O \"Por que agora\" de um card de sugestão conta:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "A firm forecast of where the stock heads next",
+            "pt": "Uma previsão firme de para onde a ação vai a seguir"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "The reading that made the recipe fire that night",
+            "pt": "A leitura que fez a receita disparar naquela noite"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "The user's own past decisions made earlier on that same underlying",
+            "pt": "As próprias decisões passadas do usuário naquele mesmo ativo"
+          }
+        }
+      ],
+      "correctOptionId": "c",
+      "explanation": {
+        "en": "\"Por que agora\" names the reading that triggered the recipe that night, not a forecast of what comes next.",
+        "pt": "O \"Por que agora\" nomeia a leitura que disparou a receita naquela noite, não uma previsão do que vem a seguir."
+      }
+    },
+    {
+      "id": "q4",
+      "prompt": {
+        "en": "Deciding to act on a suggestion, in Fetha, goes through:",
+        "pt": "Decidir seguir uma sugestão, na Fetha, passa por:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "Montar plano, which saves the legs and auto-records an \"Entrar\" decision",
+            "pt": "O Montar plano, que guarda as pernas e registra um \"Entrar\" no diário"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "Editing the recipe's own definition directly, right there on the card",
+            "pt": "Editar a definição da própria receita direto, ali mesmo no card"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "Nothing in particular — the suggestion just sits there",
+            "pt": "Nada em especial — a sugestão só fica ali, do jeito que chegou"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "Montar plano saves the suggestion's legs as a contemplated operation with its own exits, and auto-records an \"Entrar\" decision in the journal to be scored later; tracking and alerts only start once \"Executei\" links the plan to real fills.",
+        "pt": "O Montar plano guarda as pernas da sugestão como uma operação contemplada, com saídas próprias, e registra automaticamente uma decisão de \"Entrar\" no diário para ser avaliada depois; o acompanhamento e os alertas só começam quando o \"Executei\" liga o plano a preenchimentos reais."
+      }
+    }
+  ]
+}

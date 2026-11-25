@@ -17,6 +17,7 @@ import {
   ILLUSTRATIVE_UPPER_MID_CALL_PREMIUM,
   ILLUSTRATIVE_UPPER_MID_STRIKE,
   illustrativeLegs,
+  illustrativeSessionsThroughExpiry,
   loadIllustrativeExamples,
 } from "./illustrative-market";
 import { catalog } from "@/modules/strategies";
@@ -57,6 +58,12 @@ function referenceBsmPrice(
     ? s * normalCdf(d1) - k * normalCdf(d2)
     : k * normalCdf(-d2) - s * normalCdf(-d1);
 }
+
+describe("illustrativeSessionsThroughExpiry", () => {
+  it("counts ILLUSTRATIVE_AT's own session through ILLUSTRATIVE_EXPIRY, inclusive of both ends", () => {
+    expect(illustrativeSessionsThroughExpiry()).toBe(36);
+  });
+});
 
 describe("loadIllustrativeExamples", () => {
   it("prices the illustrative long call, long put, short call and bull call spread through the engine", async () => {
@@ -135,6 +142,16 @@ describe("loadIllustrativeExamples", () => {
     expect(maxLoss).not.toBe("unbounded");
     expect(maxGain).not.toBe("unbounded");
     expect(netPremium).toBeGreaterThan(0);
+  });
+
+  it("gives the iron condor a positive net theta, time passing in its favor", async () => {
+    const examples = await loadIllustrativeExamples();
+    expect(Number(examples["iron-condor"].greeks.theta)).toBeGreaterThan(0);
+  });
+
+  it("gives the long call and the long put, same strike, the same gamma", async () => {
+    const examples = await loadIllustrativeExamples();
+    expect(examples["long-call"].greeks.gamma).toBe(examples["long-put"].greeks.gamma);
   });
 
   it("gives the long straddle two break-evens straddling the shared strike", async () => {
@@ -216,10 +233,10 @@ describe("the fixture's own put-call parity", () => {
 });
 
 describe("the fixture's own premiums, against an independent Black-Scholes", () => {
-  it("matches every one of the 8 premiums to the cent, at sigma=0.50, r=0, T=36/252", () => {
+  it("matches every one of the 8 premiums to the cent, at sigma=0.50, r=0, over the fixture's own session count to expiry", () => {
     const s = Number(ILLUSTRATIVE_SPOT);
     const sigma = 0.5;
-    const t = 36 / 252;
+    const t = illustrativeSessionsThroughExpiry() / 252;
     const cases: [number, "call" | "put", string][] = [
       [Number(ILLUSTRATIVE_LOWEST_STRIKE), "call", ILLUSTRATIVE_LOWEST_CALL_PREMIUM],
       [Number(ILLUSTRATIVE_LOWEST_STRIKE), "put", ILLUSTRATIVE_LOWEST_PUT_PREMIUM],

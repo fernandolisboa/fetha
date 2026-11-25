@@ -55,8 +55,8 @@
       "type": "callout",
       "tone": "warning",
       "text": {
-        "en": "The sold call is usually American-style and carries its own early-assignment risk if it goes deep in the money; on B3, though, a cash distribution adjusts the strike itself (ADR-0070), so a dividend date alone is rarely the reason. Four distinct strikes means four series, and four bid-ask spreads to cross at entry and exit; a strong, sudden move past either short strike turns the position against itself fast, with little time to react near expiry.",
-        "pt": "A call vendida costuma ser do estilo americano e carrega seu próprio risco de atribuição antecipada se ficar bem dentro do dinheiro; na B3, porém, um provento em dinheiro ajusta o próprio strike (ADR-0070), então uma data de dividendo por si só raramente é o motivo. Quatro strikes distintos significam quatro séries, e quatro spreads de compra e venda para cruzar na entrada e na saída; um movimento forte e repentino além de qualquer strike vendido vira a posição contra si mesma rápido, com pouco tempo para reagir perto do vencimento."
+        "en": "The sold call is usually American-style and carries its own early-assignment risk if it goes deep in the money; on B3, though, a cash distribution adjusts the strike itself, so a dividend date alone is rarely the reason. Four distinct strikes means four series, and four bid-ask spreads to cross at entry and exit; a strong, sudden move past either short strike turns the position against itself fast, with little time to react near expiry.",
+        "pt": "A call vendida costuma ser do estilo americano e carrega seu próprio risco de atribuição antecipada se ficar bem dentro do dinheiro; na B3, porém, um provento em dinheiro ajusta o próprio strike, então uma data de dividendo por si só raramente é o motivo. Quatro strikes distintos significam quatro séries, e quatro spreads de compra e venda para cruzar na entrada e na saída; um movimento forte e repentino além de qualquer strike vendido vira a posição contra si mesma rápido, com pouco tempo para reagir perto do vencimento."
       }
     },
     {

@@ -7,6 +7,7 @@ import {
   type TopicId,
 } from "@fetha/contracts";
 
+import backtestHygiene from "./content/backtest-hygiene.json";
 import bearCallSpread from "./content/bear-call-spread.json";
 import bearPutSpread from "./content/bear-put-spread.json";
 import bullCallSpread from "./content/bull-call-spread.json";
@@ -15,8 +16,11 @@ import buyingVsWriting from "./content/buying-vs-writing.json";
 import callButterfly from "./content/call-butterfly.json";
 import callsAndPuts from "./content/calls-and-puts.json";
 import catalogJson from "./content/catalog.json";
+import corporateEventsOnB3 from "./content/corporate-events-on-b3.json";
 import coveredCall from "./content/covered-call.json";
+import deltaAndGamma from "./content/delta-and-gamma.json";
 import exerciseOnB3 from "./content/exercise-on-b3.json";
+import expiryAndExerciseRiskOnB3 from "./content/expiry-and-exercise-risk-on-b3.json";
 import impliedVolatilityAndIvRank from "./content/implied-volatility-and-iv-rank.json";
 import intrinsicAndTimeValue from "./content/intrinsic-and-time-value.json";
 import ironCondor from "./content/iron-condor.json";
@@ -25,11 +29,17 @@ import longPut from "./content/long-put.json";
 import longStraddle from "./content/long-straddle.json";
 import longStrangle from "./content/long-strangle.json";
 import moneyness from "./content/moneyness.json";
+import portfolioGreeks from "./content/portfolio-greeks.json";
+import positionSizingByMaxLoss from "./content/position-sizing-by-max-loss.json";
 import putButterfly from "./content/put-butterfly.json";
+import readingAFethaSuggestion from "./content/reading-a-fetha-suggestion.json";
 import readingAPayoffDiagram from "./content/reading-a-payoff-diagram.json";
 import readingTheSeriesCode from "./content/reading-the-series-code.json";
+import rollingAPosition from "./content/rolling-a-position.json";
 import strikeExpiryPremium from "./content/strike-expiry-premium.json";
+import theDecisionJournalAndScoring from "./content/the-decision-journal-and-scoring.json";
 import thetaAndTimeDecay from "./content/theta-and-time-decay.json";
+import vegaAndIvChanges from "./content/vega-and-iv-changes.json";
 import whatIsAnOption from "./content/what-is-an-option.json";
 
 // `catalog.json`'s `lessons` array fixes Jornada order; each entry's file is
@@ -59,6 +69,16 @@ const LESSON_FILES: readonly unknown[] = [
   ironCondor,
   longStraddle,
   longStrangle,
+  deltaAndGamma,
+  vegaAndIvChanges,
+  positionSizingByMaxLoss,
+  rollingAPosition,
+  corporateEventsOnB3,
+  readingAFethaSuggestion,
+  portfolioGreeks,
+  expiryAndExerciseRiskOnB3,
+  backtestHygiene,
+  theDecisionJournalAndScoring,
 ];
 
 export const lessonCatalog: LessonCatalog = lessonCatalogSchema.parse(catalogJson);

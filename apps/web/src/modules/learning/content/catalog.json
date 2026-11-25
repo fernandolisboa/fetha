@@ -78,6 +78,16 @@
     { "id": "put-butterfly", "level": "intermediate", "topic": "structures" },
     { "id": "iron-condor", "level": "intermediate", "topic": "structures" },
     { "id": "long-straddle", "level": "intermediate", "topic": "structures" },
-    { "id": "long-strangle", "level": "intermediate", "topic": "structures" }
+    { "id": "long-strangle", "level": "intermediate", "topic": "structures" },
+    { "id": "delta-and-gamma", "level": "intermediate", "topic": "pricing" },
+    { "id": "vega-and-iv-changes", "level": "intermediate", "topic": "pricing" },
+    { "id": "position-sizing-by-max-loss", "level": "intermediate", "topic": "risk" },
+    { "id": "rolling-a-position", "level": "intermediate", "topic": "risk" },
+    { "id": "corporate-events-on-b3", "level": "intermediate", "topic": "b3-rules" },
+    { "id": "reading-a-fetha-suggestion", "level": "intermediate", "topic": "using-fetha" },
+    { "id": "portfolio-greeks", "level": "advanced", "topic": "risk" },
+    { "id": "expiry-and-exercise-risk-on-b3", "level": "advanced", "topic": "b3-rules" },
+    { "id": "backtest-hygiene", "level": "advanced", "topic": "using-fetha" },
+    { "id": "the-decision-journal-and-scoring", "level": "advanced", "topic": "using-fetha" }
   ]
 }

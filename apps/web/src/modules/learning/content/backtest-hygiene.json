@@ -1,0 +1,198 @@
+{
+  "id": "backtest-hygiene",
+  "version": 1,
+  "minutes": 7,
+  "title": {
+    "en": "Backtest hygiene",
+    "pt": "Higiene de backtest"
+  },
+  "summary": {
+    "en": "Look-ahead, costs, slippage, walk-forward and survivorship bias — and how Fetha's own backtester is built to make the dishonest version of each one impossible, not just discouraged.",
+    "pt": "Look-ahead, custos, slippage, walk-forward e viés de sobrevivência — e como o backtester da Fetha é construído para tornar a versão desonesta de cada um deles impossível, não só desencorajada."
+  },
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "A backtest that is easy to fool is worse than no backtest: it turns a wrong idea into a confident one. Four separate ways a backtest can lie, and what Fetha's own engine does about each.",
+        "pt": "Um backtest fácil de enganar é pior do que nenhum backtest: ele transforma uma ideia errada numa ideia confiante. Quatro jeitos diferentes de um backtest mentir, e o que o próprio motor da Fetha faz contra cada um."
+      }
+    },
+    {
+      "type": "list",
+      "items": {
+        "en": [
+          "Look-ahead: using information a real decision, made at that moment, could not have had yet. Fetha's engine makes this impossible by construction — a signal computed at the close of session D can only be filled in session D+1, and the strategy evaluator only ever receives a data view truncated at D, never a peek further ahead.",
+          "Costs: stocks fill at the next session's open, options at the next session's own average traded price plus the cost preset's own fixed slippage; a series with no trades that day produces no fill, recorded as a missed entry rather than an invented one. B3's own fees and a simplified income tax are always charged; a per-order brokerage fee depends on the cost preset picked — the B3-default preset itself charges zero stock brokerage, only a flat option one.",
+          "A run's own risk-profile limits default to \"Só avisar\" (warn only, never refusing an operation on their own) unless the owner switches that control to enforce them.",
+          "Walk-forward: splitting a run into consecutive windows (21, 63, 126 or 252 sessions) and reading each window's own metrics next to the whole period's, rather than one aggregate number that can hide a run that only worked in a single stretch of the data. An operation belongs to the window where it opened; this is not an out-of-sample test or an optimization, just a rolling-stability read.",
+          "Survivorship bias: a dataset that quietly drops instruments that stopped trading makes a long-only strategy look better than it was. Fetha's own price history keeps delisted instruments in the dataset, and every dataset it uses documents its own survivorship properties rather than leaving the question unasked."
+        ],
+        "pt": [
+          "Look-ahead: usar uma informação que uma decisão real, tomada naquele momento, ainda não teria. O motor da Fetha torna isso impossível por construção — um sinal calculado no fechamento do pregão D só pode ser executado no pregão D+1, e o avaliador de estratégia só recebe uma visão dos dados truncada em D, nunca uma espiada mais adiante.",
+          "Custos: ações são executadas na abertura do pregão seguinte, opções no preço médio negociado do próprio pregão seguinte mais o slippage fixo do próprio preset de custo; uma série sem negócios naquele dia não gera execução, registrada como uma entrada perdida em vez de uma inventada. As próprias taxas da B3 e um imposto de renda simplificado são sempre cobrados; a corretagem por ordem depende do preset de custo escolhido — o preset padrão da B3 cobra zero de corretagem em ações, só uma corretagem fixa em opções.",
+          "Os limites do próprio perfil de risco de um backtest começam em \"Só avisar\" (só avisa, nunca recusa uma operação por conta própria) até o proprietário mudar esse controle para aplicar.",
+          "Walk-forward: dividir um teste em janelas consecutivas (21, 63, 126 ou 252 pregões) e ler as métricas de cada janela ao lado das do período inteiro, em vez de um único número agregado que pode esconder um teste que só funcionou num trecho específico dos dados. Uma operação pertence à janela em que foi aberta; isso não é um teste fora da amostra nem uma otimização, só uma leitura de estabilidade ao longo do tempo.",
+          "Viés de sobrevivência: uma base de dados que descarta, sem avisar, instrumentos que deixaram de ser negociados faz uma estratégia só-compra parecer melhor do que de fato foi. O próprio histórico de preços da Fetha mantém instrumentos deslistados na base, e toda base que ela usa documenta as próprias propriedades de sobrevivência, em vez de deixar a pergunta sem resposta."
+        ]
+      }
+    },
+    {
+      "type": "callout",
+      "tone": "info",
+      "text": {
+        "en": "A completed backtest run is immutable: the same strategy version, universe, period, capital, cost model and sizing rule over the same data always produce the same operations, equity curve and metrics. Nothing in the report is recomputed quietly after the fact.",
+        "pt": "Um backtest concluído é imutável: a mesma versão de estratégia, universo, período, capital, modelo de custo e regra de dimensionamento sobre os mesmos dados sempre produzem as mesmas operações, curva de patrimônio e métricas. Nada no relatório é recalculado em silêncio depois do fato."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "None of this replaces judgment: a clean backtest over a short or unusual period can still mislead, and a strategy that only ever looked good in hindsight on one dataset is a different failure these rules do not fix by themselves. What hygiene buys is trusting that the number on screen is not a leak — the strategy itself still has to earn the result.",
+        "pt": "Nada disso substitui julgamento: um backtest limpo sobre um período curto ou atípico ainda pode enganar, e uma estratégia que só pareceu boa em retrospecto, numa única base, é uma falha diferente que essas regras não resolvem por si só. O que a higiene garante é poder confiar que o número na tela não é um vazamento — a própria estratégia ainda precisa merecer o resultado."
+      }
+    }
+  ],
+  "quiz": [
+    {
+      "id": "q1",
+      "prompt": {
+        "en": "Look-ahead bias, in a backtest, means:",
+        "pt": "O viés de look-ahead, num backtest, significa:"
+      },
+      "options": [
+        {
+          "id": "c",
+          "text": {
+            "en": "Running a backtest over a far shorter period than it needs",
+            "pt": "Rodar um backtest sobre um período bem mais curto do que o necessário"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Using information a decision at that moment could not have had",
+            "pt": "Usar uma informação que a decisão, naquele momento, ainda não teria"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "Leaving brokerage and B3 fees out of each trade's own cost",
+            "pt": "Deixar a corretagem e as taxas da B3 fora do custo de cada operação"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "Look-ahead is using future information a decision made at that point in time could not actually have had.",
+        "pt": "Look-ahead é usar uma informação futura que uma decisão tomada naquele ponto do tempo não poderia de fato ter."
+      }
+    },
+    {
+      "id": "q2",
+      "prompt": {
+        "en": "In Fetha's engine, a signal computed at the close of session D:",
+        "pt": "No motor da Fetha, um sinal calculado no fechamento do pregão D:"
+      },
+      "options": [
+        {
+          "id": "b",
+          "text": {
+            "en": "Can be filled the same session, at that same close",
+            "pt": "Pode ser executado no mesmo pregão, naquele mesmo fechamento"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Is filled the moment the report happens to open",
+            "pt": "É executado na hora em que o relatório é aberto"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "Can only be filled in the session right after it's computed, D+1",
+            "pt": "Só pode ser executado no pregão seguinte ao do cálculo, D+1"
+          }
+        }
+      ],
+      "correctOptionId": "c",
+      "explanation": {
+        "en": "A fill can only happen the session after the signal was computed, which makes same-day look-ahead impossible by construction.",
+        "pt": "Uma execução só pode acontecer no pregão seguinte ao do cálculo do sinal, o que torna o look-ahead no mesmo dia impossível por construção."
+      }
+    },
+    {
+      "id": "q3",
+      "prompt": {
+        "en": "Walk-forward windows in a Fetha backtest run:",
+        "pt": "As janelas de walk-forward num backtest da Fetha:"
+      },
+      "options": [
+        {
+          "id": "c",
+          "text": {
+            "en": "Show each window's own metrics side by side with the whole period's",
+            "pt": "Mostram, lado a lado, as métricas de cada janela e as do período inteiro"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Automatically optimize the strategy's own parameters for each window",
+            "pt": "Otimizam automaticamente os parâmetros da própria estratégia em cada janela"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "Test the strategy on historical data from a different underlying",
+            "pt": "Testam a estratégia em dados históricos de um ativo diferente"
+          }
+        }
+      ],
+      "correctOptionId": "c",
+      "explanation": {
+        "en": "Walk-forward splits the run into consecutive windows and reports each one's metrics, revealing instability an aggregate number alone could hide.",
+        "pt": "O walk-forward divide o teste em janelas consecutivas e reporta as métricas de cada uma, revelando instabilidade que um número agregado isolado poderia esconder."
+      }
+    },
+    {
+      "id": "q4",
+      "prompt": {
+        "en": "Survivorship bias in a backtest dataset comes from:",
+        "pt": "O viés de sobrevivência numa base de backtest vem de:"
+      },
+      "options": [
+        {
+          "id": "b",
+          "text": {
+            "en": "Charging too little in brokerage and B3 fees",
+            "pt": "Cobrar pouca corretagem e taxas da B3"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Dropping the dataset's own delisted instruments",
+            "pt": "Descartar os próprios instrumentos deslistados da base"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "Running the same backtest more than once in a row",
+            "pt": "Rodar o mesmo backtest mais de uma vez em seguida"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "Dropping delisted instruments from a dataset makes a long-only strategy look better than it actually was, since the losers quietly disappear.",
+        "pt": "Descartar instrumentos deslistados de uma base faz uma estratégia só-compra parecer melhor do que de fato foi, já que os perdedores somem sem avisar."
+      }
+    }
+  ]
+}
