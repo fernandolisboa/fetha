@@ -2544,7 +2544,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "explanation": "Vender prêmio compensa mais quando a volatilidade implícita está rica em relação ao normal recente deste ativo, e posicionada para cair.",
       "options": [
         "IV rank baixo",
-        "Uma ação com movimento bem abaixo do normal",
+        "Volatilidade implícita abaixo do normal da ação",
         "IV rank alto",
       ],
       "prompt": "Uma receita que vende prêmio direto, como um condor de ferro, tende a procurar por:",

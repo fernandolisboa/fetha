@@ -179,8 +179,8 @@
         {
           "id": "a",
           "text": {
-            "en": "A stock with much less movement than normal",
-            "pt": "Uma ação com movimento bem abaixo do normal"
+            "en": "Implied volatility below this stock's own normal",
+            "pt": "Volatilidade implícita abaixo do normal da ação"
           }
         },
         {
