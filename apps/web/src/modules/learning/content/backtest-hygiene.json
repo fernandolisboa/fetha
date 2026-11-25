@@ -1,6 +1,6 @@
 {
   "id": "backtest-hygiene",
-  "version": 1,
+  "version": 2,
   "minutes": 7,
   "title": {
     "en": "Backtest hygiene",
@@ -23,13 +23,13 @@
       "items": {
         "en": [
           "Look-ahead: using information a real decision, made at that moment, could not have had yet. Fetha's engine makes this impossible by construction — a signal computed at the close of session D can only be filled in session D+1, and the strategy evaluator only ever receives a data view truncated at D, never a peek further ahead.",
-          "Costs: stocks fill at the next session's open, options at the next session's own average traded price plus configurable slippage; a series with no trades that day produces no fill, recorded as a missed entry rather than an invented one. B3 fees, a per-order brokerage fee and a simplified income tax are always charged, never optional, and a backtest's own risk-profile limits are enforced by default.",
+          "Costs: stocks fill at the next session's open, options at the next session's own average traded price plus the cost preset's own fixed slippage; a series with no trades that day produces no fill, recorded as a missed entry rather than an invented one. B3's own fees and a simplified income tax are always charged; a per-order brokerage fee depends on the cost preset picked — the B3-default preset itself charges zero stock brokerage, only a flat option one. A run's own risk-profile limits default to \"Só avisar\" (warn only, never refusing an operation on their own) unless the owner switches that control to enforce them.",
           "Walk-forward: splitting a run into consecutive windows (21, 63, 126 or 252 sessions) and reading each window's own metrics next to the whole period's, rather than one aggregate number that can hide a run that only worked in a single stretch of the data. An operation belongs to the window where it opened; this is not an out-of-sample test or an optimization, just a rolling-stability read.",
           "Survivorship bias: a dataset that quietly drops instruments that stopped trading makes a long-only strategy look better than it was. Fetha's own price history keeps delisted instruments in the dataset, and every dataset it uses documents its own survivorship properties rather than leaving the question unasked."
         ],
         "pt": [
           "Look-ahead: usar uma informação que uma decisão real, tomada naquele momento, ainda não teria. O motor da Fetha torna isso impossível por construção — um sinal calculado no fechamento do pregão D só pode ser executado no pregão D+1, e o avaliador de estratégia só recebe uma visão dos dados truncada em D, nunca uma espiada mais adiante.",
-          "Custos: ações são executadas na abertura do pregão seguinte, opções no preço médio negociado do próprio pregão seguinte mais um slippage configurável; uma série sem negócios naquele dia não gera execução, registrada como uma entrada perdida em vez de uma inventada. Taxas da B3, uma corretagem por ordem e um imposto de renda simplificado são sempre cobrados, nunca opcionais, e os limites do próprio perfil de risco de um backtest são aplicados por padrão.",
+          "Custos: ações são executadas na abertura do pregão seguinte, opções no preço médio negociado do próprio pregão seguinte mais o slippage fixo do próprio preset de custo; uma série sem negócios naquele dia não gera execução, registrada como uma entrada perdida em vez de uma inventada. As próprias taxas da B3 e um imposto de renda simplificado são sempre cobrados; a corretagem por ordem depende do preset de custo escolhido — o preset padrão da B3 cobra zero de corretagem em ações, só uma corretagem fixa em opções. Os limites do próprio perfil de risco de um backtest começam em \"Só avisar\" (só avisa, nunca recusa uma operação por conta própria) até o proprietário mudar esse controle para aplicar.",
           "Walk-forward: dividir um teste em janelas consecutivas (21, 63, 126 ou 252 pregões) e ler as métricas de cada janela ao lado das do período inteiro, em vez de um único número agregado que pode esconder um teste que só funcionou num trecho específico dos dados. Uma operação pertence à janela em que foi aberta; isso não é um teste fora da amostra nem uma otimização, só uma leitura de estabilidade ao longo do tempo.",
           "Viés de sobrevivência: uma base de dados que descarta, sem avisar, instrumentos que deixaram de ser negociados faz uma estratégia só-compra parecer melhor do que de fato foi. O próprio histórico de preços da Fetha mantém instrumentos deslistados na base, e toda base que ela usa documenta as próprias propriedades de sobrevivência, em vez de deixar a pergunta sem resposta."
         ]

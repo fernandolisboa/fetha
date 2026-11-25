@@ -1,6 +1,6 @@
 {
   "id": "reading-a-fetha-suggestion",
-  "version": 1,
+  "version": 2,
   "minutes": 6,
   "title": {
     "en": "Reading a Fetha suggestion",
@@ -46,8 +46,8 @@
     {
       "type": "paragraph",
       "text": {
-        "en": "From there, \"Ver receita\" opens the recipe's own definition, \"Montar no simulador\" loads the legs into the operation builder to explore before committing to anything, and \"Montar plano\" is the actual next step for a suggestion a user decides to act on — it turns the legs into a tracked operation with its own profit target, stop and expiry exit, and the decision itself gets recorded in the journal, scored later against what actually happened.",
-        "pt": "A partir daí, \"Ver receita\" abre a definição da própria receita, \"Montar no simulador\" carrega as pernas no simulador para explorar antes de se comprometer com qualquer coisa, e \"Montar plano\" é o passo seguinte de fato, para uma sugestão que o usuário decide seguir — ele transforma as pernas numa operação acompanhada, com seu próprio alvo de lucro, stop e saída por vencimento, e a decisão em si fica registrada no diário, avaliada depois contra o que de fato aconteceu."
+        "en": "From there, \"Ver receita\" opens the recipe's own definition, \"Montar no simulador\" loads the legs into the operation builder to explore before committing to anything, and \"Montar plano\" is the actual next step for a suggestion a user decides to act on — it turns the legs into a tracked operation with its own profit target, stop and expiry exit, and auto-records an \"Entrar\" decision in the journal, scored later against what actually happened. Linking that plan to the fills a user actually got, later, through \"Executei\", records no new decision of its own — it is the user acting on the one already recorded.",
+        "pt": "A partir daí, \"Ver receita\" abre a definição da própria receita, \"Montar no simulador\" carrega as pernas no simulador para explorar antes de se comprometer com qualquer coisa, e \"Montar plano\" é o passo seguinte de fato, para uma sugestão que o usuário decide seguir — ele transforma as pernas numa operação acompanhada, com seu próprio alvo de lucro, stop e saída por vencimento, e registra automaticamente uma decisão de \"Entrar\" no diário, avaliada depois contra o que de fato aconteceu. Ligar esse plano aos preenchimentos que o usuário de fato conseguiu, depois, pelo \"Executei\", não registra uma nova decisão própria — é o usuário agindo sobre a que já foi registrada."
       }
     }
   ],
@@ -167,8 +167,8 @@
         {
           "id": "a",
           "text": {
-            "en": "Montar plano, which tracks the operation and records the decision in the journal",
-            "pt": "O Montar plano, que acompanha a operação e registra a decisão no diário"
+            "en": "Montar plano, which tracks the operation and auto-records an \"Entrar\" decision in the journal",
+            "pt": "O Montar plano, que acompanha a operação e registra automaticamente uma decisão de \"Entrar\" no diário"
           }
         },
         {
@@ -188,8 +188,8 @@
       ],
       "correctOptionId": "a",
       "explanation": {
-        "en": "Montar plano turns the suggestion's legs into a tracked operation with its own exits, and the decision is recorded in the journal to be scored later.",
-        "pt": "O Montar plano transforma as pernas da sugestão numa operação acompanhada, com saídas próprias, e a decisão fica registrada no diário para ser avaliada depois."
+        "en": "Montar plano turns the suggestion's legs into a tracked operation with its own exits, and auto-records an \"Entrar\" decision in the journal to be scored later.",
+        "pt": "O Montar plano transforma as pernas da sugestão numa operação acompanhada, com saídas próprias, e registra automaticamente uma decisão de \"Entrar\" no diário para ser avaliada depois."
       }
     }
   ]
