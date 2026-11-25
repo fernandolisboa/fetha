@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { centavosSchema } from "@fetha/contracts";
 
-import { formatPriceBRL } from "@/lib/format/brl";
+import { formatBRL, formatPriceBRL } from "@/lib/format/brl";
 import { formatDecimal } from "@/lib/format/decimal";
+import { formatPercent } from "@/lib/format/percent";
+import { formatQuantity } from "@/lib/format/quantity";
+import { DEFAULT_RISK_PROFILE } from "@/modules/portfolio/client";
 
 import { loadIllustrativeExamples } from "./illustrative-market";
 import { placeholderTokens, resolvePlaceholder, resolveText } from "./placeholders";
@@ -47,7 +51,7 @@ describe("resolvePlaceholder", () => {
     expect(Math.abs(Number(examples["long-call"].greeks.theta))).toBeGreaterThan(0);
   });
 
-  it("resolves delta, gamma and vega to the engine's own signed ratio, four decimals", async () => {
+  it("resolves delta and gamma to the engine's own signed ratio, four decimals", async () => {
     const examples = await loadIllustrativeExamples();
     const longCall = examples["long-call"];
     const longPut = examples["long-put"];
@@ -60,11 +64,50 @@ describe("resolvePlaceholder", () => {
     expect(resolvePlaceholder("long-call.gamma", examples)).toBe(
       formatDecimal(longCall.greeks.gamma, 4),
     );
-    expect(resolvePlaceholder("long-call.vega", examples)).toBe(
-      formatDecimal(longCall.greeks.vega, 4),
-    );
     expect(Number(longCall.greeks.delta)).toBeGreaterThan(0);
     expect(Number(longPut.greeks.delta)).toBeLessThan(0);
+  });
+
+  it("resolves vega as money, per DESIGN.md's own greeks rule (R$ / ponto)", async () => {
+    const examples = await loadIllustrativeExamples();
+    const longCall = examples["long-call"];
+    const shortCall = examples["short-call"];
+    expect(resolvePlaceholder("long-call.vega", examples)).toBe(
+      formatPriceBRL(longCall.greeks.vega),
+    );
+    expect(resolvePlaceholder("long-call.vega", examples)).toMatch(/^R\$ \d/);
+    expect(resolvePlaceholder("short-call.vega", examples)).toBe(
+      formatPriceBRL(shortCall.greeks.vega),
+    );
+    expect(resolvePlaceholder("short-call.vega", examples)).toMatch(/^−R\$ \d/);
+  });
+
+  it("resolves the default risk profile's own declared capital, limit and computed cap", async () => {
+    const examples = await loadIllustrativeExamples();
+    expect(resolvePlaceholder("defaultDeclaredCapitalAbs", examples)).toBe(
+      formatBRL(DEFAULT_RISK_PROFILE.declaredCapital),
+    );
+    expect(resolvePlaceholder("defaultMaxLossPerOperationPercent", examples)).toBe(
+      formatPercent(DEFAULT_RISK_PROFILE.limits.maxLossPerOperation),
+    );
+    expect(resolvePlaceholder("defaultMaxLossCapAbs", examples)).toBe("R$ 1.000,00");
+  });
+
+  it("resolves an example's own per-lot max loss and the lot count that cap allows", async () => {
+    const examples = await loadIllustrativeExamples();
+    expect(resolvePlaceholder("iron-condor.maxLossPerLotAbs", examples)).toBe(
+      formatBRL(centavosSchema.parse(Math.abs(examples["iron-condor"].maxLoss as number) * 100)),
+    );
+    expect(resolvePlaceholder("iron-condor.maxLossLotsAtDefaultCap", examples)).toBe(
+      formatQuantity(31),
+    );
+  });
+
+  it("throws resolving maxLossPerLotAbs or the lot count on an unbounded example", async () => {
+    const examples = await loadIllustrativeExamples();
+    expect(() => resolvePlaceholder("long-call.maxLossPerLotAbs", examples)).not.toThrow();
+    expect(() => resolvePlaceholder("short-call.maxLossPerLotAbs", examples)).toThrow();
+    expect(() => resolvePlaceholder("short-call.maxLossLotsAtDefaultCap", examples)).toThrow();
   });
 
   it("throws resolving a break-even index the example does not have", async () => {

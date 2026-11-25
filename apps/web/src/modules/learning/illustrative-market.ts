@@ -37,8 +37,8 @@ export const ILLUSTRATIVE_HIGHER_STRIKE: DecimalString = decimalStringSchema.par
 // Every premium below is the Black-Scholes price (ADR-0002) of its own strike, from one flat
 // annualized vol (50%) and r=0 (no CDI point in this fixture's market view resolves to the
 // engine's own default, `resolveRiskFreeRate`), at this fixture's own T = 36/252 years (35
-// trading sessions strictly after `AT`'s session up to and including `ILLUSTRATIVE_EXPIRY`, plus
-// the whole of `AT`'s own session, ADR-0013's day-count rule) — never chosen by hand, derived
+// trading sessions strictly after `ILLUSTRATIVE_AT`'s session up to and including `ILLUSTRATIVE_EXPIRY`, plus
+// the whole of `ILLUSTRATIVE_AT`'s own session, ADR-0013's day-count rule) — never chosen by hand, derived
 // once with `bsmPriceRaw` (`packages/engine/src/internal/black-scholes.ts`) from inside the
 // engine package and rounded to the cent, so put-call parity (`C - P = S - K` at r=0) holds
 // across every strike (review round 2, finding #3). Flat vol means the lessons' own IV-rank
@@ -52,7 +52,7 @@ export const ILLUSTRATIVE_LOWEST_PUT_PREMIUM: DecimalString = decimalStringSchem
 export const ILLUSTRATIVE_LOWER_MID_PUT_PREMIUM: DecimalString = decimalStringSchema.parse("1.02");
 export const ILLUSTRATIVE_HIGHER_PUT_PREMIUM: DecimalString = decimalStringSchema.parse("2.78");
 
-export const AT = instantSchema.parse("2026-01-02T13:00:00.000Z");
+export const ILLUSTRATIVE_AT = instantSchema.parse("2026-01-02T13:00:00.000Z");
 const CALENDAR_START = "2026-01-02";
 const CALENDAR_SESSIONS = 60;
 
@@ -102,7 +102,7 @@ export const ILLUSTRATIVE_OPTION_SERIES = [
     strike: ILLUSTRATIVE_LOWEST_STRIKE,
     expiry: ILLUSTRATIVE_EXPIRY,
     style: "european" as const,
-    asOf: AT,
+    asOf: ILLUSTRATIVE_AT,
   },
   {
     ticker: CALL_LOWER_TICKER,
@@ -111,7 +111,7 @@ export const ILLUSTRATIVE_OPTION_SERIES = [
     strike: ILLUSTRATIVE_LOWER_STRIKE,
     expiry: ILLUSTRATIVE_EXPIRY,
     style: "european" as const,
-    asOf: AT,
+    asOf: ILLUSTRATIVE_AT,
   },
   {
     ticker: CALL_UPPER_MID_TICKER,
@@ -120,7 +120,7 @@ export const ILLUSTRATIVE_OPTION_SERIES = [
     strike: ILLUSTRATIVE_UPPER_MID_STRIKE,
     expiry: ILLUSTRATIVE_EXPIRY,
     style: "european" as const,
-    asOf: AT,
+    asOf: ILLUSTRATIVE_AT,
   },
   {
     ticker: CALL_HIGHER_TICKER,
@@ -129,7 +129,7 @@ export const ILLUSTRATIVE_OPTION_SERIES = [
     strike: ILLUSTRATIVE_HIGHER_STRIKE,
     expiry: ILLUSTRATIVE_EXPIRY,
     style: "european" as const,
-    asOf: AT,
+    asOf: ILLUSTRATIVE_AT,
   },
   {
     ticker: PUT_LOWEST_TICKER,
@@ -138,7 +138,7 @@ export const ILLUSTRATIVE_OPTION_SERIES = [
     strike: ILLUSTRATIVE_LOWEST_STRIKE,
     expiry: ILLUSTRATIVE_EXPIRY,
     style: "european" as const,
-    asOf: AT,
+    asOf: ILLUSTRATIVE_AT,
   },
   {
     ticker: PUT_LOWER_MID_TICKER,
@@ -147,7 +147,7 @@ export const ILLUSTRATIVE_OPTION_SERIES = [
     strike: ILLUSTRATIVE_LOWER_MID_STRIKE,
     expiry: ILLUSTRATIVE_EXPIRY,
     style: "european" as const,
-    asOf: AT,
+    asOf: ILLUSTRATIVE_AT,
   },
   {
     ticker: PUT_LOWER_TICKER,
@@ -156,7 +156,7 @@ export const ILLUSTRATIVE_OPTION_SERIES = [
     strike: ILLUSTRATIVE_LOWER_STRIKE,
     expiry: ILLUSTRATIVE_EXPIRY,
     style: "european" as const,
-    asOf: AT,
+    asOf: ILLUSTRATIVE_AT,
   },
   {
     ticker: PUT_HIGHER_TICKER,
@@ -165,25 +165,44 @@ export const ILLUSTRATIVE_OPTION_SERIES = [
     strike: ILLUSTRATIVE_HIGHER_STRIKE,
     expiry: ILLUSTRATIVE_EXPIRY,
     style: "european" as const,
-    asOf: AT,
+    asOf: ILLUSTRATIVE_AT,
   },
 ];
 
-// Exported so a test can derive the fixture's own T (years to expiry) from the actual session
-// count, instead of restating the day-count rule's result as a bare literal (review round 2).
-export const ILLUSTRATIVE_CALENDAR: TradingSession[] = dailySessions(
-  CALENDAR_START,
-  CALENDAR_SESSIONS,
-);
+const illustrativeCalendar: TradingSession[] = dailySessions(CALENDAR_START, CALENDAR_SESSIONS);
+
+// Derives the fixture's own T (years to expiry) from the actual session count, instead of a
+// test restating the day-count rule's result as a bare literal (review round 2): the session
+// containing `ILLUSTRATIVE_AT` (found by its own open/close, never by slicing the instant's date
+// string, review round 3) through `ILLUSTRATIVE_EXPIRY`, inclusive of both ends. A plain count is
+// exported, not the calendar array itself, so no caller ever holds a reference into the same
+// mutable array `ILLUSTRATIVE_VIEW.calendar` uses (review round 3).
+export function illustrativeSessionsThroughExpiry(): number {
+  const atSession = illustrativeCalendar.find(
+    (session) => session.open <= ILLUSTRATIVE_AT && ILLUSTRATIVE_AT <= session.close,
+  );
+  if (!atSession) {
+    throw new Error("illustrative calendar has no session containing ILLUSTRATIVE_AT");
+  }
+  return illustrativeCalendar.filter(
+    (session) => session.date >= atSession.date && session.date <= ILLUSTRATIVE_EXPIRY,
+  ).length;
+}
 
 const ILLUSTRATIVE_VIEW: MarketView = {
-  calendar: ILLUSTRATIVE_CALENDAR,
+  calendar: illustrativeCalendar,
   candles: [],
   corporateActions: [],
   optionSeries: ILLUSTRATIVE_OPTION_SERIES,
   optionPrices: [],
   quotes: [
-    { ticker: ILLUSTRATIVE_UNDERLYING, asOf: AT, last: ILLUSTRATIVE_SPOT, bid: null, ask: null },
+    {
+      ticker: ILLUSTRATIVE_UNDERLYING,
+      asOf: ILLUSTRATIVE_AT,
+      last: ILLUSTRATIVE_SPOT,
+      bid: null,
+      ask: null,
+    },
   ],
   macro: [],
   dividendYields: [],
@@ -440,7 +459,11 @@ export const illustrativeLegs: Record<RecipeStructureId, readonly LegInput[]> = 
 };
 
 async function priceIllustrative(legs: LegInput[]): Promise<OperationPricing> {
-  const result = await engine.priceOperation({ view: ILLUSTRATIVE_VIEW, at: AT, legs });
+  const result = await engine.priceOperation({
+    view: ILLUSTRATIVE_VIEW,
+    at: ILLUSTRATIVE_AT,
+    legs,
+  });
   if (!result.ok) {
     throw new Error(`illustrative-market pricing failed: ${result.error.code}`);
   }
