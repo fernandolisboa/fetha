@@ -167,27 +167,32 @@ catalog.json` lists every level, every topic and every lesson's id with its leve
 
 ## Addendum (PR 3): intermediate and advanced lessons, and the `delta`/`gamma`/`vega` placeholders
 
-1. **A third placeholder family, signed, delta and gamma unscaled, vega as money.**
-   `<exampleId>.delta` and `.gamma` resolve `OperationPricing.greeks`' own field, formatted by
-   `formatDecimal` at four decimals (DESIGN.md's own rule for the bare ratio), sign kept — unlike
-   `thetaAbs`, these are never taken as an absolute value or scaled ×100 into a per-lot magnitude,
-   since the delta and gamma lessons teach the per-option ratio directly, Hull's own convention,
-   before any lot-sizing discussion. `.vega`, by contrast, is money (DESIGN.md: "vega em R$ /
-   ponto"), formatted by `formatPriceBRL` like `.premiumAbs` and `.maxLossAbs`, per share; a
-   lesson's own prose states the "/ ponto" unit and the ×100-per-lot conversion, never baked into
-   the placeholder. Resolving the position-sizing lesson's own numbers from a declared risk
-   profile, rather than hand-writing them, added five more tokens: `defaultDeclaredCapitalAbs`,
-   `defaultMaxLossPerOperationPercent` and `defaultMaxLossCapAbs` (from `DEFAULT_RISK_PROFILE`,
-   `modules/portfolio`'s client-safe export, plus a cap computed from it in code) and
+1. **A third placeholder family, delta and gamma unscaled, vega per lot, delta against `main`.**
+   Against what was on `main` before this PR, `placeholders.ts` adds: `<exampleId>.delta` and
+   `.gamma`, resolving `OperationPricing.greeks`' own field formatted by `formatDecimal` at four
+   decimals (DESIGN.md's own rule for the bare ratio), sign kept, never taken as an absolute value
+   or scaled ×100 into a per-lot magnitude — the delta and gamma lessons teach the per-option
+   ratio directly, Hull's own convention, before any lot-sizing discussion. `.vega` is money
+   (DESIGN.md: "vega em R$ / ponto"), but per lot rather than per share: the engine's own per-share
+   value is scaled ×100 in `Decimal` first, the same order `thetaAbs` already used, and only then
+   formatted with `formatPriceBRL` — scaling a value already rounded to the centavo would have
+   compounded the rounding error well past a single cent (round 2 review, B1). A lesson's own
+   prose states the "por lote" unit, never an instruction to multiply. Resolving the
+   position-sizing lesson's own numbers from a declared risk profile, rather than hand-writing
+   them, added five more tokens: `defaultDeclaredCapitalAbs`, `defaultMaxLossPerOperationPercent`
+   and `defaultMaxLossCapAbs` (from `DEFAULT_RISK_PROFILE` and `riskLimitCentavos`, both exported
+   from `modules/portfolio`'s client-safe entry point — `riskLimitCentavos` moved there from
+   `modules/plans` so `learning` could read the same cap `plans`' own sizing uses, rather than
+   recomputing it with a different rounding mode, round 2 review A10) and
    `<exampleId>.maxLossPerLotAbs` / `.maxLossLotsAtDefaultCap` (an example's own per-lot max loss,
-   and how many lots that cap allows). `illustrative-market.ts` did change: `AT` is renamed to
-   `ILLUSTRATIVE_AT`, matching every other export's prefix, and a new
-   `illustrativeSessionsThroughExpiry()` replaces the module's previously exported, mutable
-   `ILLUSTRATIVE_CALENDAR` array with a pure function counting sessions from `ILLUSTRATIVE_AT`'s
-   own session through `ILLUSTRATIVE_EXPIRY`, inclusive — every new lesson still reads greeks
-   already computed for an existing example (the long call and long put for delta and gamma, the
-   long and short call for vega, the iron condor for net portfolio greeks and position sizing),
-   never a new leg combination or a second spot price.
+   and how many whole lots, rounded down, that cap allows; both throw rather than render a
+   nonsensical "∞" or "0 lotes" when the per-lot loss is non-positive or the cap allows fewer than
+   one lot). `illustrative-market.ts`'s `ILLUSTRATIVE_EXPIRY` and `ILLUSTRATIVE_AT` constants, and
+   a new pure `illustrativeSessionsThroughExpiry()` function, are not exported: nothing outside
+   the module needs them. Every new lesson reads greeks already computed for an existing example
+   (the long call and long put for delta and gamma, the long and short call for vega, the iron
+   condor for net portfolio greeks and position sizing), never a new leg combination or a second
+   spot price.
 2. **`intermediate` and `advanced` stop being empty levels.** Ten lessons placed by
    `content/catalog.json` fill both: `delta-and-gamma`, `vega-and-iv-changes`,
    `position-sizing-by-max-loss`, `rolling-a-position`, `corporate-events-on-b3` and
