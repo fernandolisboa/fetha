@@ -1,6 +1,6 @@
 {
   "id": "portfolio-greeks",
-  "version": 2,
+  "version": 3,
   "minutes": 6,
   "title": {
     "en": "Portfolio greeks: net exposure across legs",
@@ -14,8 +14,29 @@
     {
       "type": "paragraph",
       "text": {
-        "en": "Every greek this track has covered — delta, gamma, theta, vega — is additive: the net exposure of a multi-leg structure, or of a portfolio's legs on the same underlying, is simply the sum of each leg's own greek, a bought leg adding its own and a sold leg subtracting it. Fetha's engine does exactly this sum whenever it prices an operation; the structure's own greeks, shown once, are already the net across every leg, never a single leg's own reading mistaken for the whole position's. That addition only holds this directly within one underlying: summing delta straight across two different stocks ignores that a real of one stock's move is not a real of the other's, so comparing or combining delta across underlyings needs converting each into R$-delta (delta times stock price times multiplier) or beta-weighting against a common benchmark first. Gamma, theta and vega have no such fix — they stay specific to the underlying they were computed on.",
-        "pt": "Toda grega que esta trilha cobriu — delta, gama, theta, vega — é aditiva: a exposição líquida de uma estrutura com várias pernas, ou das pernas de uma carteira no mesmo ativo, é simplesmente a soma da grega de cada perna, uma perna comprada somando a própria e uma vendida subtraindo. O motor da Fetha faz exatamente essa soma sempre que precifica uma operação; as gregas da estrutura, mostradas uma vez, já são o líquido entre todas as pernas, nunca a leitura de uma perna isolada confundida com a da posição inteira. Essa soma só vale direto assim dentro de um mesmo ativo: somar delta direto entre duas ações diferentes ignora que um real de movimento de uma ação não é um real de movimento da outra, então comparar ou combinar delta entre ativos diferentes exige primeiro converter cada um em delta em reais (delta vezes o preço da ação vezes o multiplicador) ou ponderar por beta contra um mesmo índice de referência. Gama, theta e vega não têm esse ajuste — ficam específicos ao ativo em que foram calculados."
+        "en": "Every greek this track has covered — delta, gamma, theta, vega — is additive. The net exposure of a multi-leg structure, or of a portfolio's legs on the same underlying, is simply the sum of each leg's own greek: a bought leg adds its own, a sold leg subtracts it.",
+        "pt": "Toda grega que esta trilha cobriu — delta, gama, theta, vega — é aditiva. A exposição líquida de uma estrutura com várias pernas, ou das pernas de uma carteira no mesmo ativo, é simplesmente a soma da grega de cada perna: uma comprada soma a própria, uma vendida subtrai."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Fetha's engine does exactly this sum whenever it prices an operation. The structure's own greeks, shown once, are already the net across every leg — never a single leg's own reading mistaken for the whole position's.",
+        "pt": "O motor da Fetha faz exatamente essa soma sempre que precifica uma operação. As gregas da estrutura, mostradas uma vez, já são o líquido entre todas as pernas — nunca a leitura de uma perna isolada confundida com a da posição inteira."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Delta and gamma are both per share, not money. Summing either straight across two different stocks ignores that a real of one stock's move is not a real of the other's — comparing or combining them across underlyings needs converting each into R$-delta (delta times stock price times multiplier) or beta-weighting against a common benchmark first.",
+        "pt": "Delta e gama são, os dois, por ação, não em dinheiro. Somar qualquer um dos dois direto entre duas ações diferentes ignora que um real de movimento de uma ação não é um real de movimento da outra — comparar ou combinar os dois entre ativos diferentes exige primeiro converter cada um em delta em reais (delta vezes o preço da ação vezes o multiplicador) ou ponderar por beta contra um mesmo índice de referência."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Theta and vega, by contrast, are already money — reais per session, reais per volatility point — so they add across underlyings as they stand. Summing vega that way is still only a rough reading: it holds exactly if every one of those underlyings' own implied volatility moves by the same amount, which real markets rarely do.",
+        "pt": "Theta e vega, ao contrário, já são dinheiro — reais por pregão, reais por ponto de volatilidade — então somam entre ativos diferentes como estão. Somar vega assim ainda é uma leitura aproximada: só vale exatamente se a volatilidade implícita de cada um desses ativos se mover pela mesma quantidade, o que o mercado real raramente faz."
       }
     },
     {
@@ -29,16 +50,37 @@
     {
       "type": "paragraph",
       "text": {
-        "en": "Reading that net exposure tells a story the individual legs alone would not: a delta this close to zero means the structure's own fair value barely reacts to a small move in the stock either way — it is roughly delta-neutral, even though every one of its four legs has its own, far larger delta. A negative net gamma says that neutrality does not hold for long: a bigger move in either direction turns delta against the position faster than a small one would. A positive net theta says time passing with the stock still helps the position, the credit structure's own reward for the risk it carries; a negative net vega — money lost per point of implied volatility that rises — says a rise in implied volatility hurts it, the same bet the vega lesson named as \"short volatility\".",
-        "pt": "Ler essa exposição líquida conta uma história que as pernas isoladas, por si só, não contariam: um delta tão perto de zero significa que o valor justo da estrutura reage pouco a um movimento pequeno da ação, em qualquer direção — ela é, mais ou menos, delta-neutra, mesmo que cada uma das quatro pernas tenha o próprio delta, bem maior. Um gama líquido negativo diz que essa neutralidade não dura muito: um movimento maior em qualquer direção vira o delta contra a posição mais rápido do que um movimento pequeno viraria. Um theta líquido positivo diz que o tempo passando com a ação parada ajuda a posição, a recompensa da própria estrutura de crédito pelo risco que ela carrega; um vega líquido negativo — dinheiro perdido por ponto de volatilidade implícita que sobe — diz que uma alta na volatilidade implícita a machuca, a mesma aposta que a lição de vega nomeou como \"short volatility\"."
+        "en": "Reading that net exposure tells a story the individual legs alone would not. A delta this close to zero means the structure's own fair value barely reacts to a small move in the stock either way — it is roughly delta-neutral, even though every one of its four legs has its own, far larger delta.",
+        "pt": "Ler essa exposição líquida conta uma história que as pernas isoladas, por si só, não contariam. Um delta tão perto de zero significa que o valor justo da estrutura reage pouco a um movimento pequeno da ação, em qualquer direção — ela é, mais ou menos, delta-neutra, mesmo que cada uma das quatro pernas tenha o próprio delta, bem maior."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "A negative net gamma says that neutrality does not hold for long: a bigger move in either direction turns delta against the position faster than a small one would.",
+        "pt": "Um gama líquido negativo diz que essa neutralidade não dura muito: um movimento maior em qualquer direção vira o delta contra a posição mais rápido do que um movimento pequeno viraria."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "A positive net theta says time passing with the stock still helps the position, the credit structure's own reward for the risk it carries.",
+        "pt": "Um theta líquido positivo diz que o tempo passando com a ação parada ajuda a posição, a recompensa da própria estrutura de crédito pelo risco que ela carrega."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "A negative net vega — money lost per point of implied volatility that rises — says a rise in implied volatility hurts it, the same bet the vega lesson named as \"short volatility\".",
+        "pt": "Um vega líquido negativo — dinheiro perdido por ponto de volatilidade implícita que sobe — diz que uma alta na volatilidade implícita a machuca, a mesma aposta que a lição de vega nomeou como \"short volatility\"."
       }
     },
     {
       "type": "callout",
       "tone": "info",
       "text": {
-        "en": "A real portfolio holding several open operations on the same underlying at once sums the same way, across every leg of every one of those operations together — a second structure that happens to be long where the first is short can cancel exposure the trader never explicitly chose to cancel, for better or for worse. Reading net greeks at that level, not just per operation, is the only way to notice that. Across different underlyings, delta in shares does not add directly for the same reason a real of one stock's move is not a real of another's — summing it there first needs the R$-delta or beta-weighted conversion the paragraph above named; gamma, theta and vega have no such conversion and stay read per underlying.",
-        "pt": "Uma carteira real com várias operações abertas no mesmo ativo ao mesmo tempo soma do mesmo jeito, entre todas as pernas de todas essas operações juntas — uma segunda estrutura que por acaso está comprada onde a primeira está vendida pode cancelar uma exposição que o trader nunca escolheu cancelar de forma explícita, para o bem ou para o mal. Ler as gregas líquidas nesse nível, não só por operação, é o único jeito de notar isso. Entre ativos diferentes, delta em ações não soma direto pelo mesmo motivo de um real de movimento de uma ação não ser um real de movimento da outra — somá-lo ali primeiro exige a conversão para delta em reais ou a ponderação por beta que o parágrafo acima nomeou; gama, theta e vega não têm essa conversão e continuam lidos por ativo."
+        "en": "A real portfolio holding several open operations on the same underlying at once sums the same way, across every leg of all of them together. A second structure that happens to be long where the first is short can cancel exposure the trader never explicitly chose to cancel, for better or for worse — reading net greeks at that level, not just per operation, is the only way to notice it. Across different underlyings, delta and gamma stay per-share and need the conversion the paragraphs above named; theta and vega, already money, keep summing as they stand.",
+        "pt": "Uma carteira real com várias operações abertas no mesmo ativo ao mesmo tempo soma do mesmo jeito, entre todas as pernas de todas essas operações juntas. Uma segunda estrutura que por acaso está comprada onde a primeira está vendida pode cancelar uma exposição que o trader nunca escolheu cancelar de forma explícita, para o bem ou para o mal — ler as gregas líquidas nesse nível, não só por operação, é o único jeito de notar isso. Entre ativos diferentes, delta e gama continuam por ação e exigem a conversão que os parágrafos acima nomearam; theta e vega, já em dinheiro, seguem somando como estão."
       }
     }
   ],
@@ -53,22 +95,22 @@
         {
           "id": "c",
           "text": {
-            "en": "Only the largest single leg's own greek",
-            "pt": "Só a grega da maior perna isolada"
+            "en": "Always just the single largest leg's own greek, and nothing else",
+            "pt": "Sempre só a grega da maior perna isolada, e nada mais além dela"
           }
         },
         {
           "id": "a",
           "text": {
-            "en": "The sum of each leg's own greek, bought legs adding and sold legs subtracting",
-            "pt": "A soma da grega de cada perna, as compradas somando e as vendidas subtraindo"
+            "en": "The sum of each leg's greek, bought adding and sold subtracting",
+            "pt": "A soma da grega de cada perna, comprada soma e vendida subtrai"
           }
         },
         {
           "id": "b",
           "text": {
-            "en": "Always zero for any structure with more than one leg",
-            "pt": "Sempre zero para qualquer estrutura com mais de uma perna"
+            "en": "Always exactly zero for any structure with more than one single leg",
+            "pt": "Sempre exatamente zero para qualquer estrutura com mais de uma perna"
           }
         }
       ],
@@ -88,22 +130,22 @@
         {
           "id": "a",
           "text": {
-            "en": "Can still have legs with large, offsetting deltas of their own",
-            "pt": "Pode ter pernas com deltas próprios grandes, mas que se cancelam"
+            "en": "Can still have legs with large deltas that offset",
+            "pt": "Ainda pode ter pernas com deltas grandes que se cancelam"
           }
         },
         {
           "id": "b",
           "text": {
-            "en": "Has no legs with their own nonzero delta",
-            "pt": "Não tem nenhuma perna com delta próprio diferente de zero"
+            "en": "Has absolutely no leg with its own nonzero delta",
+            "pt": "Não tem absolutamente nenhuma perna com delta diferente de zero"
           }
         },
         {
           "id": "c",
           "text": {
-            "en": "Has no gamma either",
-            "pt": "Também não tem gama"
+            "en": "Also has exactly no gamma whatsoever",
+            "pt": "Também não tem gama nenhum, de forma alguma"
           }
         }
       ],
@@ -123,22 +165,22 @@
         {
           "id": "a",
           "text": {
-            "en": "The structure stays delta-neutral no matter how far the stock moves",
-            "pt": "A estrutura fica delta-neutra independente de quanto a ação se mova"
+            "en": "The structure always stays delta-neutral forever, no matter what",
+            "pt": "A estrutura sempre fica delta-neutra para sempre, não importa o quê"
           }
         },
         {
           "id": "c",
           "text": {
-            "en": "A larger move in either direction turns delta against the position faster",
-            "pt": "Um movimento maior em qualquer direção vira o delta contra a posição mais rápido"
+            "en": "A larger move turns delta against it faster",
+            "pt": "Um movimento maior vira o delta contra ela mais rápido"
           }
         },
         {
           "id": "b",
           "text": {
-            "en": "Theta must also be negative",
-            "pt": "O theta também precisa ser negativo"
+            "en": "Its theta must also necessarily be negative",
+            "pt": "O próprio theta também precisa necessariamente ser negativo"
           }
         }
       ],
@@ -158,29 +200,29 @@
         {
           "id": "b",
           "text": {
-            "en": "Are read separately per operation and never combined",
-            "pt": "São lidas separadamente por operação e nunca combinadas"
+            "en": "Are always read fully apart, operation by operation, never summed",
+            "pt": "São sempre lidas totalmente em separado, operação por operação, nunca somadas"
           }
         },
         {
           "id": "a",
           "text": {
-            "en": "Only apply to the operation opened most recently",
-            "pt": "Só valem para a operação aberta mais recentemente"
+            "en": "Only ever apply to whichever operation was opened most recently",
+            "pt": "Só valem, em qualquer caso, para a operação aberta mais recentemente"
           }
         },
         {
           "id": "c",
           "text": {
-            "en": "Sum across every leg of every operation on that underlying, which can cancel exposure the trader never explicitly chose",
-            "pt": "Somam entre todas as pernas de todas as operações naquele ativo, o que pode cancelar uma exposição que o trader nunca escolheu de forma explícita"
+            "en": "Sum across every leg, which can cancel exposure never chosen",
+            "pt": "Somam entre todas as pernas, podendo cancelar exposição nunca escolhida"
           }
         }
       ],
       "correctOptionId": "c",
       "explanation": {
-        "en": "Greeks keep summing across every leg of every open operation on the same underlying, so a second structure can unintentionally offset the first's own exposure; across different underlyings, delta needs converting to R$-delta or beta-weighting first, and gamma, theta and vega stay read per underlying.",
-        "pt": "As gregas seguem somando entre todas as pernas de todas as operações abertas no mesmo ativo, então uma segunda estrutura pode cancelar, sem intenção, a exposição da primeira; entre ativos diferentes, delta precisa primeiro ser convertido para delta em reais ou ponderado por beta, e gama, theta e vega continuam lidos por ativo."
+        "en": "Greeks keep summing across every leg of every open operation on the same underlying, so a second structure can unintentionally offset the first's own exposure; across different underlyings, delta and gamma need converting to R$-delta or beta-weighting first, while theta and vega, already money, keep summing as they stand.",
+        "pt": "As gregas seguem somando entre todas as pernas de todas as operações abertas no mesmo ativo, então uma segunda estrutura pode cancelar, sem intenção, a exposição da primeira; entre ativos diferentes, delta e gama precisam primeiro ser convertidos para delta em reais ou ponderados por beta, enquanto theta e vega, já em dinheiro, seguem somando como estão."
       }
     }
   ]
