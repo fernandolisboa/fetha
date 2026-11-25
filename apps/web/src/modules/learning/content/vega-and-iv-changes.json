@@ -1,6 +1,6 @@
 {
   "id": "vega-and-iv-changes",
-  "version": 2,
+  "version": 3,
   "minutes": 6,
   "title": {
     "en": "Vega: when implied volatility itself moves",
@@ -14,8 +14,15 @@
     {
       "type": "paragraph",
       "text": {
-        "en": "Vega is the greek that measures how much an option's fair value changes for each point of implied volatility, stock price and time held equal. Unlike delta, which this track showed as a bare ratio (gamma measures how fast that ratio itself changes), vega is money — reais per lot, per point of implied volatility. Every bought option, call or put, has positive vega: richer implied volatility makes it worth more, cheaper implied volatility makes it worth less.",
-        "pt": "Vega é a grega que mede quanto o valor justo de uma opção muda para cada ponto de volatilidade implícita, mantidos iguais o preço da ação e o tempo. Diferente de delta, que esta trilha mostrou como uma razão pura (gama mede a rapidez com que essa razão muda), vega é dinheiro — reais por lote, por ponto de volatilidade implícita. Toda opção comprada, call ou put, tem vega positivo: uma volatilidade implícita mais rica deixa a opção mais valiosa, uma mais barata a deixa menos valiosa."
+        "en": "Vega is the greek that measures how much an option's fair value changes for each point of implied volatility, stock price and time held equal. Unlike delta, which this track showed as a bare ratio (gamma measures how fast that ratio itself changes), vega is money — reais per lot, per point of implied volatility.",
+        "pt": "Vega é a grega que mede quanto o valor justo de uma opção muda para cada ponto de volatilidade implícita, mantidos iguais o preço da ação e o tempo. Diferente de delta, que esta trilha mostrou como uma razão pura (gama mede a rapidez com que essa razão muda), vega é dinheiro — reais por lote, por ponto de volatilidade implícita."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Every bought option, call or put, has positive vega: richer implied volatility makes it worth more, cheaper implied volatility makes it worth less.",
+        "pt": "Toda opção comprada, call ou put, tem vega positivo: uma volatilidade implícita mais rica deixa a opção mais valiosa, uma mais barata a deixa menos valiosa."
       }
     },
     {
@@ -60,22 +67,22 @@
         {
           "id": "c",
           "text": {
-            "en": "How much the stock itself needs to move to reach the strike",
-            "pt": "Quanto a própria ação precisa se mover para alcançar o strike"
+            "en": "How much the stock needs to move to reach the strike exactly",
+            "pt": "Quanto a ação precisa se mover para alcançar o strike exatamente"
           }
         },
         {
           "id": "a",
           "text": {
-            "en": "How much an option's fair value changes per point of implied volatility",
-            "pt": "Quanto o valor justo de uma opção muda por ponto de volatilidade implícita"
+            "en": "Fair value change per point of implied volatility",
+            "pt": "Mudança no valor justo por ponto de volatilidade implícita"
           }
         },
         {
           "id": "b",
           "text": {
-            "en": "The option's time to expiry",
-            "pt": "O tempo até o vencimento da opção"
+            "en": "The option's own remaining time to expiry",
+            "pt": "O próprio tempo restante até o vencimento da opção"
           }
         }
       ],
@@ -130,22 +137,22 @@
         {
           "id": "a",
           "text": {
-            "en": "A sharp rise in the stock price after an earnings release",
-            "pt": "Uma alta forte no preço da ação depois de um resultado trimestral"
+            "en": "A sharp, sudden rise in the stock price right after an earnings release",
+            "pt": "Uma alta forte e súbita no preço da ação logo depois de um resultado"
           }
         },
         {
           "id": "c",
           "text": {
-            "en": "A sharp drop in implied volatility once the event pricing it in resolves",
-            "pt": "Uma queda forte na volatilidade implícita depois que o evento que a precificava se resolve"
+            "en": "A sharp drop in implied vol once the pricing event resolves",
+            "pt": "Uma queda forte na volatilidade implícita após o evento se resolver"
           }
         },
         {
           "id": "b",
           "text": {
-            "en": "A sharp rise in the risk-free rate",
-            "pt": "Uma alta forte na taxa livre de risco"
+            "en": "A sharp, sudden rise in Brazil's own risk-free rate",
+            "pt": "Uma alta forte e súbita na própria taxa livre de risco"
           }
         }
       ],

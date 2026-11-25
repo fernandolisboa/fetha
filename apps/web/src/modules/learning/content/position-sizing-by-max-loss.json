@@ -1,6 +1,6 @@
 {
   "id": "position-sizing-by-max-loss",
-  "version": 2,
+  "version": 3,
   "minutes": 6,
   "title": {
     "en": "Position sizing by max loss",
@@ -14,15 +14,29 @@
     {
       "type": "paragraph",
       "text": {
-        "en": "Every structure this track has covered has a max loss: a long call or put loses at most the premium paid; a credit spread or an iron condor loses at most the width of its wings minus the credit received; a covered call's downside is the stock's own, minus the premium collected. None of that number means anything on its own — it only matters next to how much capital is behind the decision.",
-        "pt": "Toda estrutura que esta trilha cobriu tem uma perda máxima: uma call ou put comprada perde no máximo o prêmio pago; uma trava de crédito ou um condor de ferro perde no máximo a largura das pontas menos o crédito recebido; a queda de um lançamento coberto é a da própria ação, menos o prêmio recolhido. Esse número, isolado, não significa nada — só importa diante de quanto capital está por trás da decisão."
+        "en": "Every structure this track has covered has a max loss: a long call or put loses at most the premium paid; a credit spread or an iron condor loses at most the width of its wings minus the credit received; a covered call's downside is the stock's own, minus the premium collected.",
+        "pt": "Toda estrutura que esta trilha cobriu tem uma perda máxima: uma call ou put comprada perde no máximo o prêmio pago; uma trava de crédito ou um condor de ferro perde no máximo a largura das pontas menos o crédito recebido; a queda de um lançamento coberto é a da própria ação, menos o prêmio recolhido."
       }
     },
     {
       "type": "paragraph",
       "text": {
-        "en": "Position sizing by max loss means fixing, ahead of any single trade, the largest share of declared capital one operation is allowed to risk — then sizing the number of lots so the structure's own max loss, at that size, stays inside that share. A trader who never sets this rule tends to size by how many lots \"feel right\", which quietly lets one bad structure or one wide spread risk far more than any other.",
-        "pt": "Dimensionar pela perda máxima significa fixar, antes de qualquer operação específica, a maior fração do capital declarado que uma operação pode arriscar — e então ajustar o número de lotes para que a perda máxima da estrutura, nesse tamanho, fique dentro dessa fração. Quem nunca fixa essa regra tende a dimensionar pela quantidade de lotes que \"parece certa\", o que deixa passar, sem perceber, uma estrutura ruim ou uma trava larga arriscando muito mais do que qualquer outra."
+        "en": "None of that number means anything on its own — it only matters next to how much capital is behind the decision.",
+        "pt": "Esse número, isolado, não significa nada — só importa diante de quanto capital está por trás da decisão."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Position sizing by max loss means fixing, ahead of any single trade, the largest share of declared capital one operation is allowed to risk — then sizing the number of lots so the structure's own max loss, at that size, stays inside that share.",
+        "pt": "Dimensionar pela perda máxima significa fixar, antes de qualquer operação específica, a maior fração do capital declarado que uma operação pode arriscar — e então ajustar o número de lotes para que a perda máxima da estrutura, nesse tamanho, fique dentro dessa fração."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "A trader who never sets this rule tends to size by how many lots \"feel right\", which quietly lets one bad structure or one wide spread risk far more than any other.",
+        "pt": "Quem nunca fixa essa regra tende a dimensionar pela quantidade de lotes que \"parece certa\", o que deixa passar, sem perceber, uma estrutura ruim ou uma trava larga arriscando muito mais do que qualquer outra."
       }
     },
     {
@@ -60,22 +74,22 @@
         {
           "id": "b",
           "text": {
-            "en": "Sizing the number of lots so the structure's max loss stays within a fixed share of capital",
-            "pt": "Ajustar o número de lotes para que a perda máxima da estrutura fique dentro de uma fração fixa do capital"
+            "en": "Sizing lots so the max loss stays within a fixed share",
+            "pt": "Ajustar os lotes para a perda máxima caber numa fração fixa"
           }
         },
         {
           "id": "c",
           "text": {
-            "en": "Always trading the same number of lots regardless of the structure",
-            "pt": "Operar sempre o mesmo número de lotes, independente da estrutura"
+            "en": "Always trading the exact same number of lots, whatever the structure happens to be",
+            "pt": "Operar sempre o mesmo número exato de lotes, seja qual for a estrutura"
           }
         },
         {
           "id": "a",
           "text": {
-            "en": "Betting the full declared capital on every operation",
-            "pt": "Apostar o capital declarado inteiro em toda operação"
+            "en": "Betting the entire declared capital on every single operation, with nothing held back",
+            "pt": "Apostar o capital declarado inteiro em toda operação, sem guardar nada"
           }
         }
       ],
@@ -130,22 +144,22 @@
         {
           "id": "c",
           "text": {
-            "en": "Can always be sized the same way as a capped structure",
-            "pt": "Pode sempre ser dimensionada do mesmo jeito que uma estrutura travada"
+            "en": "Can always be sized in exactly the same way as any capped structure",
+            "pt": "Pode sempre ser dimensionada do mesmíssimo jeito que uma travada"
           }
         },
         {
           "id": "a",
           "text": {
-            "en": "Cannot be sized by max loss until a further leg caps the worst case",
-            "pt": "Não pode ser dimensionada pela perda máxima enquanto outra perna não travar o pior cenário"
+            "en": "Cannot be sized until a leg caps the worst case",
+            "pt": "Não pode ser dimensionada até outra perna travar o pior caso"
           }
         },
         {
           "id": "b",
           "text": {
-            "en": "Has no risk at all as long as the stock stays flat",
-            "pt": "Não tem risco nenhum enquanto a ação ficar parada"
+            "en": "Carries absolutely no risk at all for as long as the stock stays perfectly flat",
+            "pt": "Não carrega risco nenhum enquanto a ação ficar perfeitamente parada"
           }
         }
       ],
@@ -165,22 +179,22 @@
         {
           "id": "a",
           "text": {
-            "en": "Let one bad structure or a wide spread risk far more than any other, unnoticed",
-            "pt": "Deixar passar, sem perceber, uma estrutura ruim ou uma trava larga arriscando muito mais do que qualquer outra"
+            "en": "Let a bad structure or wide spread risk far more, unnoticed",
+            "pt": "Deixar uma estrutura ruim ou trava larga arriscar muito mais, sem perceber"
           }
         },
         {
           "id": "b",
           "text": {
-            "en": "Always risk the exact same amount across every structure",
-            "pt": "Arriscar sempre exatamente o mesmo valor em qualquer estrutura"
+            "en": "Always risk the exact same amount of capital no matter which structure gets traded",
+            "pt": "Arriscar sempre exatamente o mesmo valor, não importa qual estrutura seja negociada"
           }
         },
         {
           "id": "c",
           "text": {
-            "en": "Make the declared capital irrelevant",
-            "pt": "Tornar o capital declarado irrelevante"
+            "en": "Make the declared capital completely irrelevant to the whole decision",
+            "pt": "Tornar o capital declarado totalmente irrelevante para toda a decisão"
           }
         }
       ],

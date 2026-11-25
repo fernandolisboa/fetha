@@ -1,6 +1,6 @@
 {
   "id": "expiry-and-exercise-risk-on-b3",
-  "version": 2,
+  "version": 3,
   "minutes": 6,
   "title": {
     "en": "Expiry and exercise risk on B3",
@@ -14,8 +14,15 @@
     {
       "type": "paragraph",
       "text": {
-        "en": "The first-steps lesson on exercise already named the rule: at expiry, B3 exercises an in-the-money option automatically once it clears a minimum margin B3 itself sets, and assigns the matching obligation to a writer of that same series. For a single bought or sold leg, that is the whole story. A multi-leg structure near expiry adds two risks of its own.",
-        "pt": "A lição de primeiros passos sobre exercício já nomeou a regra: no vencimento, a B3 exerce automaticamente uma opção dentro do dinheiro depois que ela passa de uma margem mínima que a própria B3 define, e atribui a obrigação correspondente a um lançador daquela mesma série. Para uma única perna comprada ou vendida, essa é a história inteira. Uma estrutura com várias pernas perto do vencimento soma dois riscos próprios."
+        "en": "The first-steps lesson on exercise already named the rule: at expiry, B3 exercises an in-the-money option automatically once it clears a minimum margin B3 itself sets, and assigns the matching obligation to a writer of that same series.",
+        "pt": "A lição de primeiros passos sobre exercício já nomeou a regra: no vencimento, a B3 exerce automaticamente uma opção dentro do dinheiro depois que ela passa de uma margem mínima que a própria B3 define, e atribui a obrigação correspondente a um lançador daquela mesma série."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "For a single bought or sold leg, that is the whole story. A multi-leg structure near expiry adds two risks of its own.",
+        "pt": "Para uma única perna comprada ou vendida, essa é a história inteira. Uma estrutura com várias pernas perto do vencimento soma dois riscos próprios."
       }
     },
     {
@@ -29,15 +36,36 @@
     {
       "type": "paragraph",
       "text": {
-        "en": "Assignment of a short leg does not necessarily leave the rest of a structure exposed — it leaves it needing action. Take a bull call spread: if the short (higher-strike) call is assigned — rare before expiry on B3, since dividend-driven strike adjustment largely removes the usual reason for early exercise, but reachable right at expiry under the automatic-exercise rule — the trader is short stock at the higher strike. The long call at the lower strike still hedges that: exercising it buys the same stock back at the lower strike, locking in exactly the spread's own max gain. What assignment actually demands is settlement logistics (covering the short stock position, usually by exercising the long leg before its own cutoff) and someone noticing and acting within a tight window — not a position quietly falling apart.",
-        "pt": "A atribuição de uma perna vendida não deixa, necessariamente, o resto de uma estrutura exposto — deixa precisando de ação. Veja uma trava de alta com calls: se a call vendida (strike mais alto) for atribuída — raro antes do vencimento na B3, já que o ajuste de strike por dividendo remove, em boa parte, o motivo usual para exercício antecipado, mas alcançável bem no vencimento pela regra de exercício automático —, o trader fica vendido na ação pelo strike mais alto. A call comprada no strike mais baixo ainda protege isso: exercê-la compra a mesma ação de volta pelo strike mais baixo, travando exatamente o ganho máximo da trava. O que a atribuição de fato exige é logística de liquidação (cobrir a posição vendida na ação, geralmente exercendo a perna comprada antes do próprio prazo) e alguém notar e agir dentro de uma janela curta — não uma posição se desmontando sozinha."
+        "en": "Assignment of a short leg does not necessarily leave the rest of a structure exposed — it leaves it needing action. Take a bull call spread: if the short (higher-strike) call is assigned — rare before expiry on B3, since dividend-driven strike adjustment largely removes the usual reason for early exercise, but reachable right at expiry under the automatic-exercise rule — the trader is short stock at the higher strike.",
+        "pt": "A atribuição de uma perna vendida não deixa, necessariamente, o resto de uma estrutura exposto — deixa precisando de ação. Veja uma trava de alta com calls: se a call vendida (strike mais alto) for atribuída — raro antes do vencimento na B3, já que o ajuste de strike por dividendo remove, em boa parte, o motivo usual para exercício antecipado, mas alcançável bem no vencimento pela regra de exercício automático —, o trader fica vendido na ação pelo strike mais alto."
       }
     },
     {
       "type": "paragraph",
       "text": {
-        "en": "Fetha's own portfolio screen watches this directly: an open operation's \"Agenda de rolagem\" offers \"Encerrar agora — risco de exercício\" once any short leg is in the money, or within 1% of the stock's price either way, with one session or fewer left before expiry — covering exactly the exercise and pin risk this lesson named, alongside Rolar, Deixar virar pó and Acompanhar. Closing before that point, rather than waiting to find out how exercise or pin risk would resolve, costs brokerage, B3 fees and the bid-ask spread on every leg — a real cost, traded for certainty, not a free action.",
-        "pt": "A tela de carteira da Fetha acompanha isso diretamente: a \"Agenda de rolagem\" de uma operação aberta oferece \"Encerrar agora — risco de exercício\" assim que qualquer perna vendida fica dentro do dinheiro, ou a até 1% do preço da ação em qualquer direção, com uma sessão ou menos faltando para o vencimento — cobrindo exatamente o risco de exercício e de pin que esta lição nomeou, junto com Rolar, Deixar virar pó e Acompanhar. Encerrar antes desse ponto, em vez de esperar para descobrir como o exercício ou o pin se resolveriam, custa corretagem, taxas da B3 e o spread de compra e venda em cada perna — um custo real, trocado por certeza, não uma ação de graça."
+        "en": "The long call at the lower strike still hedges that: exercising it buys the same stock back at the lower strike, locking in exactly the spread's own max gain.",
+        "pt": "A call comprada no strike mais baixo ainda protege isso: exercê-la compra a mesma ação de volta pelo strike mais baixo, travando exatamente o ganho máximo da trava."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "What assignment actually demands is settlement logistics (covering the short stock position, usually by exercising the long leg before its own cutoff) and someone noticing and acting within a tight window — not a position quietly falling apart.",
+        "pt": "O que a atribuição de fato exige é logística de liquidação (cobrir a posição vendida na ação, geralmente exercendo a perna comprada antes do próprio prazo) e alguém notar e agir dentro de uma janela curta — não uma posição se desmontando sozinha."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Fetha's own portfolio screen watches this directly: an open operation's \"Agenda de rolagem\" offers \"Encerrar agora — risco de exercício\" once any short leg is in the money, or within 1% of the stock's price either way, with one session or fewer left before expiry — covering exactly the exercise and pin risk this lesson named, alongside Rolar, Deixar virar pó and Acompanhar.",
+        "pt": "A tela de carteira da Fetha acompanha isso diretamente: a \"Agenda de rolagem\" de uma operação aberta oferece \"Encerrar agora — risco de exercício\" assim que qualquer perna vendida fica dentro do dinheiro, ou a até 1% do preço da ação em qualquer direção, com uma sessão ou menos faltando para o vencimento — cobrindo exatamente o risco de exercício e de pin que esta lição nomeou, junto com Rolar, Deixar virar pó e Acompanhar."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Closing before that point, rather than waiting to find out how exercise or pin risk would resolve, costs brokerage, B3 fees and the bid-ask spread on every leg — a real cost, traded for certainty, not a free action.",
+        "pt": "Encerrar antes desse ponto, em vez de esperar para descobrir como o exercício ou o pin se resolveriam, custa corretagem, taxas da B3 e o spread de compra e venda em cada perna — um custo real, trocado por certeza, não uma ação de graça."
       }
     }
   ],
@@ -52,22 +80,22 @@
         {
           "id": "b",
           "text": {
-            "en": "The stock settling at or very close to a strike at expiry, leaving a leg's own outcome unclear",
-            "pt": "A ação terminando no strike, ou bem perto dele, no vencimento, deixando incerto o resultado de uma perna"
+            "en": "The stock settling right at a strike, leaving a leg's outcome unclear",
+            "pt": "A ação terminando bem no strike, deixando incerto o resultado da perna"
           }
         },
         {
           "id": "c",
           "text": {
-            "en": "A guarantee that every leg expires worthless",
-            "pt": "Uma garantia de que toda perna vence sem valor"
+            "en": "An absolute guarantee that every single leg always expires worthless",
+            "pt": "Uma garantia absoluta de que toda perna sempre vence sem nenhum valor"
           }
         },
         {
           "id": "a",
           "text": {
-            "en": "A fee B3 charges for exercising early",
-            "pt": "Uma taxa que a B3 cobra por exercer antes do vencimento"
+            "en": "An extra fee B3 always charges for exercising an option before expiry",
+            "pt": "Uma taxa extra que a B3 sempre cobra por exercer uma opção antes do vencimento"
           }
         }
       ],
@@ -87,22 +115,22 @@
         {
           "id": "a",
           "text": {
-            "en": "Both legs are automatically closed together",
-            "pt": "As duas pernas são encerradas automaticamente juntas"
+            "en": "Fetha automatically closes both legs together right away",
+            "pt": "A Fetha encerra as duas pernas automaticamente, na hora"
           }
         },
         {
           "id": "c",
           "text": {
-            "en": "The long call still hedges the resulting short stock, but someone has to notice and act in time",
-            "pt": "A call comprada ainda protege a posição vendida na ação resultante, mas alguém precisa notar e agir a tempo"
+            "en": "The long call hedges it, but someone has to act in time",
+            "pt": "A call comprada protege, mas alguém precisa agir a tempo"
           }
         },
         {
           "id": "b",
           "text": {
-            "en": "The trade is reversed and the premium refunded",
-            "pt": "A operação é desfeita e o prêmio devolvido"
+            "en": "The whole trade is reversed and every premium refunded",
+            "pt": "A operação inteira é desfeita e todo o prêmio devolvido"
           }
         }
       ],
@@ -122,22 +150,22 @@
         {
           "id": "c",
           "text": {
-            "en": "A short leg is in the money, or within 1% of spot, with one session or fewer left to expiry",
-            "pt": "Uma perna vendida está dentro do dinheiro, ou a até 1% do spot, com uma sessão ou menos até o vencimento"
+            "en": "A short leg is in the money or within 1% of spot, one session or fewer to expiry",
+            "pt": "Uma perna vendida está dentro do dinheiro ou a até 1% do spot, uma sessão ou menos até o vencimento"
           }
         },
         {
           "id": "a",
           "text": {
-            "en": "Every operation, as the only available action",
-            "pt": "Toda operação, como a única ação disponível"
+            "en": "Every single operation on the whole screen, with no other action ever available",
+            "pt": "Toda e qualquer operação da tela inteira, como a única ação jamais disponível"
           }
         },
         {
           "id": "b",
           "text": {
-            "en": "Operations that have already expired",
-            "pt": "Operações que já venceram"
+            "en": "Only operations that have already expired completely worthless",
+            "pt": "Só operações que já venceram completamente sem nenhum valor"
           }
         }
       ],
@@ -157,22 +185,22 @@
         {
           "id": "a",
           "text": {
-            "en": "Eliminates every bid-ask cost on every leg",
-            "pt": "Elimina qualquer custo de spread de compra e venda em cada perna"
+            "en": "Eliminates every single cost on every leg, with nothing to pay",
+            "pt": "Elimina todo custo em cada perna, sem nada a pagar por isso"
           }
         },
         {
           "id": "b",
           "text": {
-            "en": "Trades brokerage, B3 fees and the bid-ask spread for removing pin and exercise risk",
-            "pt": "Troca corretagem, taxas da B3 e o spread de compra e venda por remover o risco de pin e de exercício"
+            "en": "Trades real costs for removing pin and exercise risk",
+            "pt": "Troca custos reais por remover o risco de pin e de exercício"
           }
         },
         {
           "id": "c",
           "text": {
-            "en": "Is never available on B3",
-            "pt": "Nunca está disponível na B3"
+            "en": "Is something B3 never actually allows a trader to do",
+            "pt": "É algo que a B3 nunca de fato deixa um trader fazer"
           }
         }
       ],

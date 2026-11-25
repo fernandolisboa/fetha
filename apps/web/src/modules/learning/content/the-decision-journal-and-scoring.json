@@ -1,6 +1,6 @@
 {
   "id": "the-decision-journal-and-scoring",
-  "version": 2,
+  "version": 3,
   "minutes": 6,
   "title": {
     "en": "The decision journal and scoring",
@@ -14,30 +14,66 @@
     {
       "type": "paragraph",
       "text": {
-        "en": "A decision not written down is a decision a trader's own memory gets to rewrite later, usually in their own favor. Fetha's Diário records every decision a user makes as exactly one of five kinds — Entrar, Não entrar, Manter, Ajustar, Sair — with what was known at the time, so a track record exists independent of how the outcome is later remembered. Saving a plan (Montar plano) stores its legs and exit rules and auto-records an Entrar, for every recipe but the rare one with no horizon to date it by; the plan only starts being tracked and alerted on once \"Executei\" links it to the fills the user actually got. Confirming a roll records no decision of its own, since a roll is Fetha recording fills the user already executed elsewhere, not a new decision; and letting an operation expire worthless is not a decision kind of its own at all.",
-        "pt": "Uma decisão não registrada é uma decisão que a própria memória de um trader pode reescrever depois, geralmente a seu favor. O Diário da Fetha registra toda decisão de um usuário como exatamente um de cinco tipos — Entrar, Não entrar, Manter, Ajustar, Sair — com o que se sabia naquele momento, para que exista um histórico independente de como o resultado é lembrado depois. Salvar um plano (Montar plano) guarda suas pernas e regras de saída e registra automaticamente um Entrar, para toda receita menos a rara que não tem horizonte para datá-lo; o plano só passa a ser acompanhado e gerar alertas quando o \"Executei\" o liga aos preenchimentos que o usuário de fato conseguiu. Confirmar uma rolagem não registra nenhuma decisão própria, já que uma rolagem é a Fetha registrando preenchimentos que o usuário já executou em outro lugar, não uma decisão nova; e deixar uma operação vencer sem valor não é, por si só, um tipo de decisão."
+        "en": "A decision not written down is a decision a trader's own memory gets to rewrite later, usually in their own favor. Fetha's Diário records every decision a user makes as exactly one of five kinds — Entrar, Não entrar, Manter, Ajustar, Sair — with what was known at the time, so a track record exists independent of how the outcome is later remembered.",
+        "pt": "Uma decisão não registrada é uma decisão que a própria memória de um trader pode reescrever depois, geralmente a seu favor. O Diário da Fetha registra toda decisão de um usuário como exatamente um de cinco tipos — Entrar, Não entrar, Manter, Ajustar, Sair — com o que se sabia naquele momento, para que exista um histórico independente de como o resultado é lembrado depois."
       }
     },
     {
       "type": "paragraph",
       "text": {
-        "en": "An AI analysis sits in the same journal when it carries a checkable claim: an outlook that names a direction (the underlying closing above or below some level — its spot, a break-even, a point on its own payoff) and a horizon (one week, one month, three months or expiry). The model never writes the number itself; it only names which already-computed fact it means and how likely, in words, it thinks that direction is. A critique with no such claim — most backtest-run critiques, for one — is still stored and shown, just never scored as held or failed.",
-        "pt": "Uma análise de IA entra no mesmo diário quando carrega uma previsão checável: uma afirmação que nomeia uma direção (o ativo fechando acima ou abaixo de algum nível — o próprio spot, um break-even, um ponto do próprio payoff) e um horizonte (uma semana, um mês, três meses ou o vencimento). O modelo nunca escreve o número em si; ele só nomeia qual fato já calculado quer dizer e o quanto, em palavras, julga provável aquela direção. Uma crítica sem essa previsão — a maioria das críticas de backtest, por exemplo — ainda é guardada e exibida, só nunca avaliada como confirmada ou não."
+        "en": "Saving a plan (Montar plano) stores its legs and exit rules and auto-records an Entrar, for every recipe but the rare one with no horizon to date it by; the plan only starts being tracked and alerted on once \"Executei\" links it to the fills the user actually got.",
+        "pt": "Salvar um plano (Montar plano) guarda suas pernas e regras de saída e registra automaticamente um Entrar, para toda receita menos a rara que não tem horizonte para datá-lo; o plano só passa a ser acompanhado e gerar alertas quando o \"Executei\" o liga aos preenchimentos que o usuário de fato conseguiu."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Confirming a roll records no decision of its own, since a roll is Fetha recording fills the user already executed elsewhere, not a new decision; and letting an operation expire worthless is not a decision kind of its own at all.",
+        "pt": "Confirmar uma rolagem não registra nenhuma decisão própria, já que uma rolagem é a Fetha registrando preenchimentos que o usuário já executou em outro lugar, não uma decisão nova; e deixar uma operação vencer sem valor não é, por si só, um tipo de decisão."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "An AI analysis sits in the same journal when it carries a checkable claim: an outlook that names a direction (the underlying closing above or below some level — its spot, a break-even, a point on its own payoff) and a horizon (one week, one month, three months or expiry). The model never writes the number itself; it only names which already-computed fact it means and how likely, in words, it thinks that direction is.",
+        "pt": "Uma análise de IA entra no mesmo diário quando carrega uma previsão checável: uma afirmação que nomeia uma direção (o ativo fechando acima ou abaixo de algum nível — o próprio spot, um break-even, um ponto do próprio payoff) e um horizonte (uma semana, um mês, três meses ou o vencimento). O modelo nunca escreve o número em si; ele só nomeia qual fato já calculado quer dizer e o quanto, em palavras, julga provável aquela direção."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "A critique with no such claim — most backtest-run critiques, for one — is still stored and shown, just never scored as held or failed.",
+        "pt": "Uma crítica sem essa previsão — a maioria das críticas de backtest, por exemplo — ainda é guardada e exibida, só nunca avaliada como confirmada ou não."
       }
     },
     {
       "type": "callout",
       "tone": "info",
       "text": {
-        "en": "The claim's stated likelihood maps to a fixed confidence (0.60, 0.75 or 0.90); at the claim's own horizon session, the engine checks whether the underlying actually closed on the claimed side and scores a Brier score against that confidence. A single Brier score cannot tell skill apart from luck — a confident claim can still land right by chance once. Only the average Brier score across many scored claims, read next to the AI calibration panel below, says whether a stated likelihood has actually been tracking the realized hit rate. The AI never scores itself: only the engine reads the realized outcome, after the fact, against what the claim already said before it.",
-        "pt": "A probabilidade declarada da previsão mapeia para uma confiança fixa (0,60, 0,75 ou 0,90); na própria sessão de horizonte da previsão, o motor confere se o ativo de fato fechou do lado afirmado e calcula um escore de Brier contra essa confiança. Um único escore de Brier não distingue habilidade de sorte — uma previsão confiante ainda pode acertar por acaso uma vez. Só a média do escore de Brier entre muitas previsões avaliadas, lida ao lado do painel de \"calibração da IA\" abaixo, diz se uma probabilidade declarada de fato vem acompanhando a taxa de acerto realizada. A IA nunca avalia a si mesma: só o motor lê o resultado realizado, depois do fato, contra o que a previsão já tinha dito antes dele."
+        "en": "The claim's stated likelihood maps to a fixed confidence (0.60, 0.75 or 0.90); at the claim's own horizon session, the engine checks whether the underlying actually closed on the claimed side and scores a Brier score against that confidence. A single Brier score cannot tell skill apart from luck — a confident claim can still land right by chance once.",
+        "pt": "A probabilidade declarada da previsão mapeia para uma confiança fixa (0,60, 0,75 ou 0,90); na própria sessão de horizonte da previsão, o motor confere se o ativo de fato fechou do lado afirmado e calcula um escore de Brier contra essa confiança. Um único escore de Brier não distingue habilidade de sorte — uma previsão confiante ainda pode acertar por acaso uma vez."
+      }
+    },
+    {
+      "type": "callout",
+      "tone": "info",
+      "text": {
+        "en": "Only the average Brier score across many scored claims, read next to the AI calibration panel below, says whether a stated likelihood has actually been tracking the realized hit rate. The AI never scores itself: only the engine reads the realized outcome, after the fact, against what the claim already said before it.",
+        "pt": "Só a média do escore de Brier entre muitas previsões avaliadas, lida ao lado do painel de \"calibração da IA\" abaixo, diz se uma probabilidade declarada de fato vem acompanhando a taxa de acerto realizada. A IA nunca avalia a si mesma: só o motor lê o resultado realizado, depois do fato, contra o que a previsão já tinha dito antes dele."
       }
     },
     {
       "type": "paragraph",
       "text": {
-        "en": "The track record keeps decision scores and analysis scores apart on purpose: hit rate, calibration and P&L stay about the user's own decisions, while a separate AI calibration panel shows the analyses' own hit rate and mean Brier score, broken down per stated likelihood against the realized hit rate at that likelihood. Reading one's own track record, not a recipe's abstract description, is what tells whether a habit of following a given kind of suggestion has actually been paying off.",
-        "pt": "O histórico mantém as avaliações de decisões e as de análises separadas de propósito: taxa de acerto, calibração e resultado financeiro ficam sobre as próprias decisões do usuário, enquanto um painel separado de \"calibração da IA\" mostra a taxa de acerto e o escore de Brier médio das análises, detalhados por probabilidade declarada contra a taxa de acerto de fato naquela probabilidade. Ler o próprio histórico, não a descrição abstrata de uma receita, é o que diz se o hábito de seguir um certo tipo de sugestão de fato vem compensando."
+        "en": "The track record keeps decision scores and analysis scores apart on purpose: hit rate, calibration and P&L stay about the user's own decisions, while a separate AI calibration panel shows the analyses' own hit rate and mean Brier score, broken down per stated likelihood against the realized hit rate at that likelihood.",
+        "pt": "O histórico mantém as avaliações de decisões e as de análises separadas de propósito: taxa de acerto, calibração e resultado financeiro ficam sobre as próprias decisões do usuário, enquanto um painel separado de \"calibração da IA\" mostra a taxa de acerto e o escore de Brier médio das análises, detalhados por probabilidade declarada contra a taxa de acerto de fato naquela probabilidade."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Reading one's own track record, not a recipe's abstract description, is what tells whether a habit of following a given kind of suggestion has actually been paying off.",
+        "pt": "Ler o próprio histórico, não a descrição abstrata de uma receita, é o que diz se o hábito de seguir um certo tipo de sugestão de fato vem compensando."
       }
     }
   ],
@@ -52,15 +88,15 @@
         {
           "id": "a",
           "text": {
-            "en": "Every decision a user makes, with what was known at the time",
-            "pt": "Toda decisão de um usuário, com o que se sabia naquele momento"
+            "en": "Every decision made, with what was known then",
+            "pt": "Toda decisão, com o que se sabia naquele momento"
           }
         },
         {
           "id": "c",
           "text": {
-            "en": "Only operations that ended in a profit",
-            "pt": "Só operações que terminaram com lucro"
+            "en": "Only the operations that ended up in a profit",
+            "pt": "Só as operações que terminaram com lucro"
           }
         },
         {
@@ -87,22 +123,22 @@
         {
           "id": "c",
           "text": {
-            "en": "A guaranteed outcome stated with full confidence",
-            "pt": "Um resultado garantido, afirmado com confiança total"
+            "en": "A fully guaranteed outcome, stated with total confidence",
+            "pt": "Um resultado totalmente garantido, afirmado com confiança total"
           }
         },
         {
           "id": "b",
           "text": {
-            "en": "A direction and horizon naming an already-computed fact, never a new number",
-            "pt": "Uma direção e um horizonte nomeando um fato já calculado, nunca um número novo"
+            "en": "A direction and horizon naming a fact already computed",
+            "pt": "Uma direção e um horizonte nomeando um fato já calculado"
           }
         },
         {
           "id": "a",
           "text": {
-            "en": "A hand-typed price target the model invents",
-            "pt": "Um preço-alvo digitado à mão que o modelo inventa"
+            "en": "A hand-typed price target the model simply invents on its own",
+            "pt": "Um preço-alvo digitado à mão que o próprio modelo inventa"
           }
         }
       ],
@@ -122,22 +158,22 @@
         {
           "id": "c",
           "text": {
-            "en": "The same AI model that wrote the analysis",
-            "pt": "O mesmo modelo de IA que escreveu a análise"
+            "en": "The very same AI model that originally wrote the analysis",
+            "pt": "O próprio modelo de IA que escreveu a análise originalmente"
           }
         },
         {
           "id": "b",
           "text": {
-            "en": "No one — analyses are never scored",
-            "pt": "Ninguém — análises nunca são avaliadas"
+            "en": "No one at all — analyses are simply never scored",
+            "pt": "Ninguém, nunca — análises nunca são avaliadas"
           }
         },
         {
           "id": "a",
           "text": {
-            "en": "The engine, reading the realized outcome after the fact",
-            "pt": "O motor, lendo o resultado realizado depois do fato"
+            "en": "The engine, reading the outcome after the fact",
+            "pt": "O motor, lendo o resultado depois do fato"
           }
         }
       ],
@@ -157,22 +193,22 @@
         {
           "id": "b",
           "text": {
-            "en": "Kept apart — hit rate, calibration and P&L for decisions; a separate AI calibration panel for analyses",
-            "pt": "Mantidas separadas — taxa de acerto, calibração e resultado para decisões; um painel próprio de calibração da IA para análises"
+            "en": "Kept apart: hit rate and P&L for decisions, a separate panel for the AI",
+            "pt": "Separadas: taxa de acerto e resultado para decisões, painel próprio para a IA"
           }
         },
         {
           "id": "c",
           "text": {
-            "en": "Merged into a single hit rate with no distinction",
-            "pt": "Fundidas numa única taxa de acerto, sem distinção"
+            "en": "Always merged into one single hit rate, with no distinction at all",
+            "pt": "Sempre fundidas numa única taxa de acerto, sem distinção alguma"
           }
         },
         {
           "id": "a",
           "text": {
-            "en": "Always identical, since one causes the other",
-            "pt": "Sempre idênticas, já que uma causa a outra"
+            "en": "Always perfectly identical, since one directly causes the other",
+            "pt": "Sempre perfeitamente idênticas, já que uma causa a outra direto"
           }
         }
       ],
