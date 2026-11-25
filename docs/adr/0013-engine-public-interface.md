@@ -3554,11 +3554,11 @@ from, de-duplicated and sorted ascending.
 
 The field is `null` with no option leg, when no option leg carries a model, when the option legs'
 `timeToExpiryYears` differ, at `T = 0`, or when any leg's premium defaulted to zero for want of a
-price or a fair value. It is computed and omitted exactly where `payoffNow` already is (the #377
-ADR-0077 addendum above): carried by every `priceOperation` result and every entry/adjust signal's
-proposal, omitted from `markToMarket`'s pricing (marks, not entries) and from `evaluateStrategy`'s
-own internal exit-rule and roll-target pricing. ADR-0082 is the full account, including the model,
-the reference values it was tested against and the UI consequence.
+price or a fair value. It is computed and omitted exactly where `payoffNow` already is (the
+ADR-0077 addendum above, `ENGINE_VERSION` 0.18.0): carried by every `priceOperation` result and
+every entry/adjust signal's proposal, omitted from `markToMarket`'s pricing (marks, not entries)
+and from `evaluateStrategy`'s own internal exit-rule and roll-target pricing. ADR-0082 is the full
+account, including the model, the reference values it was tested against and the UI consequence.
 
 `suggestions.pricing`, the research ideas' `pricing` and `signals.proposal` persist
 `OperationPricing` as `jsonb`, so this is a shape change to a persisted artifact: `ENGINE_VERSION`

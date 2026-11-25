@@ -300,7 +300,10 @@ over generated verticals, straddles, strangles, condors and covered calls:
   up) never raises `P`. For a long put it never lowers `P`.
 - **Invariance.**
   - Multiplying every quantity by `k` leaves `P` unchanged.
-  - Multiplying spot, strikes and premiums by the same positive integer leaves `P` unchanged.
+  - Multiplying spot, strikes and premiums by the same positive integer leaves `P` unchanged up
+    to the cent rounding each break-even already carries (`PRICE_SCALE`): the 4th reported
+    decimal, often even the 3rd, is finer than that rounding supports. The card itself only ever
+    shows a whole percent, where the gap is never visible.
   - Permuting the legs leaves `P`, `volatility` and `volatilityFrom` unchanged.
 
 UI tests (colocated Vitest):
