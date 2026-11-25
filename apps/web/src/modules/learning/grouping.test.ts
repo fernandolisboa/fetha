@@ -23,9 +23,11 @@ describe("jornadaGroups", () => {
     expect(groups.map((group) => group.level)).toEqual(lessonCatalog.levels.map((l) => l.id));
   });
 
-  it("every level is listed, even the one every lesson happens to belong to", () => {
+  // Every level in today's real catalog happens to hold at least one lesson;
+  // the empty-level "Em breve" path itself is covered against a stubbed
+  // catalog in grouping.empty-level.test.ts.
+  it("gives every level in today's catalog at least one lesson", () => {
     const groups = jornadaGroups(emptyProgress(), "pt");
-    expect(groups.map((group) => group.level)).toEqual(lessonCatalog.levels.map((l) => l.id));
     for (const group of groups) {
       expect(group.lessons.length).toBeGreaterThan(0);
     }
