@@ -10,20 +10,18 @@ import { formatBRL, formatPriceBRL } from "@/lib/format/brl";
 import { formatDecimal } from "@/lib/format/decimal";
 import { formatPercent } from "@/lib/format/percent";
 import { formatQuantity } from "@/lib/format/quantity";
-import { DEFAULT_RISK_PROFILE } from "@/modules/portfolio/client";
+import { DEFAULT_RISK_PROFILE, riskLimitCentavos } from "@/modules/portfolio/client";
 
 import type { IllustrativeExamples } from "./illustrative-market";
 import { seriesLetterOf } from "./series-code";
 
 // The default risk profile's own declared capital and max-loss-per-operation limit
 // (`modules/portfolio`'s `DEFAULT_RISK_PROFILE`, ADR-0075) — an input a user declares, not an
-// engine output, but still never hand-typed into a lesson: the cap below is computed from it in
-// code, the same rule CLAUDE.md's "no hand-written numbers" applies to everything else here.
+// engine output, but still never hand-typed into a lesson. The cap is `portfolio`'s own
+// `riskLimitCentavos`, the one place this ratio turns into an absolute amount; `plans`' sizing
+// reads the same function, so a lesson and the sizing it describes can never disagree.
 function defaultMaxLossCapCentavos(): number {
-  return new Decimal(DEFAULT_RISK_PROFILE.declaredCapital)
-    .mul(DEFAULT_RISK_PROFILE.limits.maxLossPerOperation)
-    .toDecimalPlaces(0, Decimal.ROUND_HALF_UP)
-    .toNumber();
+  return riskLimitCentavos(DEFAULT_RISK_PROFILE);
 }
 
 const PLACEHOLDER_PATTERN = /\{\{([a-zA-Z0-9-]+(?:\.[a-zA-Z0-9]+)?)\}\}/g;
@@ -83,10 +81,16 @@ export function resolvePlaceholder(token: string, examples: IllustrativeExamples
     // A lot is 100 options (CLAUDE.md money rule), so a lot's own worst case is the per-share
     // max loss ×100 — the same per-lot convention `thetaAbs` already uses.
     const perLotCentavos = Math.abs(pricing.maxLoss) * 100;
+    if (perLotCentavos <= 0) {
+      throw new Error(`placeholder "${token}" has no positive per-lot max loss to size against`);
+    }
     if (field === "maxLossPerLotAbs") {
       return formatBRL(centavosSchema.parse(perLotCentavos));
     }
     const lots = Math.floor(defaultMaxLossCapCentavos() / perLotCentavos);
+    if (lots < 1) {
+      throw new Error(`placeholder "${token}" resolves to fewer than one lot at the default cap`);
+    }
     return formatQuantity(lots);
   }
   const breakEvenMatch = /^breakEven(\d+)$/.exec(field);
@@ -104,10 +108,15 @@ export function resolvePlaceholder(token: string, examples: IllustrativeExamples
     return formatDecimal(pricing.greeks[field], 4);
   }
   if (field === "vega") {
-    // Vega is money: the fair-value change per volatility point, per share (DESIGN.md "Greeks":
-    // "vega in R$ / ponto"), the same quantity `GreeksPanel` shows with formatPriceBRL. A lesson's
-    // own prose states the "/ ponto" unit and the ×100-per-lot conversion, never baked in here.
-    return formatPriceBRL(pricing.greeks.vega);
+    // Vega is money: the fair-value change per volatility point (DESIGN.md "Greeks": "vega in
+    // R$ / ponto"). The engine returns it per share; a B3 lot is 100 options, one per share
+    // (CLAUDE.md money rule), so this is the per-lot magnitude, scaled in Decimal before
+    // formatting the same way `thetaAbs` is — a per-share value rounded to the centavo first and
+    // then ×100 would compound the rounding error well past a single cent. Sign kept, unlike
+    // `thetaAbs`: a lesson's own prose says whether a lot is long or short volatility from this
+    // sign directly, never instructing the reader to multiply.
+    const perLot = new Decimal(pricing.greeks.vega).mul(100).toFixed(6);
+    return formatPriceBRL(decimalStringSchema.parse(perLot));
   }
   if (field === "thetaAbs") {
     // Theta is per share; a B3 lot is 100 options, one per share (CLAUDE.md money rule: never

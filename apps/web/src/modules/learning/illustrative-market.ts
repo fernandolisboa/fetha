@@ -28,7 +28,7 @@ import {
 // lessons also need.
 export const ILLUSTRATIVE_UNDERLYING: Ticker = tickerSchema.parse("EXMP3");
 export const ILLUSTRATIVE_SPOT: DecimalString = decimalStringSchema.parse("20.00");
-export const ILLUSTRATIVE_EXPIRY: SessionDate = sessionDateSchema.parse("2026-02-20");
+const ILLUSTRATIVE_EXPIRY: SessionDate = sessionDateSchema.parse("2026-02-20");
 export const ILLUSTRATIVE_LOWEST_STRIKE: DecimalString = decimalStringSchema.parse("18.00");
 export const ILLUSTRATIVE_LOWER_STRIKE: DecimalString = decimalStringSchema.parse("20.00");
 export const ILLUSTRATIVE_LOWER_MID_STRIKE: DecimalString = decimalStringSchema.parse("19.00");
@@ -52,7 +52,7 @@ export const ILLUSTRATIVE_LOWEST_PUT_PREMIUM: DecimalString = decimalStringSchem
 export const ILLUSTRATIVE_LOWER_MID_PUT_PREMIUM: DecimalString = decimalStringSchema.parse("1.02");
 export const ILLUSTRATIVE_HIGHER_PUT_PREMIUM: DecimalString = decimalStringSchema.parse("2.78");
 
-export const ILLUSTRATIVE_AT = instantSchema.parse("2026-01-02T13:00:00.000Z");
+const ILLUSTRATIVE_AT = instantSchema.parse("2026-01-02T13:00:00.000Z");
 const CALENDAR_START = "2026-01-02";
 const CALENDAR_SESSIONS = 60;
 
