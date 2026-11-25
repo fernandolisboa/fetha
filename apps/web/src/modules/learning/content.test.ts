@@ -131,6 +131,44 @@ describe("the lesson catalog and its content files", () => {
     }
   });
 
+  // A rebalancing pass can trim a correct option down until it reads as the shortest one on the
+  // card, which a visitor can then pass by picking on length alone rather than reading. Scoped to
+  // this PR's own 10 new lessons (review round 4, K4-1): several lessons already on main already
+  // let the correct option be the strictly shortest one more often than this check allows, a
+  // pre-existing pattern this PR does not touch.
+  const PR_LESSON_IDS = new Set([
+    "backtest-hygiene",
+    "corporate-events-on-b3",
+    "delta-and-gamma",
+    "expiry-and-exercise-risk-on-b3",
+    "portfolio-greeks",
+    "position-sizing-by-max-loss",
+    "reading-a-fetha-suggestion",
+    "rolling-a-position",
+    "the-decision-journal-and-scoring",
+    "vega-and-iv-changes",
+  ]);
+
+  it("never lets the correct option be the strictly shortest often enough to pass by picking it (this PR's new lessons)", () => {
+    for (const lesson of lessons.filter((l) => PR_LESSON_IDS.has(l.id))) {
+      const shortestCount = lesson.quiz.filter((question) => {
+        const correctOption = question.options.find(
+          (option) => option.id === question.correctOptionId,
+        );
+        const correctLength = correctOption?.text.pt.length ?? 0;
+        return question.options.every(
+          (option) =>
+            option.id === question.correctOptionId || option.text.pt.length > correctLength,
+        );
+      }).length;
+      const ratio = shortestCount / lesson.quiz.length;
+      expect(
+        ratio,
+        `lesson "${lesson.id}": always picking the shortest option scores ${String(ratio)}`,
+      ).toBeLessThan(PASSING_SCORE_RATIO);
+    }
+  });
+
   // LessonBlocks, LessonGroupSection and the lesson page render a lesson's own title and summary
   // directly, with no call to resolveText (round 2 review, K6) — unlike every block and quiz
   // text, which the page does resolve. A placeholder token in a title or summary would render
