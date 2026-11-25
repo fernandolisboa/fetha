@@ -1,6 +1,6 @@
 {
   "id": "vega-and-iv-changes",
-  "version": 1,
+  "version": 2,
   "minutes": 6,
   "title": {
     "en": "Vega: when implied volatility itself moves",
@@ -14,23 +14,23 @@
     {
       "type": "paragraph",
       "text": {
-        "en": "Vega is the greek that measures how much an option's fair value changes for each point of implied volatility, stock price and time held equal. Every bought option, call or put, has positive vega: richer implied volatility makes it worth more, cheaper implied volatility makes it worth less.",
-        "pt": "Vega é a grega que mede quanto o valor justo de uma opção muda para cada ponto de volatilidade implícita, mantidos iguais o preço da ação e o tempo. Toda opção comprada, call ou put, tem vega positivo: uma volatilidade implícita mais rica deixa a opção mais valiosa, uma mais barata a deixa menos valiosa."
+        "en": "Vega is the greek that measures how much an option's fair value changes for each point of implied volatility, stock price and time held equal. Unlike delta and gamma, which this track showed as a bare ratio, vega is money — reais per share, per point of implied volatility; multiply by 100 for a lot's own worth. Every bought option, call or put, has positive vega: richer implied volatility makes it worth more, cheaper implied volatility makes it worth less.",
+        "pt": "Vega é a grega que mede quanto o valor justo de uma opção muda para cada ponto de volatilidade implícita, mantidos iguais o preço da ação e o tempo. Diferente de delta e gama, que esta trilha mostrou como uma razão pura, vega é dinheiro — reais por ação, por ponto de volatilidade implícita; multiplique por 100 para o valor de um lote. Toda opção comprada, call ou put, tem vega positivo: uma volatilidade implícita mais rica deixa a opção mais valiosa, uma mais barata a deixa menos valiosa."
       }
     },
     {
       "type": "payoff-example",
       "exampleId": "long-call",
       "caption": {
-        "en": "This lesson's long call, stock at {{spot}}: its vega is {{long-call.vega}}, positive — a bought option is a bet that implied volatility, not just the stock, moves in its favor.",
-        "pt": "A call comprada desta lição, ação a {{spot}}: o vega dela é {{long-call.vega}}, positivo — uma opção comprada é uma aposta de que a volatilidade implícita, não só a ação, se move a seu favor."
+        "en": "This lesson's long call, stock at {{spot}}: its vega is {{long-call.vega}} per point of implied volatility, positive — a bought option is a bet that implied volatility, not just the stock, moves in its favor.",
+        "pt": "A call comprada desta lição, ação a {{spot}}: o vega dela é {{long-call.vega}} por ponto de volatilidade implícita, positivo — uma opção comprada é uma aposta de que a volatilidade implícita, não só a ação, se move a seu favor."
       }
     },
     {
       "type": "paragraph",
       "text": {
-        "en": "Selling an option flips the sign: a short call's vega is the long call's own, negated — {{short-call.vega}} here. A position built mostly from sold options is \"short volatility\": it profits as implied volatility falls, even with the stock unmoved, and a sudden rise in implied volatility hurts it the same way a stock move against the short strike would.",
-        "pt": "Vender uma opção inverte o sinal: o vega de uma call vendida é o da call comprada, com o sinal trocado — {{short-call.vega}} aqui. Uma posição montada em boa parte com opções vendidas é \"short volatility\": ela lucra conforme a volatilidade implícita cai, mesmo com a ação parada, e uma alta repentina na volatilidade implícita a machuca do mesmo jeito que um movimento da ação contra o strike vendido machucaria."
+        "en": "Selling an option flips the sign: a short call's vega is the long call's own, negated — {{short-call.vega}} per point here. A position built mostly from sold options is \"short volatility\": it profits as implied volatility falls, even with the stock unmoved, and a sudden rise in implied volatility hurts it the same way a stock move against the short strike would.",
+        "pt": "Vender uma opção inverte o sinal: o vega de uma call vendida é o da call comprada, com o sinal trocado — {{short-call.vega}} por ponto aqui. Uma posição montada em boa parte com opções vendidas é \"short volatility\": ela lucra conforme a volatilidade implícita cai, mesmo com a ação parada, e uma alta repentina na volatilidade implícita a machuca do mesmo jeito que um movimento da ação contra o strike vendido machucaria."
       }
     },
     {

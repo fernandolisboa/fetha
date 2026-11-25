@@ -1,6 +1,6 @@
 {
   "id": "position-sizing-by-max-loss",
-  "version": 1,
+  "version": 2,
   "minutes": 6,
   "title": {
     "en": "Position sizing by max loss",
@@ -28,16 +28,16 @@
     {
       "type": "paragraph",
       "text": {
-        "en": "Fetha's risk profile (Configurações › Perfil de risco) holds exactly this: a declared capital and a \"Perda máxima por operação\" limit, set as a percent of that capital. Every operation the builder prices, and every suggestion the radar surfaces, checks its own max loss against that limit and flags a breach instead of staying silent about it.",
-        "pt": "O perfil de risco da Fetha (Configurações › Perfil de risco) guarda exatamente isso: um capital declarado e um limite de \"Perda máxima por operação\", definido como um percentual desse capital. Toda operação que o simulador precifica, e toda sugestão que o radar traz, confere a própria perda máxima contra esse limite e aponta quando ele é rompido, em vez de ficar em silêncio sobre isso."
+        "en": "Fetha's risk profile (Configurações › Risco, \"Capital declarado e limites\") holds exactly this: a declared capital and a \"Perda máxima por operação\" limit, set as a percent of that capital. Every operation the builder prices, and every suggestion the radar surfaces, checks its own max loss against that limit and flags a breach instead of staying silent about it.",
+        "pt": "O perfil de risco da Fetha (Configurações › Risco, \"Capital declarado e limites\") guarda exatamente isso: um capital declarado e um limite de \"Perda máxima por operação\", definido como um percentual desse capital. Toda operação que o simulador precifica, e toda sugestão que o radar traz, confere a própria perda máxima contra esse limite e aponta quando ele é rompido, em vez de ficar em silêncio sobre isso."
       }
     },
     {
       "type": "payoff-example",
       "exampleId": "iron-condor",
       "caption": {
-        "en": "This lesson's iron condor, stock at {{spot}}: max loss is {{iron-condor.maxLossAbs}} per share (×100 per lot). A capital of, say, R$ 50.000 and a 2% max-loss-per-operation limit caps a single operation's loss at R$ 1.000 — which this condor's own per-lot loss divides into to size how many lots fit the limit.",
-        "pt": "O condor de ferro desta lição, ação a {{spot}}: a perda máxima é {{iron-condor.maxLossAbs}} por ação (×100 por lote). Um capital de, digamos, R$ 50.000 com um limite de 2% de perda máxima por operação trava a perda de uma única operação em R$ 1.000 — e é por essa perda por lote deste condor que se divide para calcular quantos lotes cabem dentro do limite."
+        "en": "This lesson's iron condor, stock at {{spot}}: max loss is {{iron-condor.maxLossAbs}} per share, {{iron-condor.maxLossPerLotAbs}} per lot. Against the profile Fetha proposes before anyone declares their own — {{defaultDeclaredCapitalAbs}} of capital and a {{defaultMaxLossPerOperationPercent}} max-loss-per-operation limit — the cap on a single operation's loss is {{defaultMaxLossCapAbs}}, which this condor's own per-lot loss divides into {{iron-condor.maxLossLotsAtDefaultCap}} lots.",
+        "pt": "O condor de ferro desta lição, ação a {{spot}}: a perda máxima é {{iron-condor.maxLossAbs}} por ação, {{iron-condor.maxLossPerLotAbs}} por lote. Contra o perfil que a Fetha propõe antes de alguém declarar o próprio — {{defaultDeclaredCapitalAbs}} de capital e um limite de {{defaultMaxLossPerOperationPercent}} de perda máxima por operação —, o teto da perda de uma única operação é {{defaultMaxLossCapAbs}}, e é por essa perda por lote deste condor que esse teto se divide em {{iron-condor.maxLossLotsAtDefaultCap}} lotes."
       }
     },
     {
@@ -102,8 +102,8 @@
         {
           "id": "b",
           "text": {
-            "en": "Configurações › Perfil de risco",
-            "pt": "Configurações › Perfil de risco"
+            "en": "Configurações › Risco",
+            "pt": "Configurações › Risco"
           }
         },
         {
@@ -116,8 +116,8 @@
       ],
       "correctOptionId": "b",
       "explanation": {
-        "en": "The risk profile, under Configurações, holds the declared capital and every risk-profile limit, including max loss per operation.",
-        "pt": "O perfil de risco, em Configurações, guarda o capital declarado e todos os limites do perfil de risco, incluindo a perda máxima por operação."
+        "en": "The risk profile, under Configurações › Risco, holds the declared capital and every risk-profile limit, including max loss per operation.",
+        "pt": "O perfil de risco, em Configurações › Risco, guarda o capital declarado e todos os limites do perfil de risco, incluindo a perda máxima por operação."
       }
     },
     {
