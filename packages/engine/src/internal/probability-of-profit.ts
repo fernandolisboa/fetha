@@ -5,7 +5,7 @@ import { normalCdf } from "./black-scholes";
 import { PROBABILITY_SCALE, RATIO_SCALE, parseDecimal, toDecimalString } from "./decimal";
 import { assertDefined } from "./invariant";
 import type { OptionLegModel } from "./option-pricing";
-import { payoffAt, type PricedLeg } from "./price-operation";
+import { payoffAt, type PricedLeg } from "./payoff-at";
 
 type ModeledLeg = PricedLeg & { strike: DecimalString; model: OptionLegModel };
 

@@ -2609,11 +2609,85 @@ describe("evaluateStrategy — option structures (#23)", () => {
         datasetNotes: view.datasetNotes ?? [],
       },
       "spot",
-      { withPayoffNow: false },
+      { withEntryFigures: false },
     );
     expect(freshPricing.ok).toBe(true);
     if (!freshPricing.ok) return;
     expect(signal.proposal.pricing.maxLoss).toBe(freshPricing.value.maxLoss);
+  });
+
+  // ADR-0082: `probabilityOfProfit` is computed and omitted exactly where `payoffNow` already
+  // is. A roll target's pricing (`resolveRollTarget`'s own `priceLegsAt` call inside
+  // `evaluateStrategy`) is one of the sites that always passes `withEntryFigures: false`, same
+  // fixture as the roll proposal test directly above.
+  it("omits probabilityOfProfit from a roll proposal's own pricing, built inside evaluateStrategy", () => {
+    const nearExpiry = sessionAt(15);
+    const farExpiry = sessionAt(32);
+    const view: MarketView = {
+      ...emptyView,
+      calendar: calendarSessions(40),
+      candles: [dailyCandle("PETR4", 0, "10.00"), dailyCandle("PETR4", 10, "10.00")],
+      corporateActions: [],
+      optionSeries: [
+        callSeries("PETR4C11", "11.00", nearExpiry, `${sessionAt(0)}T21:00:00.000Z`),
+        callSeries("PETR4C5F", "5.50", farExpiry, `${sessionAt(0)}T21:00:00.000Z`),
+      ],
+      optionPrices: [optionClose("PETR4C11", sessionAt(10), "1.00")],
+    };
+    const operation: Operation = {
+      id: "op-1",
+      underlying: "PETR4",
+      legs: [
+        {
+          role: "stock",
+          side: "buy",
+          ticker: "PETR4",
+          quantity: quantity(100),
+          entryPrice: decimalString("10.00"),
+        },
+        {
+          role: "call",
+          side: "sell",
+          ticker: "PETR4C11",
+          quantity: quantity(100),
+          entryPrice: decimalString("1.00"),
+        },
+      ],
+      expiry: nearExpiry,
+      openedAt: sessionAt(0),
+      strategyVersionId: "v1",
+      rolledFrom: null,
+    };
+    const input: EvaluateStrategyInput = {
+      view,
+      strategy: strategyVersion(
+        optionDef({
+          entry: alwaysTrue,
+          structureId: "covered_call",
+          strikes: [{ kind: "nearest", price: decimalString("11.00") }],
+          adjustments: [
+            {
+              kind: "roll",
+              when: { kind: "days_before_expiry", businessDays: 5 },
+              expiry: { kind: "business_days", min: 20, max: 25 },
+              strikes: [{ kind: "nearest", price: decimalString("5.50") }],
+            },
+          ],
+        }),
+        coveredCall,
+      ),
+      instruments: ["PETR4"],
+      at: `${sessionAt(10)}T21:00:00.000Z`,
+      openOperations: [operation],
+      riskProfile,
+    };
+    const result = evaluateStrategy(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const signal = result.value.signals.find((s) => s.kind === "adjust");
+    expect(signal).toBeDefined();
+    if (!signal) return;
+    expect(signal.proposal.pricing).not.toHaveProperty("probabilityOfProfit");
   });
 
   it("rolls, never refuses under limits: enforce, once the stock leg's own rebase brings the successor's maxLoss back under the limit (#383)", () => {

@@ -357,7 +357,7 @@ function computeExitRuleBases(op: Operation, view: MarketView, at: Instant): Exi
     undefined,
     exitRuleProvenanceBase,
     "spot",
-    { withPayoffNow: false },
+    { withEntryFigures: false },
   );
   if (!result.ok) return null;
   const pricing = result.value;
@@ -402,7 +402,7 @@ function evaluateNumericExitRule(
     undefined,
     exitRuleProvenanceBase,
     "spot",
-    { withPayoffNow: false },
+    { withEntryFigures: false },
   );
   // This call shares its view, at, underlying and every leg's ticker with
   // computeExitRuleBases's own priceLegsAt call above it, which already gated this op on
@@ -1511,7 +1511,7 @@ export function createStrategyEvaluator(base: EvaluationBase): StrategyEvaluator
                   datasetNotes: view.datasetNotes ?? [],
                 },
                 "spot",
-                { withPayoffNow: false },
+                { withEntryFigures: false },
               );
               // This call shares its view, c and underlying with resolveRollTarget's own spot
               // resolution above it, which already gated `target.outcome === "resolved"` before
