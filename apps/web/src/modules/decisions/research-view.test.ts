@@ -168,6 +168,63 @@ describe("researchViewOf", () => {
     expect(researchViewOf(base).unsent).toEqual([]);
   });
 
+  // ADR-0082: the card draws this from the stored pricing's own optional field (absent on an
+  // idea stored before 0.21.0, or null with no option leg / no leg sigma / T = 0).
+  it("carries probabilityOfProfit null on the card when the stored pricing lacks the field", () => {
+    const view = researchViewOf({
+      research: research([storedIdea(0, "enter")]),
+      decisions: new Map(),
+      newestReadSession: session("2026-10-23"),
+    });
+    expect(view.groups.enter[0]?.card.probabilityOfProfit).toBeNull();
+  });
+
+  it("carries probabilityOfProfit null on the card when the stored pricing has it null", () => {
+    const view = researchViewOf({
+      research: research([
+        storedIdea(0, "enter", {
+          pricing: {
+            netPremium: centavosSchema.parse(-12000),
+            maxLoss: centavosSchema.parse(12000),
+            maxGain: "unbounded",
+            breakEvens: [decimal("39.70")],
+            spot: decimal("39.00"),
+            payoff: [{ underlying: decimal("39.00"), pnl: centavosSchema.parse(-12000) }],
+            probabilityOfProfit: null,
+          },
+        }),
+      ]),
+      decisions: new Map(),
+      newestReadSession: session("2026-10-23"),
+    });
+    expect(view.groups.enter[0]?.card.probabilityOfProfit).toBeNull();
+  });
+
+  it("carries the probability string on the card when the stored pricing has it", () => {
+    const view = researchViewOf({
+      research: research([
+        storedIdea(0, "enter", {
+          pricing: {
+            netPremium: centavosSchema.parse(-12000),
+            maxLoss: centavosSchema.parse(12000),
+            maxGain: "unbounded",
+            breakEvens: [decimal("39.70")],
+            spot: decimal("39.00"),
+            payoff: [{ underlying: decimal("39.00"), pnl: centavosSchema.parse(-12000) }],
+            probabilityOfProfit: {
+              probability: decimal("0.4085"),
+              volatility: decimal("0.300000"),
+              volatilityFrom: [tickerSchema.parse("PETRK385")],
+            },
+          },
+        }),
+      ]),
+      decisions: new Map(),
+      newestReadSession: session("2026-10-23"),
+    });
+    expect(view.groups.enter[0]?.card.probabilityOfProfit).toBe("0.4085");
+  });
+
   it("falls back to the recipe id when the recipe left the book", () => {
     const view = researchViewOf({
       research: research([storedIdea(0, "enter", { recipeId: "gone" })]),
