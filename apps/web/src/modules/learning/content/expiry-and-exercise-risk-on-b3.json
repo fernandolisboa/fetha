@@ -1,6 +1,6 @@
 {
   "id": "expiry-and-exercise-risk-on-b3",
-  "version": 1,
+  "version": 2,
   "minutes": 6,
   "title": {
     "en": "Expiry and exercise risk on B3",
@@ -29,15 +29,15 @@
     {
       "type": "paragraph",
       "text": {
-        "en": "Assignment of a short leg can also leave the rest of a structure open on its own. Take a bull call spread: if the short (higher-strike) call is assigned early because it is deep in the money — rare on B3, since a dividend-driven reason is largely removed by strike protection (ADR-0070), but not impossible on a stock-specific move — the trader is left having delivered stock at that strike while the long call bought at the lower strike is still an open option position, no longer offset by anything.",
-        "pt": "A atribuição de uma perna vendida também pode deixar o resto de uma estrutura aberto por conta própria. Veja uma trava de alta com calls: se a call vendida (strike mais alto) for atribuída antes do vencimento por estar bem dentro do dinheiro — raro na B3, já que um motivo ligado a dividendo é, em boa parte, removido pela proteção do strike (ADR-0070), mas não impossível num movimento específico da ação —, o trader fica tendo entregado a ação naquele strike enquanto a call comprada no strike mais baixo continua sendo uma posição de opção aberta, sem mais nada compensando ela."
+        "en": "Assignment of a short leg does not necessarily leave the rest of a structure exposed — it leaves it needing action. Take a bull call spread: if the short (higher-strike) call is assigned — rare before expiry on B3, since a dividend-driven reason for early exercise is largely removed by strike protection (ADR-0070), but reachable right at expiry under the automatic-exercise rule — the trader is short stock at the higher strike. The long call at the lower strike still hedges that: exercising it buys the same stock back at the lower strike, locking in exactly the spread's own max gain. What assignment actually demands is settlement logistics (covering the short stock position, usually by exercising the long leg before its own cutoff) and someone noticing and acting within a tight window — not a position quietly falling apart.",
+        "pt": "A atribuição de uma perna vendida não deixa, necessariamente, o resto de uma estrutura exposto — deixa precisando de ação. Veja uma trava de alta com calls: se a call vendida (strike mais alto) for atribuída — raro antes do vencimento na B3, já que um motivo ligado a dividendo para exercício antecipado é, em boa parte, removido pela proteção do strike (ADR-0070), mas alcançável bem no vencimento pela regra de exercício automático —, o trader fica vendido na ação pelo strike mais alto. A call comprada no strike mais baixo ainda protege isso: exercê-la compra a mesma ação de volta pelo strike mais baixo, travando exatamente o ganho máximo da trava. O que a atribuição de fato exige é logística de liquidação (cobrir a posição vendida na ação, geralmente exercendo a perna comprada antes do próprio prazo) e alguém notar e agir dentro de uma janela curta — não uma posição se desmontando sozinha."
       }
     },
     {
       "type": "paragraph",
       "text": {
-        "en": "Fetha's own portfolio screen names this directly: an open operation's \"Agenda de rolagem\" flags a decision approaching expiry, and offers \"Encerrar agora\" specifically for early-assignment risk on a leg deep in the money, alongside Rolar, Deixar virar pó and Acompanhar. Closing a structure before expiry, rather than waiting to see what gets pinned or assigned, trades a small, known cost (crossing the bid-ask on every leg) for removing both of these near-expiry risks entirely.",
-        "pt": "A tela de carteira da Fetha nomeia isso diretamente: a \"Agenda de rolagem\" de uma operação aberta aponta uma decisão se aproximando do vencimento, e oferece \"Encerrar agora\" especificamente para risco de atribuição antecipada numa perna bem dentro do dinheiro, junto com Rolar, Deixar virar pó e Acompanhar. Encerrar uma estrutura antes do vencimento, em vez de esperar para ver o que fica no pino ou é atribuído, troca um custo pequeno e conhecido (cruzar o spread de compra e venda em cada perna) por remover os dois riscos de perto do vencimento por completo."
+        "en": "Fetha's own portfolio screen watches this directly: an open operation's \"Agenda de rolagem\" offers \"Encerrar agora — risco de exercício\" once any short leg is in the money, or within 1% of the stock's price either way, with one session or fewer left before expiry — covering exactly the exercise and pin risk this lesson named, alongside Rolar, Deixar virar pó and Acompanhar. Closing before that point, rather than waiting to find out how exercise or pin risk would resolve, costs brokerage, B3 fees and the bid-ask spread on every leg — a real cost, traded for certainty, not a free action.",
+        "pt": "A tela de carteira da Fetha acompanha isso diretamente: a \"Agenda de rolagem\" de uma operação aberta oferece \"Encerrar agora — risco de exercício\" assim que qualquer perna vendida fica dentro do dinheiro, ou a até 1% do preço da ação em qualquer direção, com uma sessão ou menos faltando para o vencimento — cobrindo exatamente o risco de exercício e de pin que esta lição nomeou, junto com Rolar, Deixar virar pó e Acompanhar. Encerrar antes desse ponto, em vez de esperar para descobrir como o exercício ou o pin se resolveriam, custa corretagem, taxas da B3 e o spread de compra e venda em cada perna — um custo real, trocado por certeza, não uma ação de graça."
       }
     }
   ],
@@ -94,8 +94,8 @@
         {
           "id": "c",
           "text": {
-            "en": "The long call is left open, no longer offset by the assigned short leg",
-            "pt": "A call comprada fica aberta, sem mais nada compensando a perna vendida atribuída"
+            "en": "The long call still hedges the resulting short stock, but someone has to notice and act in time",
+            "pt": "A call comprada ainda protege a posição vendida na ação resultante, mas alguém precisa notar e agir a tempo"
           }
         },
         {
@@ -108,22 +108,22 @@
       ],
       "correctOptionId": "c",
       "explanation": {
-        "en": "Assignment acts on the short leg alone; the long leg stays an open option position of its own, no longer part of a closed spread.",
-        "pt": "A atribuição age só sobre a perna vendida; a perna comprada continua sendo uma posição de opção aberta, sem mais ser parte de uma trava encerrada."
+        "en": "The long call's own value still locks in the spread's max gain against the assigned short stock; the real risk is settlement logistics and the need to act within a tight window, not an unhedged position.",
+        "pt": "O próprio valor da call comprada ainda trava o ganho máximo da trava contra a posição vendida na ação atribuída; o risco real é a logística de liquidação e a necessidade de agir dentro de uma janela curta, não uma posição sem proteção."
       }
     },
     {
       "id": "q3",
       "prompt": {
-        "en": "Fetha's portfolio screen offers \"Encerrar agora\" specifically for:",
-        "pt": "A tela de carteira da Fetha oferece \"Encerrar agora\" especificamente para:"
+        "en": "Fetha's portfolio screen offers \"Encerrar agora — risco de exercício\" specifically when:",
+        "pt": "A tela de carteira da Fetha oferece \"Encerrar agora — risco de exercício\" especificamente quando:"
       },
       "options": [
         {
           "id": "c",
           "text": {
-            "en": "Early-assignment risk on a leg deep in the money",
-            "pt": "Risco de atribuição antecipada numa perna bem dentro do dinheiro"
+            "en": "A short leg is in the money, or within 1% of spot, with one session or fewer left to expiry",
+            "pt": "Uma perna vendida está dentro do dinheiro, ou a até 1% do spot, com uma sessão ou menos até o vencimento"
           }
         },
         {
@@ -143,8 +143,8 @@
       ],
       "correctOptionId": "c",
       "explanation": {
-        "en": "\"Encerrar agora\" is one option on the roll agenda, alongside Rolar, Deixar virar pó and Acompanhar, named for early-assignment risk.",
-        "pt": "\"Encerrar agora\" é uma opção na agenda de rolagem, junto com Rolar, Deixar virar pó e Acompanhar, nomeada para risco de atribuição antecipada."
+        "en": "\"Encerrar agora — risco de exercício\" fires on that exact condition — a short leg in the money or within 1% of spot, one session or fewer to expiry — covering exercise and pin risk, not a general deep-in-the-money warning.",
+        "pt": "\"Encerrar agora — risco de exercício\" dispara exatamente nessa condição — uma perna vendida dentro do dinheiro ou a até 1% do spot, uma sessão ou menos até o vencimento —, cobrindo risco de exercício e de pin, não um aviso genérico de perna bem dentro do dinheiro."
       }
     },
     {
@@ -164,8 +164,8 @@
         {
           "id": "b",
           "text": {
-            "en": "Trades a small, known cost for removing pin and assignment risk entirely",
-            "pt": "Troca um custo pequeno e conhecido por remover de vez o risco de pin e de atribuição"
+            "en": "Trades brokerage, B3 fees and the bid-ask spread for removing pin and exercise risk",
+            "pt": "Troca corretagem, taxas da B3 e o spread de compra e venda por remover o risco de pin e de exercício"
           }
         },
         {
@@ -178,8 +178,8 @@
       ],
       "correctOptionId": "b",
       "explanation": {
-        "en": "Closing early costs crossing the spread on each leg, a small known cost, in exchange for not having to find out how pin or assignment risk would have resolved.",
-        "pt": "Encerrar antes custa cruzar o spread em cada perna, um custo pequeno e conhecido, em troca de não precisar descobrir como o risco de pin ou de atribuição teria se resolvido."
+        "en": "Closing early still costs brokerage, B3 fees and the spread on each leg, a real cost traded for not having to find out how pin or exercise risk would have resolved.",
+        "pt": "Encerrar antes ainda custa corretagem, taxas da B3 e o spread em cada perna, um custo real trocado por não precisar descobrir como o risco de pin ou de exercício teria se resolvido."
       }
     }
   ]
