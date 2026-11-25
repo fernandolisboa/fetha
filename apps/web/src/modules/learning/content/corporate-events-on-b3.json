@@ -1,6 +1,6 @@
 {
   "id": "corporate-events-on-b3",
-  "version": 4,
+  "version": 1,
   "minutes": 5,
   "title": {
     "en": "Corporate events on B3: dividends, JCP, splits and bonuses",
@@ -88,29 +88,29 @@
         {
           "id": "c",
           "text": {
-            "en": "Cancels every open option on that underlying without any refund",
-            "pt": "Cancela toda opção aberta daquele ativo, sem nenhum reembolso"
+            "en": "Closes the open options on that underlying and refunds the full premium",
+            "pt": "Encerra as opções abertas daquele ativo e devolve o prêmio inteiro"
           }
         },
         {
           "id": "a",
           "text": {
-            "en": "Lowers the strike by the distribution's amount",
-            "pt": "Reduz o strike pelo valor do provento"
+            "en": "Lowers each option's own strike by the distribution's amount",
+            "pt": "Reduz o strike de cada opção pelo valor do provento"
           }
         },
         {
           "id": "b",
           "text": {
-            "en": "Doubles the premium of every option traded that day",
-            "pt": "Dobra o prêmio de toda opção negociada naquele dia"
+            "en": "Doubles the premium of the options traded that day",
+            "pt": "Dobra o prêmio das opções negociadas naquele dia"
           }
         }
       ],
       "correctOptionId": "a",
       "explanation": {
-        "en": "B3 lowers the strike by the exact distribution amount, so the holder is protected against the stock's own drop on the ex-date.",
-        "pt": "A B3 reduz o strike pelo valor exato do provento, para proteger quem detém a opção da própria queda da ação na data-ex."
+        "en": "B3 lowers the strike by the distribution's own amount, rounded to the cent, so the holder is protected against the stock's own drop on the ex-date.",
+        "pt": "A B3 reduz o strike pelo valor da própria distribuição, arredondado ao centavo, para proteger quem detém a opção da própria queda da ação na data-ex."
       }
     },
     {
@@ -123,22 +123,22 @@
         {
           "id": "b",
           "text": {
-            "en": "Rarely rational here",
-            "pt": "Raramente racional aqui"
+            "en": "Rarely the rational move once B3 already adjusted the strike",
+            "pt": "Raramente a jogada racional, já que a B3 já ajustou o strike"
           }
         },
         {
           "id": "c",
           "text": {
-            "en": "Always the single best move a holder can make on B3",
-            "pt": "Sempre o melhor movimento possível para quem detém a opção na B3"
+            "en": "Usually the better move for a call holder on B3",
+            "pt": "Normalmente a melhor jogada para quem detém a opção"
           }
         },
         {
           "id": "a",
           "text": {
-            "en": "Impossible, since B3 forbids early exercise outright",
-            "pt": "Impossível, já que a B3 proíbe de todo o exercício antecipado"
+            "en": "Impossible, since B3 doesn't allow exercising before expiry",
+            "pt": "Impossível, já que a B3 não permite exercício antes do vencimento"
           }
         }
       ],
@@ -158,8 +158,8 @@
         {
           "id": "a",
           "text": {
-            "en": "Both move by the exact same fixed amount, like a cash distribution does",
-            "pt": "Se movem pelo mesmo valor fixo exato, como acontece num provento em dinheiro"
+            "en": "Move by the same ratio, in the same direction, like a cash distribution does",
+            "pt": "Se movem pela mesma proporção, na mesma direção, como num provento em dinheiro"
           }
         },
         {
@@ -200,15 +200,15 @@
         {
           "id": "a",
           "text": {
-            "en": "Guarantees, in every single case, that a series can never move from out of the money into the money",
-            "pt": "Garante, em absolutamente todo caso, que uma série nunca pode ir de fora do dinheiro para dentro do dinheiro"
+            "en": "Says a series can not move from out of the money into the money",
+            "pt": "Diz que uma série não pode ir de fora do dinheiro para dentro do dinheiro"
           }
         },
         {
           "id": "b",
           "text": {
-            "en": "Gives every affected series a brand-new ticker, since the series code itself changes with it",
-            "pt": "Dá a toda série afetada um ticker totalmente novo, já que o código da série em si muda com ela"
+            "en": "Gives the affected series a brand-new ticker, since the code changes with it",
+            "pt": "Dá à série afetada um ticker novo, já que o próprio código muda com ela"
           }
         }
       ],
