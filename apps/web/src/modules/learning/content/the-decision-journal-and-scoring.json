@@ -1,6 +1,6 @@
 {
   "id": "the-decision-journal-and-scoring",
-  "version": 3,
+  "version": 1,
   "minutes": 6,
   "title": {
     "en": "The decision journal and scoring",
@@ -102,8 +102,8 @@
         {
           "id": "b",
           "text": {
-            "en": "Only AI analyses, never the user's own decisions",
-            "pt": "Só análises de IA, nunca as próprias decisões do usuário"
+            "en": "Only AI analyses, not the user's own decisions",
+            "pt": "Só análises de IA, não as próprias decisões do usuário"
           }
         }
       ],
@@ -123,8 +123,8 @@
         {
           "id": "c",
           "text": {
-            "en": "A fully guaranteed outcome, stated with total confidence",
-            "pt": "Um resultado totalmente garantido, afirmado com confiança total"
+            "en": "A sure outcome, stated with high confidence",
+            "pt": "Um resultado certo, afirmado com alta confiança"
           }
         },
         {
@@ -165,8 +165,8 @@
         {
           "id": "b",
           "text": {
-            "en": "No one at all — analyses are simply never scored",
-            "pt": "Ninguém, nunca — análises nunca são avaliadas"
+            "en": "No one — analyses just aren't scored",
+            "pt": "Ninguém — as análises simplesmente não são avaliadas"
           }
         },
         {
@@ -200,15 +200,15 @@
         {
           "id": "c",
           "text": {
-            "en": "Always merged into one single hit rate, with no distinction at all",
-            "pt": "Sempre fundidas numa única taxa de acerto, sem distinção alguma"
+            "en": "Merged into one hit rate, with little distinction",
+            "pt": "Fundidas numa única taxa de acerto, com pouca distinção"
           }
         },
         {
           "id": "a",
           "text": {
-            "en": "Always perfectly identical, since one directly causes the other",
-            "pt": "Sempre perfeitamente idênticas, já que uma causa a outra direto"
+            "en": "Usually identical, since one is thought to cause the other",
+            "pt": "Geralmente idênticas, já que uma supostamente causa a outra"
           }
         }
       ],

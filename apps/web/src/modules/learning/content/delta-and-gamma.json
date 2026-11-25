@@ -1,6 +1,6 @@
 {
   "id": "delta-and-gamma",
-  "version": 2,
+  "version": 1,
   "minutes": 6,
   "title": {
     "en": "Delta and gamma: direction and how it changes",
@@ -84,22 +84,22 @@
         {
           "id": "b",
           "text": {
-            "en": "It always expires in the money",
-            "pt": "Ela sempre vence dentro do dinheiro"
+            "en": "It tends to expire in the money",
+            "pt": "Ela tende a vencer dentro do dinheiro"
           }
         },
         {
           "id": "a",
           "text": {
-            "en": "Its value rises if the stock rises",
-            "pt": "O valor dela sobe se a ação sobe"
+            "en": "The call's own value rises if the stock price rises",
+            "pt": "O valor da call sobe se o preço da ação sobe"
           }
         },
         {
           "id": "c",
           "text": {
-            "en": "Its own theta is always negative",
-            "pt": "O próprio theta é sempre negativo"
+            "en": "Its own theta is usually negative",
+            "pt": "O próprio theta geralmente é negativo"
           }
         }
       ],
@@ -119,22 +119,22 @@
         {
           "id": "c",
           "text": {
-            "en": "Puts never gain value",
-            "pt": "Puts nunca ganham valor"
+            "en": "It gains value when the stock also rises",
+            "pt": "O valor dela sobe quando a ação também sobe"
           }
         },
         {
           "id": "a",
           "text": {
-            "en": "Gamma is always negative for a put",
-            "pt": "O gama é sempre negativo para uma put"
+            "en": "Gamma is negative for a put, not delta",
+            "pt": "O gama é negativo para uma put, não o delta"
           }
         },
         {
           "id": "b",
           "text": {
-            "en": "Its value rises when the stock falls",
-            "pt": "O valor dela sobe quando a ação cai"
+            "en": "The put's own value rises whenever the stock falls",
+            "pt": "O valor da própria put sobe quando a ação cai"
           }
         }
       ],

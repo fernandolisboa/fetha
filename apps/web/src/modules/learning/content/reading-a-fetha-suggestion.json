@@ -1,6 +1,6 @@
 {
   "id": "reading-a-fetha-suggestion",
-  "version": 4,
+  "version": 1,
   "minutes": 6,
   "title": {
     "en": "Reading a Fetha suggestion",
@@ -90,8 +90,8 @@
         {
           "id": "b",
           "text": {
-            "en": "An absolute guarantee that the recipe will hold, no matter what",
-            "pt": "Uma garantia absoluta de que a receita vai se confirmar, de todo jeito"
+            "en": "A strong hint that the recipe is very likely to hold",
+            "pt": "Uma pista forte de que a receita tem boa chance de se confirmar"
           }
         }
       ],
@@ -111,8 +111,8 @@
         {
           "id": "b",
           "text": {
-            "en": "An absolute guarantee that the suggestion will work out as hoped",
-            "pt": "Uma garantia absoluta de que a sugestão vai dar certo como esperado"
+            "en": "A strong hint that the suggestion is likely to work out",
+            "pt": "Uma pista forte de que a sugestão tem boa chance de dar certo"
           }
         },
         {
@@ -146,8 +146,8 @@
         {
           "id": "a",
           "text": {
-            "en": "A firm forecast of exactly where the stock is headed next",
-            "pt": "Uma previsão firme de exatamente para onde a ação vai a seguir"
+            "en": "A firm forecast of where the stock heads next",
+            "pt": "Uma previsão firme de para onde a ação vai a seguir"
           }
         },
         {
@@ -195,8 +195,8 @@
         {
           "id": "c",
           "text": {
-            "en": "Nothing at all — the suggestion executes entirely on its own",
-            "pt": "Nada, absolutamente nada — a sugestão se executa sozinha"
+            "en": "Nothing in particular — the suggestion just sits there",
+            "pt": "Nada em especial — a sugestão só fica ali, do jeito que chegou"
           }
         }
       ],

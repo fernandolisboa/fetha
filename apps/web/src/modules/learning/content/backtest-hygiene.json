@@ -1,6 +1,6 @@
 {
   "id": "backtest-hygiene",
-  "version": 3,
+  "version": 1,
   "minutes": 7,
   "title": {
     "en": "Backtest hygiene",
@@ -78,8 +78,8 @@
         {
           "id": "b",
           "text": {
-            "en": "Charging too much in fees",
-            "pt": "Cobrar taxas demais"
+            "en": "Leaving brokerage and B3 fees out of each trade's own cost",
+            "pt": "Deixar a corretagem e as taxas da B3 fora do custo de cada operação"
           }
         }
       ],
@@ -106,15 +106,15 @@
         {
           "id": "a",
           "text": {
-            "en": "Is filled whenever the user opens the report",
-            "pt": "É executado sempre que o usuário abre o relatório"
+            "en": "Is filled the moment the report happens to open",
+            "pt": "É executado na hora em que o relatório é aberto"
           }
         },
         {
           "id": "c",
           "text": {
-            "en": "Can only be filled in session D+1",
-            "pt": "Só pode ser executado no pregão D+1"
+            "en": "Can only be filled in the session right after it's computed, D+1",
+            "pt": "Só pode ser executado no pregão seguinte ao do cálculo, D+1"
           }
         }
       ],
@@ -134,8 +134,8 @@
         {
           "id": "c",
           "text": {
-            "en": "Show each window's own metrics next to the whole period's",
-            "pt": "Mostram as métricas de cada janela ao lado das do período inteiro"
+            "en": "Show each window's own metrics side by side with the whole period's",
+            "pt": "Mostram, lado a lado, as métricas de cada janela e as do período inteiro"
           }
         },
         {
@@ -148,8 +148,8 @@
         {
           "id": "b",
           "text": {
-            "en": "Test the strategy on historical data from an entirely different underlying",
-            "pt": "Testam a estratégia em dados históricos de um ativo totalmente diferente"
+            "en": "Test the strategy on historical data from a different underlying",
+            "pt": "Testam a estratégia em dados históricos de um ativo diferente"
           }
         }
       ],
@@ -176,15 +176,15 @@
         {
           "id": "a",
           "text": {
-            "en": "Dropping delisted instruments",
-            "pt": "Descartar instrumentos deslistados"
+            "en": "Dropping the dataset's own delisted instruments",
+            "pt": "Descartar os próprios instrumentos deslistados da base"
           }
         },
         {
           "id": "c",
           "text": {
-            "en": "Running the exact same backtest more than once",
-            "pt": "Rodar o mesmo backtest mais de uma vez"
+            "en": "Running the same backtest more than once in a row",
+            "pt": "Rodar o mesmo backtest mais de uma vez em seguida"
           }
         }
       ],

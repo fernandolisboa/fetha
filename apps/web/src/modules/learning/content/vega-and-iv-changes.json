@@ -1,6 +1,6 @@
 {
   "id": "vega-and-iv-changes",
-  "version": 3,
+  "version": 1,
   "minutes": 6,
   "title": {
     "en": "Vega: when implied volatility itself moves",
@@ -67,8 +67,8 @@
         {
           "id": "c",
           "text": {
-            "en": "How much the stock needs to move to reach the strike exactly",
-            "pt": "Quanto a ação precisa se mover para alcançar o strike exatamente"
+            "en": "How much the stock needs to move to reach the strike",
+            "pt": "Quanto a ação precisa se mover para alcançar o strike"
           }
         },
         {
@@ -179,8 +179,8 @@
         {
           "id": "a",
           "text": {
-            "en": "A stock that never moves at all",
-            "pt": "Uma ação que nunca se move"
+            "en": "A stock with much less movement than normal",
+            "pt": "Uma ação com movimento bem abaixo do normal"
           }
         },
         {
