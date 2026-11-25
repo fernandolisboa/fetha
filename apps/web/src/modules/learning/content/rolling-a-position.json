@@ -1,6 +1,6 @@
 {
   "id": "rolling-a-position",
-  "version": 2,
+  "version": 3,
   "minutes": 6,
   "title": {
     "en": "Rolling a position",
@@ -24,12 +24,12 @@
         "en": [
           "Rolling out moves to a later expiry, at the same or the nearest available strikes — more time for the view to play out.",
           "Rolling up or down moves to new strikes at the same (or a new) expiry — adjusting where the structure's own break-evens and max gain sit as the stock moves.",
-          "Rolling a short option out, at the same or a nearby strike, is usually a credit: the new, further-dated option is worth more than the one just closed, for the same reason a longer-dated option always costs more. Rolling a long option out, or rolling a spread deep in the money, is usually a debit instead — paying for the extra time value a bought leg needs, or for how much a deep-in-the-money short leg has to give back."
+          "Rolling out, at the same or a nearby strike, follows the position's own side: a net-short (credit) position usually rolls for a credit, since the newly sold, further-dated option usually costs more than the one just closed; a net-long (debit) position usually rolls for a debit, paying for the extra time value the newly bought, further-dated option usually carries. The exception is a spread already priced beyond both its strikes — deep in the money on both legs — where the sign flips from what the position's own side would otherwise suggest."
         ],
         "pt": [
           "Rolar para fora leva a um vencimento mais distante, nos mesmos strikes ou nos mais próximos disponíveis — mais tempo para a visão se confirmar.",
           "Rolar para cima ou para baixo leva a novos strikes no mesmo vencimento (ou num novo) — ajustando onde ficam os próprios break-evens e o ganho máximo da estrutura conforme a ação se move.",
-          "Rolar uma opção vendida para fora, no mesmo strike ou num próximo, costuma ser um crédito: a nova opção, com vencimento mais distante, vale mais do que a que acabou de ser encerrada, pelo mesmo motivo que uma opção mais distante sempre custa mais. Rolar uma opção comprada para fora, ou rolar uma trava bem dentro do dinheiro, costuma ser um débito em vez disso — pagando pelo valor do tempo extra que uma perna comprada precisa, ou por quanto uma perna vendida bem dentro do dinheiro tem que devolver."
+          "Rolar para fora, no mesmo strike ou num próximo, segue o lado da própria posição: uma posição vendida líquida (a crédito) costuma rolar a crédito, já que a nova opção vendida, com vencimento mais distante, costuma custar mais do que a que acabou de ser encerrada; uma posição comprada líquida (a débito) costuma rolar a débito, pagando pelo valor do tempo extra que a nova opção comprada, mais distante, costuma carregar. A exceção é uma trava já precificada além dos dois strikes — bem dentro do dinheiro nas duas pernas —, onde o sinal se inverte em relação ao que o lado da posição sugeriria."
         ]
       }
     },
@@ -37,8 +37,8 @@
       "type": "callout",
       "tone": "info",
       "text": {
-        "en": "Fetha's own Rolar, today, moves an operation's option legs to the next monthly expiry, picking for each leg the listed strike nearest the one just closed — not necessarily the same strike, and a single leg carries no guard against landing on a lower or a higher one. It refuses the whole roll only when two legs would land on the same ticker, or when the width between the legs' strikes would change: either would silently turn the held structure into a different one. Fetha never builds or sends an order (it has no broker connection): Rolar records, as one roll, the closing and opening fills the user already executed elsewhere.",
-        "pt": "O Rolar da Fetha, hoje, leva as pernas de opção de uma operação para o próximo vencimento mensal, escolhendo para cada perna o strike listado mais próximo do que acabou de ser encerrado — não necessariamente o mesmo strike, e uma perna isolada não tem nenhuma garantia contra terminar num strike mais baixo ou mais alto. Ele recusa a rolagem inteira só quando duas pernas terminariam no mesmo ticker, ou quando a largura entre os strikes das pernas mudaria: qualquer um dos dois transformaria, em silêncio, a estrutura mantida em outra diferente. A Fetha nunca monta nem envia uma ordem (ela não tem conexão com corretora): o Rolar registra, como uma única rolagem, as execuções de encerramento e de abertura que o usuário já fez em outro lugar."
+        "en": "Fetha's own Rolar, today, moves an operation's option legs to the next monthly expiry, picking for each leg the traded strike nearest the one just closed — not necessarily the same strike, and a single leg carries no guard against landing on a lower or a higher one. There is no later monthly expiry, or no traded series at a leg's own strike-and-right at that expiry, keep the roll from reaching a plan at all; of a plan that does resolve, the whole roll is refused only when two legs would land on the same ticker or when the width between the legs' strikes would change — either would silently turn the held structure into a different one — and, separately, the roll can still turn out unpriceable against the day's data. Fetha never builds or sends an order (it has no broker connection): Rolar records, as one roll, the closing and opening fills the user already executed elsewhere.",
+        "pt": "O Rolar da Fetha, hoje, leva as pernas de opção de uma operação para o próximo vencimento mensal, escolhendo para cada perna o strike negociado mais próximo do que acabou de ser encerrado — não necessariamente o mesmo strike, e uma perna isolada não tem nenhuma garantia contra terminar num strike mais baixo ou mais alto. Não haver um vencimento mensal posterior, ou não haver série negociada no strike-e-tipo de uma perna naquele vencimento, impede a rolagem de chegar a um plano; de um plano que de fato se forma, a rolagem inteira só é recusada quando duas pernas terminariam no mesmo ticker ou quando a largura entre os strikes das pernas mudaria — qualquer um dos dois transformaria, em silêncio, a estrutura mantida em outra diferente —, e, separadamente, a rolagem ainda pode sair impossível de precificar contra os dados do dia. A Fetha nunca monta nem envia uma ordem (ela não tem conexão com corretora): o Rolar registra, como uma única rolagem, as execuções de encerramento e de abertura que o usuário já fez em outro lugar."
       }
     },
     {
@@ -95,36 +95,36 @@
     {
       "id": "q2",
       "prompt": {
-        "en": "Rolling a short option out, at the same or a nearby strike, is usually:",
-        "pt": "Rolar uma opção vendida para fora, no mesmo strike ou num próximo, costuma ser:"
+        "en": "Rolling a position out, at the same or nearby strikes, usually brings in a credit or pays a debit depending on:",
+        "pt": "Rolar uma posição para fora, nos mesmos strikes ou em strikes próximos, costuma trazer um crédito ou pagar um débito dependendo de:"
       },
       "options": [
         {
-          "id": "a",
+          "id": "b",
           "text": {
-            "en": "A credit, since the further-dated option sold is worth more",
-            "pt": "Um crédito, já que a opção mais distante vendida vale mais"
+            "en": "The position's own side: net-short usually a credit, net-long usually a debit",
+            "pt": "O lado da própria posição: vendida líquida costuma ser crédito, comprada líquida costuma ser débito"
           }
         },
         {
           "id": "c",
           "text": {
-            "en": "Always a debit, regardless of position type",
-            "pt": "Sempre um débito, independente do tipo de posição"
+            "en": "Always a credit, regardless of position type",
+            "pt": "Sempre um crédito, independente do tipo de posição"
           }
         },
         {
-          "id": "b",
+          "id": "a",
           "text": {
-            "en": "Free, with no premium changing hands",
-            "pt": "Gratuito, sem nenhum prêmio mudando de mãos"
+            "en": "Always a debit, regardless of position type",
+            "pt": "Sempre um débito, independente do tipo de posição"
           }
         }
       ],
-      "correctOptionId": "a",
+      "correctOptionId": "b",
       "explanation": {
-        "en": "A further-dated option carries more time value, so selling it to reopen the short leg usually brings in more than closing the nearer one cost.",
-        "pt": "Uma opção mais distante carrega mais valor do tempo, então vendê-la para reabrir a perna vendida costuma trazer mais do que custou encerrar a mais próxima."
+        "en": "A net-short position usually sells a further-dated option worth more than the one just closed, a credit; a net-long position usually pays for the extra time value instead, a debit — except a spread already deep in the money on both legs, where the sign flips.",
+        "pt": "Uma posição vendida líquida costuma vender uma opção mais distante que vale mais do que a que acabou de ser encerrada, um crédito; uma posição comprada líquida costuma pagar pelo valor do tempo extra, um débito — exceto numa trava já bem dentro do dinheiro nas duas pernas, onde o sinal se inverte."
       }
     },
     {
@@ -144,8 +144,8 @@
         {
           "id": "c",
           "text": {
-            "en": "A roll to the next monthly expiry, each leg at its own nearest listed strike, refusing only a width change or a duplicate ticker",
-            "pt": "Uma rolagem para o próximo vencimento mensal, cada perna no próprio strike listado mais próximo, recusando só uma mudança de largura ou um ticker duplicado"
+            "en": "A roll to the next monthly expiry, each leg at its own nearest traded strike, that can still fail to find an expiry or a traded series, or be refused for a width change or a duplicate ticker, or turn out unpriceable",
+            "pt": "Uma rolagem para o próximo vencimento mensal, cada perna no próprio strike negociado mais próximo, que ainda pode não achar um vencimento ou uma série negociada, ser recusada por mudança de largura ou ticker duplicado, ou sair impossível de precificar"
           }
         },
         {
@@ -158,8 +158,8 @@
       ],
       "correctOptionId": "c",
       "explanation": {
-        "en": "Each leg rolls to its own nearest listed strike at the next monthly expiry; the whole roll is refused only on a strike-width change between legs or a duplicate ticker, so a single leg can still land on a different strike.",
-        "pt": "Cada perna rola para o próprio strike listado mais próximo no próximo vencimento mensal; a rolagem inteira só é recusada por uma mudança de largura entre os strikes das pernas ou por um ticker duplicado, então uma perna isolada ainda pode terminar num strike diferente."
+        "en": "Each leg rolls to its own nearest traded strike at the next monthly expiry; a missing later expiry or traded series keeps a plan from forming at all, a plan that does form is refused only on a strike-width change between legs or a duplicate ticker, and even a refusal-free plan can still be unpriceable against the day's data — so a single leg can still land on a different strike.",
+        "pt": "Cada perna rola para o próprio strike negociado mais próximo no próximo vencimento mensal; a falta de um vencimento posterior ou de uma série negociada impede um plano de se formar; um plano que se forma só é recusado por uma mudança de largura entre os strikes das pernas ou por um ticker duplicado; e até um plano sem recusa ainda pode sair impossível de precificar contra os dados do dia — então uma perna isolada ainda pode terminar num strike diferente."
       }
     },
     {
