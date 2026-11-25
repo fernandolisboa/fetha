@@ -51,8 +51,8 @@
       "type": "callout",
       "tone": "warning",
       "text": {
-        "en": "The sold call is American-style on most B3 equities, so it can be assigned before expiry if it goes deep in the money; on B3, though, a cash distribution adjusts the strike itself (ADR-0070), so a dividend date alone rarely makes early exercise worth it. The bought call's liquidity, not just the spread's, matters when closing both legs at once; giving up gains above the higher strike means a much stronger rally is wasted upside.",
-        "pt": "A call vendida é do estilo americano na maioria das ações da B3, então pode ser atribuída antes do vencimento se ficar bem dentro do dinheiro; na B3, porém, um provento em dinheiro ajusta o próprio strike (ADR-0070), então uma data de dividendo por si só raramente torna vantajoso exercer antecipadamente. A liquidez da call comprada, não só da trava, importa ao encerrar as duas pernas de uma vez; abrir mão dos ganhos acima do strike mais alto significa que uma alta bem mais forte vira potencial perdido."
+        "en": "The sold call is American-style on most B3 equities, so it can be assigned before expiry if it goes deep in the money; on B3, though, a cash distribution adjusts the strike itself, so a dividend date alone rarely makes early exercise worth it. The bought call's liquidity, not just the spread's, matters when closing both legs at once; giving up gains above the higher strike means a much stronger rally is wasted upside.",
+        "pt": "A call vendida é do estilo americano na maioria das ações da B3, então pode ser atribuída antes do vencimento se ficar bem dentro do dinheiro; na B3, porém, um provento em dinheiro ajusta o próprio strike, então uma data de dividendo por si só raramente torna vantajoso exercer antecipadamente. A liquidez da call comprada, não só da trava, importa ao encerrar as duas pernas de uma vez; abrir mão dos ganhos acima do strike mais alto significa que uma alta bem mais forte vira potencial perdido."
       }
     },
     {
@@ -137,8 +137,8 @@
       ],
       "correctOptionId": "c",
       "explanation": {
-        "en": "Most B3 equity calls are American-style, so the sold leg carries early-assignment risk if it goes deep in the money — B3's own strike adjustment for cash distributions (ADR-0070) means a dividend date alone is rarely the reason.",
-        "pt": "A maioria das calls sobre ações da B3 é do estilo americano, então a perna vendida carrega risco de atribuição antecipada se ficar bem dentro do dinheiro — o ajuste de strike que a própria B3 faz para proventos em dinheiro (ADR-0070) faz com que uma data de dividendo por si só raramente seja o motivo."
+        "en": "Most B3 equity calls are American-style, so the sold leg carries early-assignment risk if it goes deep in the money — B3's own strike adjustment for cash distributions means a dividend date alone is rarely the reason.",
+        "pt": "A maioria das calls sobre ações da B3 é do estilo americano, então a perna vendida carrega risco de atribuição antecipada se ficar bem dentro do dinheiro — o ajuste de strike que a própria B3 faz para proventos em dinheiro faz com que uma data de dividendo por si só raramente seja o motivo."
       }
     },
     {
