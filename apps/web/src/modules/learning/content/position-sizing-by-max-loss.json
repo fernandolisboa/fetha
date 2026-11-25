@@ -1,6 +1,6 @@
 {
   "id": "position-sizing-by-max-loss",
-  "version": 3,
+  "version": 1,
   "minutes": 6,
   "title": {
     "en": "Position sizing by max loss",
@@ -74,22 +74,22 @@
         {
           "id": "b",
           "text": {
-            "en": "Sizing lots so the max loss stays within a fixed share",
-            "pt": "Ajustar os lotes para a perda máxima caber numa fração fixa"
+            "en": "Sizing lots so the max loss stays within a fixed share of capital",
+            "pt": "Ajustar os lotes para a perda máxima caber numa fração fixa do capital"
           }
         },
         {
           "id": "c",
           "text": {
-            "en": "Always trading the exact same number of lots, whatever the structure happens to be",
-            "pt": "Operar sempre o mesmo número exato de lotes, seja qual for a estrutura"
+            "en": "Trading the same number of lots, regardless of the structure",
+            "pt": "Operar o mesmo número de lotes, independente da estrutura"
           }
         },
         {
           "id": "a",
           "text": {
-            "en": "Betting the entire declared capital on every single operation, with nothing held back",
-            "pt": "Apostar o capital declarado inteiro em toda operação, sem guardar nada"
+            "en": "Betting most of the declared capital on one operation",
+            "pt": "Apostar a maior parte do capital declarado numa operação"
           }
         }
       ],
@@ -144,8 +144,8 @@
         {
           "id": "c",
           "text": {
-            "en": "Can always be sized in exactly the same way as any capped structure",
-            "pt": "Pode sempre ser dimensionada do mesmíssimo jeito que uma travada"
+            "en": "Can be sized the same way once the max loss is estimated",
+            "pt": "Pode ser dimensionada do mesmo jeito, uma vez estimada a perda máxima"
           }
         },
         {
@@ -158,8 +158,8 @@
         {
           "id": "b",
           "text": {
-            "en": "Carries absolutely no risk at all for as long as the stock stays perfectly flat",
-            "pt": "Não carrega risco nenhum enquanto a ação ficar perfeitamente parada"
+            "en": "Carries little risk as long as the stock doesn't move much",
+            "pt": "Carrega pouco risco enquanto a ação não se move muito"
           }
         }
       ],
@@ -186,15 +186,15 @@
         {
           "id": "b",
           "text": {
-            "en": "Always risk the exact same amount of capital no matter which structure gets traded",
-            "pt": "Arriscar sempre exatamente o mesmo valor, não importa qual estrutura seja negociada"
+            "en": "Risk about the same amount of capital, regardless of structure",
+            "pt": "Arriscar cerca do mesmo valor de capital, independente da estrutura"
           }
         },
         {
           "id": "c",
           "text": {
-            "en": "Make the declared capital completely irrelevant to the whole decision",
-            "pt": "Tornar o capital declarado totalmente irrelevante para toda a decisão"
+            "en": "Make the declared capital less relevant to the decision",
+            "pt": "Tornar o capital declarado menos relevante para a decisão"
           }
         }
       ],
