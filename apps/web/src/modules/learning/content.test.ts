@@ -131,6 +131,20 @@ describe("the lesson catalog and its content files", () => {
     }
   });
 
+  // LessonBlocks, LessonGroupSection and the lesson page render a lesson's own title and summary
+  // directly, with no call to resolveText (round 2 review, K6) — unlike every block and quiz
+  // text, which the page does resolve. A placeholder token in a title or summary would render
+  // as literal "{{...}}" text rather than failing a build, so this checks the raw, unresolved
+  // strings rather than relying on the resolved-text checks below to catch it.
+  it("never puts a {{placeholder}} token in a lesson's own title or summary", () => {
+    for (const lesson of lessons) {
+      for (const locale of localeKeys) {
+        expect(placeholderTokens(lesson.title[locale])).toEqual([]);
+        expect(placeholderTokens(lesson.summary[locale])).toEqual([]);
+      }
+    }
+  });
+
   it("every placeholder in every lesson resolves against the illustrative market", async () => {
     const examples = await loadIllustrativeExamples();
     for (const lesson of lessons) {
