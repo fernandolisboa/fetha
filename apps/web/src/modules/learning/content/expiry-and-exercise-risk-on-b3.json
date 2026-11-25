@@ -1,6 +1,6 @@
 {
   "id": "expiry-and-exercise-risk-on-b3",
-  "version": 3,
+  "version": 1,
   "minutes": 6,
   "title": {
     "en": "Expiry and exercise risk on B3",
@@ -80,22 +80,22 @@
         {
           "id": "b",
           "text": {
-            "en": "The stock settling right at a strike, leaving a leg's outcome unclear",
-            "pt": "A ação terminando bem no strike, deixando incerto o resultado da perna"
+            "en": "The stock settling right at a strike at expiry, leaving a leg's outcome unclear",
+            "pt": "A ação terminando bem no strike no vencimento, deixando incerto o resultado da perna"
           }
         },
         {
           "id": "c",
           "text": {
-            "en": "An absolute guarantee that every single leg always expires worthless",
-            "pt": "Uma garantia absoluta de que toda perna sempre vence sem nenhum valor"
+            "en": "A claim that a leg right at its own strike finishes worthless",
+            "pt": "Uma afirmação de que uma perna no próprio strike vence sem valor"
           }
         },
         {
           "id": "a",
           "text": {
-            "en": "An extra fee B3 always charges for exercising an option before expiry",
-            "pt": "Uma taxa extra que a B3 sempre cobra por exercer uma opção antes do vencimento"
+            "en": "An extra fee B3 charges for exercising an option before expiry",
+            "pt": "Uma taxa extra que a B3 cobra por exercer uma opção antes do vencimento"
           }
         }
       ],
@@ -157,15 +157,15 @@
         {
           "id": "a",
           "text": {
-            "en": "Every single operation on the whole screen, with no other action ever available",
-            "pt": "Toda e qualquer operação da tela inteira, como a única ação jamais disponível"
+            "en": "Every operation on the screen, regardless of its own distance from the strike",
+            "pt": "Toda operação da tela, independente da distância do próprio strike"
           }
         },
         {
           "id": "b",
           "text": {
-            "en": "Only operations that have already expired completely worthless",
-            "pt": "Só operações que já venceram completamente sem nenhum valor"
+            "en": "Only operations that already expired on the losing side",
+            "pt": "Só operações que já venceram do lado perdedor"
           }
         }
       ],
@@ -185,8 +185,8 @@
         {
           "id": "a",
           "text": {
-            "en": "Eliminates every single cost on every leg, with nothing to pay",
-            "pt": "Elimina todo custo em cada perna, sem nada a pagar por isso"
+            "en": "Brings each leg's own cost down to zero",
+            "pt": "Reduz o custo de cada perna da estrutura a zero"
           }
         },
         {
@@ -199,8 +199,8 @@
         {
           "id": "c",
           "text": {
-            "en": "Is something B3 never actually allows a trader to do",
-            "pt": "É algo que a B3 nunca de fato deixa um trader fazer"
+            "en": "Is something B3 doesn't allow a trader to do before expiry",
+            "pt": "É algo que a B3 não deixa um trader fazer antes do vencimento"
           }
         }
       ],
