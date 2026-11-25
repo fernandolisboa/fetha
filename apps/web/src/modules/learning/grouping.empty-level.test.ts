@@ -1,34 +1,36 @@
 import { describe, expect, it, vi } from "vitest";
-import type { Lesson } from "@fetha/contracts";
 
-import type { PlacedLesson } from "./catalog";
+import { jornadaGroups } from "./grouping";
 
-const STUB_LESSON: Lesson = {
-  id: "stub-lesson",
-  version: 1,
-  minutes: 1,
-  title: { en: "Stub", pt: "Stub" },
-  summary: { en: "Stub", pt: "Stub" },
-  blocks: [{ type: "paragraph", text: { en: "Stub.", pt: "Stub." } }],
-  quiz: [
-    {
-      id: "q1",
-      prompt: { en: "Stub?", pt: "Stub?" },
-      options: [
-        { id: "a", text: { en: "Yes", pt: "Sim" } },
-        { id: "b", text: { en: "No", pt: "Não" } },
-      ],
-      correctOptionId: "a",
-      explanation: { en: "Stub.", pt: "Stub." },
+const { STUB_PLACED } = vi.hoisted(() => {
+  const STUB_LESSON = {
+    id: "stub-lesson",
+    version: 1,
+    minutes: 1,
+    title: { en: "Stub", pt: "Stub" },
+    summary: { en: "Stub", pt: "Stub" },
+    blocks: [{ type: "paragraph", text: { en: "Stub.", pt: "Stub." } }],
+    quiz: [
+      {
+        id: "q1",
+        prompt: { en: "Stub?", pt: "Stub?" },
+        options: [
+          { id: "a", text: { en: "Yes", pt: "Sim" } },
+          { id: "b", text: { en: "No", pt: "Não" } },
+        ],
+        correctOptionId: "a",
+        explanation: { en: "Stub.", pt: "Stub." },
+      },
+    ],
+  };
+  return {
+    STUB_PLACED: {
+      ...STUB_LESSON,
+      level: "first-steps",
+      topic: "options-basics",
     },
-  ],
-};
-
-const STUB_PLACED: PlacedLesson = {
-  ...STUB_LESSON,
-  level: "first-steps",
-  topic: "options-basics",
-};
+  };
+});
 
 // `jornadaGroups` lists every level in `lessonCatalog.levels`, even one with
 // no lessons placed in it, so the screen can render "Em breve" for it
@@ -60,8 +62,7 @@ vi.mock("./catalog", () => ({
 }));
 
 describe("jornadaGroups with a level that has no lessons", () => {
-  it("still lists the empty level, with an empty lessons array", async () => {
-    const { jornadaGroups } = await import("./grouping");
+  it("still lists the empty level, with an empty lessons array", () => {
     const groups = jornadaGroups(new Map(), "pt");
     expect(groups.map((group) => group.level)).toEqual(["first-steps", "intermediate", "advanced"]);
     const intermediate = groups.find((group) => group.level === "intermediate");
