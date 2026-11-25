@@ -164,3 +164,24 @@ catalog.json` lists every level, every topic and every lesson's id with its leve
    `payoffNow` to `PayoffChart` as well as `payoff` (ADR-0077), whenever the engine returns one,
    so the "reading a payoff diagram" and theta lessons can point at a real, engine-drawn T+0 line
    instead of describing it in the abstract.
+
+## Addendum (PR 3): intermediate and advanced lessons, and the `delta`/`gamma`/`vega` placeholders
+
+1. **A third placeholder family, signed and unscaled.** `<exampleId>.delta`, `.gamma` and
+   `.vega` resolve `OperationPricing.greeks`' own field, formatted by `formatDecimal` at four
+   decimals (DESIGN.md's own rule for rates and greeks), sign kept — unlike `thetaAbs`, these are
+   never taken as an absolute value or scaled ×100 into a per-lot magnitude, since the delta and
+   vega lessons teach the per-option ratio directly, Hull's own convention, before any lot-sizing
+   discussion. No change to `illustrative-market.ts` was needed: every new lesson reads greeks
+   already computed for an existing example (the long call and long put for delta and gamma, the
+   long and short call for vega, the iron condor for net portfolio greeks), never a new leg
+   combination or a second spot price.
+2. **`intermediate` and `advanced` stop being empty levels.** Ten lessons placed by
+   `content/catalog.json` fill both: `delta-and-gamma`, `vega-and-iv-changes`,
+   `position-sizing-by-max-loss`, `rolling-a-position`, `corporate-events-on-b3` and
+   `reading-a-fetha-suggestion` at `intermediate`; `portfolio-greeks`,
+   `expiry-and-exercise-risk-on-b3`, `backtest-hygiene` and `the-decision-journal-and-scoring` at
+   `advanced`. This closes the `risk` and `using-fetha` topics, both empty since PR 1. No code in
+   `grouping.ts` or `LevelSection` ever special-cased "advanced" as the one level allowed to stay
+   empty — the "Em breve" branch is `total === 0`, generic over any level — so filling it needed
+   no code change, only content and the catalog entries.

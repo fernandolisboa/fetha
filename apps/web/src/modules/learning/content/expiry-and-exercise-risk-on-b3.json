@@ -1,0 +1,186 @@
+{
+  "id": "expiry-and-exercise-risk-on-b3",
+  "version": 1,
+  "minutes": 6,
+  "title": {
+    "en": "Expiry and exercise risk on B3",
+    "pt": "Risco de vencimento e exercício na B3"
+  },
+  "summary": {
+    "en": "What changes near expiry for a multi-leg structure: pin risk, assignment of one leg while the other stays open, and the case for closing before it gets there.",
+    "pt": "O que muda perto do vencimento numa estrutura com várias pernas: risco de pin, atribuição de uma perna com a outra ficando aberta, e o caso de encerrar antes de chegar lá."
+  },
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "The first-steps lesson on exercise already named the rule: at expiry, B3 exercises an in-the-money option automatically once it clears a minimum margin B3 itself sets, and assigns the matching obligation to a writer of that same series. For a single bought or sold leg, that is the whole story. A multi-leg structure near expiry adds two risks of its own.",
+        "pt": "A lição de primeiros passos sobre exercício já nomeou a regra: no vencimento, a B3 exerce automaticamente uma opção dentro do dinheiro depois que ela passa de uma margem mínima que a própria B3 define, e atribui a obrigação correspondente a um lançador daquela mesma série. Para uma única perna comprada ou vendida, essa é a história inteira. Uma estrutura com várias pernas perto do vencimento soma dois riscos próprios."
+      }
+    },
+    {
+      "type": "callout",
+      "tone": "warning",
+      "text": {
+        "en": "Pin risk is the stock settling exactly at or very close to a strike at expiry, so it is unclear, until the automatic-exercise rule actually applies, whether a leg at that strike finishes in or out of the money. A spread with a short leg pinned at its own strike can end up with an unexpected stock position the next session, rather than the flat, fully closed outcome a trader may have expected.",
+        "pt": "Risco de pin é a ação terminando exatamente no strike, ou bem perto dele, no vencimento, deixando incerto, até a regra de exercício automático de fato se aplicar, se uma perna naquele strike termina dentro ou fora do dinheiro. Uma trava com uma perna vendida no pino do próprio strike pode terminar com uma posição em ação inesperada no pregão seguinte, em vez do resultado zerado e totalmente encerrado que um trader talvez esperasse."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Assignment of a short leg can also leave the rest of a structure open on its own. Take a bull call spread: if the short (higher-strike) call is assigned early because it is deep in the money — rare on B3, since a dividend-driven reason is largely removed by strike protection (ADR-0070), but not impossible on a stock-specific move — the trader is left having delivered stock at that strike while the long call bought at the lower strike is still an open option position, no longer offset by anything.",
+        "pt": "A atribuição de uma perna vendida também pode deixar o resto de uma estrutura aberto por conta própria. Veja uma trava de alta com calls: se a call vendida (strike mais alto) for atribuída antes do vencimento por estar bem dentro do dinheiro — raro na B3, já que um motivo ligado a dividendo é, em boa parte, removido pela proteção do strike (ADR-0070), mas não impossível num movimento específico da ação —, o trader fica tendo entregado a ação naquele strike enquanto a call comprada no strike mais baixo continua sendo uma posição de opção aberta, sem mais nada compensando ela."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Fetha's own portfolio screen names this directly: an open operation's \"Agenda de rolagem\" flags a decision approaching expiry, and offers \"Encerrar agora\" specifically for early-assignment risk on a leg deep in the money, alongside Rolar, Deixar virar pó and Acompanhar. Closing a structure before expiry, rather than waiting to see what gets pinned or assigned, trades a small, known cost (crossing the bid-ask on every leg) for removing both of these near-expiry risks entirely.",
+        "pt": "A tela de carteira da Fetha nomeia isso diretamente: a \"Agenda de rolagem\" de uma operação aberta aponta uma decisão se aproximando do vencimento, e oferece \"Encerrar agora\" especificamente para risco de atribuição antecipada numa perna bem dentro do dinheiro, junto com Rolar, Deixar virar pó e Acompanhar. Encerrar uma estrutura antes do vencimento, em vez de esperar para ver o que fica no pino ou é atribuído, troca um custo pequeno e conhecido (cruzar o spread de compra e venda em cada perna) por remover os dois riscos de perto do vencimento por completo."
+      }
+    }
+  ],
+  "quiz": [
+    {
+      "id": "q1",
+      "prompt": {
+        "en": "Pin risk is:",
+        "pt": "Risco de pin é:"
+      },
+      "options": [
+        {
+          "id": "b",
+          "text": {
+            "en": "The stock settling at or very close to a strike at expiry, leaving a leg's own outcome unclear",
+            "pt": "A ação terminando no strike, ou bem perto dele, no vencimento, deixando incerto o resultado de uma perna"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "A guarantee that every leg expires worthless",
+            "pt": "Uma garantia de que toda perna vence sem valor"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "A fee B3 charges for exercising early",
+            "pt": "Uma taxa que a B3 cobra por exercer antes do vencimento"
+          }
+        }
+      ],
+      "correctOptionId": "b",
+      "explanation": {
+        "en": "Pin risk is the uncertainty over whether a leg right at its own strike actually finishes in or out of the money.",
+        "pt": "O risco de pin é a incerteza sobre se uma perna exatamente no próprio strike de fato termina dentro ou fora do dinheiro."
+      }
+    },
+    {
+      "id": "q2",
+      "prompt": {
+        "en": "If a bull call spread's short (higher-strike) leg is assigned while the long leg is not:",
+        "pt": "Se a perna vendida (strike mais alto) de uma trava de alta com calls for atribuída e a perna comprada não:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "Both legs are automatically closed together",
+            "pt": "As duas pernas são encerradas automaticamente juntas"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "The long call is left open, no longer offset by the assigned short leg",
+            "pt": "A call comprada fica aberta, sem mais nada compensando a perna vendida atribuída"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "The trade is reversed and the premium refunded",
+            "pt": "A operação é desfeita e o prêmio devolvido"
+          }
+        }
+      ],
+      "correctOptionId": "c",
+      "explanation": {
+        "en": "Assignment acts on the short leg alone; the long leg stays an open option position of its own, no longer part of a closed spread.",
+        "pt": "A atribuição age só sobre a perna vendida; a perna comprada continua sendo uma posição de opção aberta, sem mais ser parte de uma trava encerrada."
+      }
+    },
+    {
+      "id": "q3",
+      "prompt": {
+        "en": "Fetha's portfolio screen offers \"Encerrar agora\" specifically for:",
+        "pt": "A tela de carteira da Fetha oferece \"Encerrar agora\" especificamente para:"
+      },
+      "options": [
+        {
+          "id": "c",
+          "text": {
+            "en": "Early-assignment risk on a leg deep in the money",
+            "pt": "Risco de atribuição antecipada numa perna bem dentro do dinheiro"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Every operation, as the only available action",
+            "pt": "Toda operação, como a única ação disponível"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "Operations that have already expired",
+            "pt": "Operações que já venceram"
+          }
+        }
+      ],
+      "correctOptionId": "c",
+      "explanation": {
+        "en": "\"Encerrar agora\" is one option on the roll agenda, alongside Rolar, Deixar virar pó and Acompanhar, named for early-assignment risk.",
+        "pt": "\"Encerrar agora\" é uma opção na agenda de rolagem, junto com Rolar, Deixar virar pó e Acompanhar, nomeada para risco de atribuição antecipada."
+      }
+    },
+    {
+      "id": "q4",
+      "prompt": {
+        "en": "Closing a multi-leg structure before expiry, instead of waiting to see what gets pinned or assigned:",
+        "pt": "Encerrar uma estrutura com várias pernas antes do vencimento, em vez de esperar para ver o que fica no pino ou é atribuído:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "Eliminates every bid-ask cost on every leg",
+            "pt": "Elimina qualquer custo de spread de compra e venda em cada perna"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "Trades a small, known cost for removing pin and assignment risk entirely",
+            "pt": "Troca um custo pequeno e conhecido por remover de vez o risco de pin e de atribuição"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "Is never available on B3",
+            "pt": "Nunca está disponível na B3"
+          }
+        }
+      ],
+      "correctOptionId": "b",
+      "explanation": {
+        "en": "Closing early costs crossing the spread on each leg, a small known cost, in exchange for not having to find out how pin or assignment risk would have resolved.",
+        "pt": "Encerrar antes custa cruzar o spread em cada perna, um custo pequeno e conhecido, em troca de não precisar descobrir como o risco de pin ou de atribuição teria se resolvido."
+      }
+    }
+  ]
+}

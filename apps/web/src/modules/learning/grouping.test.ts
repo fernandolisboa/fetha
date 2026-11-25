@@ -23,11 +23,12 @@ describe("jornadaGroups", () => {
     expect(groups.map((group) => group.level)).toEqual(lessonCatalog.levels.map((l) => l.id));
   });
 
-  it("shows a level with no lessons as empty, not omitted", () => {
+  it("every level is listed, even the one every lesson happens to belong to", () => {
     const groups = jornadaGroups(emptyProgress(), "pt");
-    const advanced = groups.find((group) => group.level === "advanced");
-    expect(advanced).toBeDefined();
-    expect(advanced?.lessons).toEqual([]);
+    expect(groups.map((group) => group.level)).toEqual(lessonCatalog.levels.map((l) => l.id));
+    for (const group of groups) {
+      expect(group.lessons.length).toBeGreaterThan(0);
+    }
   });
 
   it("puts every first-steps lesson in its own group, in catalog order", () => {
@@ -132,7 +133,8 @@ describe("levelProgress", () => {
     expect(result).toEqual({ done: 1, total: order.length });
   });
 
-  it("reports zero of zero for a level with no lessons", () => {
-    expect(levelProgress("advanced", emptyProgress())).toEqual({ done: 0, total: 0 });
+  it("reports the full count of a level's own lessons when none is done", () => {
+    const order = jornadaOrder().filter((lesson) => lesson.level === "advanced");
+    expect(levelProgress("advanced", emptyProgress())).toEqual({ done: 0, total: order.length });
   });
 });

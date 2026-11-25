@@ -1,0 +1,204 @@
+{
+  "id": "delta-and-gamma",
+  "version": 1,
+  "minutes": 6,
+  "title": {
+    "en": "Delta and gamma: direction and how it changes",
+    "pt": "Delta e gama: direção e como ela muda"
+  },
+  "summary": {
+    "en": "Delta says how an option's value moves with the stock right now; gamma says how fast delta itself moves as the stock does.",
+    "pt": "Delta diz como o valor de uma opção se move com a ação agora; gama diz quão rápido o próprio delta muda conforme a ação se move."
+  },
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Delta is the greek that measures how much an option's fair value changes for each real of movement in the stock, everything else held equal. A call's delta sits between 0 and 1; a put's sits between −1 and 0. A delta of {{long-call.delta}}, like this lesson's long call, means a single option's fair value moves about {{long-call.delta}} for each real the stock moves.",
+        "pt": "Delta é a grega que mede quanto o valor justo de uma opção muda para cada real de movimento na ação, tudo o mais mantido igual. O delta de uma call fica entre 0 e 1; o de uma put, entre −1 e 0. Um delta de {{long-call.delta}}, como o desta call comprada da lição, significa que o valor justo de uma única opção se move cerca de {{long-call.delta}} para cada real que a ação se move."
+      }
+    },
+    {
+      "type": "payoff-example",
+      "exampleId": "long-put",
+      "caption": {
+        "en": "This lesson's long put, same strike as the long call above, stock at {{spot}}: its delta is {{long-put.delta}} — negative, since a put gains value as the stock falls.",
+        "pt": "A put comprada desta lição, mesmo strike da call comprada acima, ação a {{spot}}: o delta dela é {{long-put.delta}} — negativo, já que uma put ganha valor conforme a ação cai."
+      }
+    },
+    {
+      "type": "list",
+      "items": {
+        "en": [
+          "A call's positive delta means its value rises when the stock rises and falls when the stock falls.",
+          "A put's negative delta means the opposite: its value rises when the stock falls.",
+          "Deep in the money, a call's delta approaches 1 and a put's approaches −1 — the option starts trading almost one-for-one with the stock.",
+          "Deep out of the money, delta on either side approaches 0 — the option barely reacts to a small move."
+        ],
+        "pt": [
+          "O delta positivo de uma call significa que o valor dela sobe quando a ação sobe e cai quando a ação cai.",
+          "O delta negativo de uma put significa o contrário: o valor dela sobe quando a ação cai.",
+          "Bem dentro do dinheiro, o delta de uma call se aproxima de 1 e o de uma put, de −1 — a opção passa a acompanhar a ação quase ponto a ponto.",
+          "Bem fora do dinheiro, o delta de qualquer uma das duas se aproxima de 0 — a opção reage pouco a um movimento pequeno."
+        ]
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Delta itself is not fixed: it changes as the stock moves, and gamma is the greek that measures that change. This lesson's long call and long put, at the same strike, share the same gamma, {{long-call.gamma}} — a property of being priced off the same strike and the same volatility, not a coincidence of this pair. A positive gamma means delta rises as the stock rises and falls as the stock falls, for both a bought call and a bought put.",
+        "pt": "O delta em si não é fixo: ele muda conforme a ação se move, e o gama é a grega que mede essa mudança. A call e a put comprada desta lição, no mesmo strike, compartilham o mesmo gama, {{long-call.gamma}} — uma propriedade de serem precificadas a partir do mesmo strike e da mesma volatilidade, não uma coincidência deste par. Um gama positivo significa que o delta sobe conforme a ação sobe e cai conforme a ação cai, tanto para uma call comprada quanto para uma put comprada."
+      }
+    },
+    {
+      "type": "callout",
+      "tone": "info",
+      "text": {
+        "en": "Gamma is largest for an option at the money and fades toward zero deep in or out of the money — the same shape theta's own acceleration follows near expiry. A position with many bought options at the money carries the most gamma, and the most sensitivity to how fast its own delta can swing.",
+        "pt": "O gama é maior numa opção no dinheiro e cai para perto de zero bem dentro ou bem fora do dinheiro — o mesmo formato que a aceleração do theta segue perto do vencimento. Uma posição com muitas opções compradas no dinheiro carrega o maior gama, e a maior sensibilidade a quão rápido o próprio delta pode oscilar."
+      }
+    }
+  ],
+  "quiz": [
+    {
+      "id": "q1",
+      "prompt": {
+        "en": "A call's delta is positive because:",
+        "pt": "O delta de uma call é positivo porque:"
+      },
+      "options": [
+        {
+          "id": "b",
+          "text": {
+            "en": "It always expires in the money",
+            "pt": "Ela sempre vence dentro do dinheiro"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Its value rises when the stock rises",
+            "pt": "O valor dela sobe quando a ação sobe"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "Theta is always negative",
+            "pt": "O theta é sempre negativo"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "A call gains value as the stock rises, which is exactly what a positive delta means.",
+        "pt": "Uma call ganha valor conforme a ação sobe, que é exatamente o que um delta positivo significa."
+      }
+    },
+    {
+      "id": "q2",
+      "prompt": {
+        "en": "A put's delta is negative because:",
+        "pt": "O delta de uma put é negativo porque:"
+      },
+      "options": [
+        {
+          "id": "c",
+          "text": {
+            "en": "Puts never gain value",
+            "pt": "Puts nunca ganham valor"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Gamma is always negative for a put",
+            "pt": "O gama é sempre negativo para uma put"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "Its value rises when the stock falls",
+            "pt": "O valor dela sobe quando a ação cai"
+          }
+        }
+      ],
+      "correctOptionId": "b",
+      "explanation": {
+        "en": "A put gains value as the stock falls, so it moves opposite to the stock — a negative delta.",
+        "pt": "Uma put ganha valor conforme a ação cai, então se move ao contrário da ação — um delta negativo."
+      }
+    },
+    {
+      "id": "q3",
+      "prompt": {
+        "en": "Gamma measures:",
+        "pt": "O gama mede:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "The option's strike price",
+            "pt": "O preço do strike da opção"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "How much the option's own delta changes as the stock moves",
+            "pt": "Quanto o próprio delta da opção muda conforme a ação se move"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "How much time value decays per session",
+            "pt": "Quanto o valor do tempo corrói por pregão"
+          }
+        }
+      ],
+      "correctOptionId": "c",
+      "explanation": {
+        "en": "Gamma is the rate of change of delta itself as the stock price moves.",
+        "pt": "O gama é a taxa de variação do próprio delta conforme o preço da ação se move."
+      }
+    },
+    {
+      "id": "q4",
+      "prompt": {
+        "en": "Gamma is largest for an option that is:",
+        "pt": "O gama é maior numa opção que está:"
+      },
+      "options": [
+        {
+          "id": "c",
+          "text": {
+            "en": "Deep in the money",
+            "pt": "Bem dentro do dinheiro"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Deep out of the money",
+            "pt": "Bem fora do dinheiro"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "At the money",
+            "pt": "No dinheiro"
+          }
+        }
+      ],
+      "correctOptionId": "b",
+      "explanation": {
+        "en": "Gamma peaks near the money and fades toward zero deep in or out of the money.",
+        "pt": "O gama é maior perto do dinheiro e cai para perto de zero bem dentro ou bem fora do dinheiro."
+      }
+    }
+  ]
+}

@@ -1,0 +1,201 @@
+{
+  "id": "rolling-a-position",
+  "version": 1,
+  "minutes": 6,
+  "title": {
+    "en": "Rolling a position",
+    "pt": "Rolagem de uma posição"
+  },
+  "summary": {
+    "en": "Closing a position and reopening a similar one further out, instead of just closing or just letting it run — and what Fetha's own Rolar does and does not do.",
+    "pt": "Encerrar uma posição e reabrir uma parecida mais adiante, em vez de simplesmente encerrar ou simplesmente deixar correr — e o que o Rolar da Fetha faz e não faz."
+  },
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Rolling means closing an open operation's option legs and opening a new, similar operation at the same time, instead of treating the close and the reopen as two separate decisions. It is a position management tool, not a new structure: the trader keeps the same market view, but changes the time or the strikes the view is expressed at.",
+        "pt": "Rolar significa encerrar as pernas de opção de uma operação aberta e abrir uma nova operação parecida ao mesmo tempo, em vez de tratar o encerramento e a reabertura como duas decisões separadas. É uma ferramenta de gestão de posição, não uma estrutura nova: o trader mantém a mesma visão de mercado, mas muda o tempo ou os strikes em que essa visão é expressa."
+      }
+    },
+    {
+      "type": "list",
+      "items": {
+        "en": [
+          "Rolling out moves the same strikes to a later expiry — more time for the view to play out, usually for an additional net debit or a smaller net credit.",
+          "Rolling up or down moves to new strikes at the same (or a new) expiry — adjusting where the structure's own break-evens and max gain sit as the stock moves.",
+          "A credit structure rolled while still working can sometimes be rolled for an additional net credit; a losing structure usually costs a net debit to roll, which is itself a cost worth weighing against simply closing it."
+        ],
+        "pt": [
+          "Rolar para fora leva os mesmos strikes a um vencimento mais distante — mais tempo para a visão se confirmar, geralmente por um débito líquido adicional ou um crédito líquido menor.",
+          "Rolar para cima ou para baixo leva a novos strikes no mesmo vencimento (ou num novo) — ajustando onde ficam os próprios break-evens e o ganho máximo da estrutura conforme a ação se move.",
+          "Uma estrutura de crédito rolada enquanto ainda funciona às vezes pode ser rolada por um crédito líquido adicional; uma estrutura perdedora geralmente custa um débito líquido para rolar, que é, em si, um custo a pesar contra simplesmente encerrá-la."
+        ]
+      }
+    },
+    {
+      "type": "callout",
+      "tone": "info",
+      "text": {
+        "en": "Fetha's own Rolar, today, rolls an operation's option legs to the next monthly expiry at the same strikes — a roll out, not a roll up or down: it refuses a rolagem that would change the distance between the legs' strikes. A trader who wants new strikes closes the position and opens a fresh one at the desired strikes instead.",
+        "pt": "O Rolar da Fetha, hoje, rola as pernas de opção de uma operação para o próximo vencimento mensal nos mesmos strikes — uma rolagem para fora, não para cima ou para baixo: ele recusa uma rolagem que mudaria a distância entre os strikes das pernas. Quem quer novos strikes encerra a posição e abre uma nova nos strikes desejados em vez disso."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "On the portfolio screen, an open operation's own \"Agenda de rolagem\" flags a decision approaching expiry with one of a few actions: Rolar, Deixar virar pó (let an option expire worthless), Acompanhar (watch, no action yet) or Encerrar agora (close now, usually for early-assignment risk on a short leg deep in the money). Rolar there builds the closing and opening orders together and records the whole thing as one rolagem, with its own net credit or debit before costs.",
+        "pt": "Na tela de carteira, a \"Agenda de rolagem\" de uma operação aberta aponta uma decisão se aproximando do vencimento com uma de algumas ações: Rolar, Deixar virar pó (deixar uma opção vencer sem valor), Acompanhar (sem ação ainda) ou Encerrar agora (geralmente por risco de exercício antecipado numa perna vendida bem dentro do dinheiro). O Rolar ali monta as ordens de encerramento e de abertura juntas e registra o conjunto como uma única rolagem, com seu próprio crédito ou débito líquido antes de custos."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Montar plano, by contrast, sets a recipe's own profit target, stop and days-before-expiry exit ahead of time, for every leg together — it decides when a position should be managed at all. Rolling is what happens once that decision says \"keep the view, change the time or the strikes\", rather than \"close it\".",
+        "pt": "O Montar plano, por outro lado, define de antemão o alvo de lucro, o stop e a saída por dias até o vencimento de uma receita, para todas as pernas juntas — ele decide se uma posição deve ser gerida. A rolagem é o que acontece quando essa decisão diz \"mantenha a visão, mude o tempo ou os strikes\", em vez de \"encerre\"."
+      }
+    }
+  ],
+  "quiz": [
+    {
+      "id": "q1",
+      "prompt": {
+        "en": "Rolling a position means:",
+        "pt": "Rolar uma posição significa:"
+      },
+      "options": [
+        {
+          "id": "c",
+          "text": {
+            "en": "Doubling the number of lots held",
+            "pt": "Dobrar o número de lotes mantidos"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Closing the option legs and opening a similar operation at the same time",
+            "pt": "Encerrar as pernas de opção e abrir uma operação parecida ao mesmo tempo"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "Letting every option expire without any action",
+            "pt": "Deixar toda opção vencer sem nenhuma ação"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "A roll closes the current option legs and opens a new, similar operation in the same move, rather than treating close and reopen as separate decisions.",
+        "pt": "Uma rolagem encerra as pernas de opção atuais e abre uma operação nova e parecida no mesmo movimento, em vez de tratar o encerramento e a reabertura como decisões separadas."
+      }
+    },
+    {
+      "id": "q2",
+      "prompt": {
+        "en": "Rolling out, specifically, means:",
+        "pt": "Rolar para fora, especificamente, significa:"
+      },
+      "options": [
+        {
+          "id": "c",
+          "text": {
+            "en": "Changing to a completely different structure",
+            "pt": "Mudar para uma estrutura completamente diferente"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Moving to new strikes at the same expiry",
+            "pt": "Mudar para novos strikes no mesmo vencimento"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "Moving the same strikes to a later expiry",
+            "pt": "Levar os mesmos strikes a um vencimento mais distante"
+          }
+        }
+      ],
+      "correctOptionId": "b",
+      "explanation": {
+        "en": "Rolling out gives a position more time by keeping the same strikes and moving to a later expiry; moving strikes is rolling up or down instead.",
+        "pt": "Rolar para fora dá mais tempo à posição mantendo os mesmos strikes e levando a um vencimento mais distante; mudar os strikes é rolar para cima ou para baixo."
+      }
+    },
+    {
+      "id": "q3",
+      "prompt": {
+        "en": "Fetha's own Rolar, today, is best described as:",
+        "pt": "O Rolar da Fetha, hoje, é melhor descrito como:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "A free choice of any new strikes and any expiry",
+            "pt": "Uma escolha livre de quaisquer novos strikes e qualquer vencimento"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "A roll out to the next monthly expiry, same strikes, never a strike change",
+            "pt": "Uma rolagem para fora, para o próximo vencimento mensal, mesmos strikes, nunca uma troca de strikes"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "Something that happens automatically with no user action",
+            "pt": "Algo que acontece automaticamente, sem nenhuma ação do usuário"
+          }
+        }
+      ],
+      "correctOptionId": "c",
+      "explanation": {
+        "en": "Fetha's Rolar refuses a rolagem that would change the distance between the legs' own strikes — it moves to the next monthly expiry at the same strikes, a roll out.",
+        "pt": "O Rolar da Fetha recusa uma rolagem que mudaria a distância entre os strikes das pernas — ele leva ao próximo vencimento mensal nos mesmos strikes, uma rolagem para fora."
+      }
+    },
+    {
+      "id": "q4",
+      "prompt": {
+        "en": "Montar plano and Rolar relate as follows:",
+        "pt": "O Montar plano e o Rolar se relacionam assim:"
+      },
+      "options": [
+        {
+          "id": "c",
+          "text": {
+            "en": "They are the same feature under two names",
+            "pt": "São a mesma funcionalidade com dois nomes"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "Montar plano only exists for structures that can never be rolled",
+            "pt": "O Montar plano só existe para estruturas que nunca podem ser roladas"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Montar plano decides whether a position should be managed; Rolar is one of the actions once that decision keeps the market view",
+            "pt": "O Montar plano decide se uma posição deve ser gerida; o Rolar é uma das ações quando essa decisão mantém a visão de mercado"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "Montar plano sets exits ahead of time for a recipe's own legs; rolling is what happens when the plan calls for keeping the view and changing the time or strikes instead of closing.",
+        "pt": "O Montar plano define saídas de antemão para as pernas de uma receita; a rolagem é o que acontece quando o plano pede para manter a visão e mudar o tempo ou os strikes, em vez de encerrar."
+      }
+    }
+  ]
+}

@@ -1,0 +1,187 @@
+{
+  "id": "portfolio-greeks",
+  "version": 1,
+  "minutes": 6,
+  "title": {
+    "en": "Portfolio greeks: net exposure across legs",
+    "pt": "Gregas da carteira: exposição líquida entre pernas"
+  },
+  "summary": {
+    "en": "A structure's own greeks already sum across its legs — reading that net exposure, rather than each leg alone, is what tells a multi-leg position apart from a single option.",
+    "pt": "As gregas de uma estrutura já somam as pernas — ler essa exposição líquida, em vez de cada perna isolada, é o que diferencia uma posição com várias pernas de uma opção só."
+  },
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Every greek this track has covered — delta, gamma, theta, vega — is additive: the net exposure of a multi-leg structure, or of an entire portfolio, is simply the sum of each leg's own greek, a bought leg adding its own and a sold leg subtracting it. Fetha's engine does exactly this sum whenever it prices an operation; the structure's own greeks, shown once, are already the net across every leg, never a single leg's own reading mistaken for the whole position's.",
+        "pt": "Toda grega que esta trilha cobriu — delta, gama, theta, vega — é aditiva: a exposição líquida de uma estrutura com várias pernas, ou de uma carteira inteira, é simplesmente a soma da grega de cada perna, uma perna comprada somando a própria e uma vendida subtraindo. O motor da Fetha faz exatamente essa soma sempre que precifica uma operação; as gregas da estrutura, mostradas uma vez, já são o líquido entre todas as pernas, nunca a leitura de uma perna isolada confundida com a da posição inteira."
+      }
+    },
+    {
+      "type": "payoff-example",
+      "exampleId": "iron-condor",
+      "caption": {
+        "en": "This lesson's iron condor, four legs, stock at {{spot}}: net delta {{iron-condor.delta}}, net gamma {{iron-condor.gamma}}, net vega {{iron-condor.vega}}, net theta worth {{iron-condor.thetaAbs}} per lot per session — each already the sum across all four legs, not any single one's own greek.",
+        "pt": "O condor de ferro desta lição, quatro pernas, ação a {{spot}}: delta líquido {{iron-condor.delta}}, gama líquido {{iron-condor.gamma}}, vega líquido {{iron-condor.vega}}, theta líquido valendo {{iron-condor.thetaAbs}} por lote por pregão — cada um já a soma entre as quatro pernas, não a grega isolada de nenhuma delas."
+      }
+    },
+    {
+      "type": "paragraph",
+      "text": {
+        "en": "Reading that net exposure tells a story the individual legs alone would not: a delta this close to zero means the structure's own fair value barely reacts to a small move in the stock either way — it is roughly delta-neutral, even though every one of its four legs has its own, far larger delta. A negative net gamma says that neutrality does not hold for long: a bigger move in either direction turns delta against the position faster than a small one would. A positive net theta says time passing with the stock still helps the position, the credit structure's own reward for the risk it carries; a negative net vega says a rise in implied volatility hurts it, the same bet the vega lesson named as \"short volatility\".",
+        "pt": "Ler essa exposição líquida conta uma história que as pernas isoladas, por si só, não contariam: um delta tão perto de zero significa que o valor justo da estrutura reage pouco a um movimento pequeno da ação, em qualquer direção — ela é, mais ou menos, delta-neutra, mesmo que cada uma das quatro pernas tenha o próprio delta, bem maior. Um gama líquido negativo diz que essa neutralidade não dura muito: um movimento maior em qualquer direção vira o delta contra a posição mais rápido do que um movimento pequeno viraria. Um theta líquido positivo diz que o tempo passando com a ação parada ajuda a posição, a recompensa da própria estrutura de crédito pelo risco que ela carrega; um vega líquido negativo diz que uma alta na volatilidade implícita a machuca, a mesma aposta que a lição de vega nomeou como \"short volatility\"."
+      }
+    },
+    {
+      "type": "callout",
+      "tone": "info",
+      "text": {
+        "en": "A real portfolio holding several open operations at once sums the same way, across every leg of every operation together — a second structure that happens to be long where the first is short can cancel exposure the trader never explicitly chose to cancel, for better or for worse. Reading net greeks at the portfolio level, not just per operation, is the only way to notice that.",
+        "pt": "Uma carteira real com várias operações abertas ao mesmo tempo soma do mesmo jeito, entre todas as pernas de todas as operações juntas — uma segunda estrutura que por acaso está comprada onde a primeira está vendida pode cancelar uma exposição que o trader nunca escolheu cancelar de forma explícita, para o bem ou para o mal. Ler as gregas líquidas no nível da carteira, não só por operação, é o único jeito de notar isso."
+      }
+    }
+  ],
+  "quiz": [
+    {
+      "id": "q1",
+      "prompt": {
+        "en": "A structure's net greek, across its legs, is:",
+        "pt": "A grega líquida de uma estrutura, entre as pernas, é:"
+      },
+      "options": [
+        {
+          "id": "c",
+          "text": {
+            "en": "Only the largest single leg's own greek",
+            "pt": "Só a grega da maior perna isolada"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "The sum of each leg's own greek, bought legs adding and sold legs subtracting",
+            "pt": "A soma da grega de cada perna, as compradas somando e as vendidas subtraindo"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "Always zero for any structure with more than one leg",
+            "pt": "Sempre zero para qualquer estrutura com mais de uma perna"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "Greeks are additive: the net exposure sums each leg's own greek, with a sold leg contributing the opposite sign of a bought one.",
+        "pt": "As gregas são aditivas: a exposição líquida soma a grega de cada perna, com uma perna vendida contribuindo com o sinal contrário de uma comprada."
+      }
+    },
+    {
+      "id": "q2",
+      "prompt": {
+        "en": "A structure with a net delta close to zero:",
+        "pt": "Uma estrutura com delta líquido perto de zero:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "Can still have legs with large, offsetting deltas of their own",
+            "pt": "Pode ter pernas com deltas próprios grandes, mas que se cancelam"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "Has no legs with their own nonzero delta",
+            "pt": "Não tem nenhuma perna com delta próprio diferente de zero"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "Has no gamma either",
+            "pt": "Também não tem gama"
+          }
+        }
+      ],
+      "correctOptionId": "a",
+      "explanation": {
+        "en": "A net delta near zero only says the legs' own deltas offset each other; each leg can still carry a far larger delta on its own.",
+        "pt": "Um delta líquido perto de zero só diz que os deltas próprios das pernas se cancelam entre si; cada perna ainda pode carregar um delta bem maior isoladamente."
+      }
+    },
+    {
+      "id": "q3",
+      "prompt": {
+        "en": "A negative net gamma on a near delta-neutral structure means:",
+        "pt": "Um gama líquido negativo numa estrutura quase delta-neutra significa:"
+      },
+      "options": [
+        {
+          "id": "a",
+          "text": {
+            "en": "The structure stays delta-neutral no matter how far the stock moves",
+            "pt": "A estrutura fica delta-neutra independente de quanto a ação se mova"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "A larger move in either direction turns delta against the position faster",
+            "pt": "Um movimento maior em qualquer direção vira o delta contra a posição mais rápido"
+          }
+        },
+        {
+          "id": "b",
+          "text": {
+            "en": "Theta must also be negative",
+            "pt": "O theta também precisa ser negativo"
+          }
+        }
+      ],
+      "correctOptionId": "c",
+      "explanation": {
+        "en": "Negative gamma means the neutrality is local: a bigger move erodes it faster than a small one would.",
+        "pt": "Gama negativo significa que a neutralidade é local: um movimento maior a erode mais rápido do que um pequeno erodiria."
+      }
+    },
+    {
+      "id": "q4",
+      "prompt": {
+        "en": "Across several open operations at once, a real portfolio's net greeks:",
+        "pt": "Em várias operações abertas ao mesmo tempo, as gregas líquidas de uma carteira real:"
+      },
+      "options": [
+        {
+          "id": "b",
+          "text": {
+            "en": "Are read separately per operation and never combined",
+            "pt": "São lidas separadamente por operação e nunca combinadas"
+          }
+        },
+        {
+          "id": "a",
+          "text": {
+            "en": "Only apply to the operation opened most recently",
+            "pt": "Só valem para a operação aberta mais recentemente"
+          }
+        },
+        {
+          "id": "c",
+          "text": {
+            "en": "Sum across every leg of every operation, which can cancel exposure the trader never explicitly chose",
+            "pt": "Somam entre todas as pernas de todas as operações, o que pode cancelar uma exposição que o trader nunca escolheu de forma explícita"
+          }
+        }
+      ],
+      "correctOptionId": "c",
+      "explanation": {
+        "en": "Greeks keep summing across every leg of every open operation, so a second structure can unintentionally offset the first's own exposure.",
+        "pt": "As gregas seguem somando entre todas as pernas de todas as operações abertas, então uma segunda estrutura pode cancelar, sem intenção, a exposição da primeira."
+      }
+    }
+  ]
+}
