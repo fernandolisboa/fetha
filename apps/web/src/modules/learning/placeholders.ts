@@ -113,6 +113,7 @@ export function resolvePlaceholder(token: string, examples: IllustrativeExamples
     // dependency on `radar` (ARCHITECTURE.md), and the function is a handful of lines. ×100 for
     // the lot (CLAUDE.md money rule), rounded to a whole share unless that would erase a nonzero
     // value, in which case one decimal survives instead.
+    // `.abs()` below resolves the magnitude only; the lesson's own sentence carries the sign.
     const perLotShares = new Decimal(pricing.greeks[field === "deltaShares" ? "delta" : "gamma"])
       .mul(100)
       .abs();
