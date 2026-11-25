@@ -36,16 +36,16 @@
       "type": "payoff-example",
       "exampleId": "iron-condor",
       "caption": {
-        "en": "This lesson's iron condor, stock at {{spot}}: max loss is {{iron-condor.maxLossAbs}} per share, {{iron-condor.maxLossPerLotAbs}} per lot. Against the profile Fetha proposes before anyone declares their own — {{defaultDeclaredCapitalAbs}} of capital and a {{defaultMaxLossPerOperationPercent}} max-loss-per-operation limit — the cap on a single operation's loss is {{defaultMaxLossCapAbs}}, which this condor's own per-lot loss divides into {{iron-condor.maxLossLotsAtDefaultCap}} lots.",
-        "pt": "O condor de ferro desta lição, ação a {{spot}}: a perda máxima é {{iron-condor.maxLossAbs}} por ação, {{iron-condor.maxLossPerLotAbs}} por lote. Contra o perfil que a Fetha propõe antes de alguém declarar o próprio — {{defaultDeclaredCapitalAbs}} de capital e um limite de {{defaultMaxLossPerOperationPercent}} de perda máxima por operação —, o teto da perda de uma única operação é {{defaultMaxLossCapAbs}}, e é por essa perda por lote deste condor que esse teto se divide em {{iron-condor.maxLossLotsAtDefaultCap}} lotes."
+        "en": "This lesson's iron condor, stock at {{spot}}: max loss is {{iron-condor.maxLossAbs}} per share, {{iron-condor.maxLossPerLotAbs}} per lot. Against the profile Fetha proposes before anyone declares their own — {{defaultDeclaredCapitalAbs}} of capital and a {{defaultMaxLossPerOperationPercent}} max-loss-per-operation limit — the cap on a single operation's loss is {{defaultMaxLossCapAbs}}, which this condor's own per-lot loss divides into {{iron-condor.maxLossLotsAtDefaultCap}} lots, rounded down to a whole lot.",
+        "pt": "O condor de ferro desta lição, ação a {{spot}}: a perda máxima é {{iron-condor.maxLossAbs}} por ação, {{iron-condor.maxLossPerLotAbs}} por lote. Contra o perfil que a Fetha propõe antes de alguém declarar o próprio — {{defaultDeclaredCapitalAbs}} de capital e um limite de {{defaultMaxLossPerOperationPercent}} de perda máxima por operação —, o teto da perda de uma única operação é {{defaultMaxLossCapAbs}}, e é por essa perda por lote deste condor que esse teto se divide em {{iron-condor.maxLossLotsAtDefaultCap}} lotes, arredondados para baixo até um lote inteiro."
       }
     },
     {
       "type": "callout",
       "tone": "info",
       "text": {
-        "en": "A structure with an unbounded max loss (a naked short call, for one) cannot be sized this way at all until it is capped — buying a further-out option turns it into a spread with a known worst case, which is exactly why Fetha's recipes never leave a leg naked on its own.",
-        "pt": "Uma estrutura com perda máxima sem limite (uma call vendida a descoberto, por exemplo) não pode ser dimensionada assim enquanto não for travada — comprar uma opção mais distante a transforma numa trava com um pior cenário conhecido, que é exatamente por que as receitas da Fetha nunca deixam uma perna a descoberto por conta própria."
+        "en": "A structure with an unbounded max loss (a naked short call, for one) cannot be sized this way at all until it is capped — buying an option at a strike further out of the money turns it into a spread with a known worst case, which is exactly why Fetha's recipes never leave a leg naked on its own.",
+        "pt": "Uma estrutura com perda máxima sem limite (uma call vendida a descoberto, por exemplo) não pode ser dimensionada assim enquanto não for travada — comprar uma opção num strike mais fora do dinheiro a transforma numa trava com um pior cenário conhecido, que é exatamente por que as receitas da Fetha nunca deixam uma perna a descoberto por conta própria."
       }
     }
   ],
@@ -151,8 +151,8 @@
       ],
       "correctOptionId": "a",
       "explanation": {
-        "en": "An unbounded max loss gives sizing no worst case to divide capital by, until a leg like a bought further-out option caps it into a spread.",
-        "pt": "Uma perda máxima sem limite não dá ao dimensionamento nenhum pior cenário para dividir o capital, até que uma perna, como uma opção comprada mais distante, a trave numa trava com limite."
+        "en": "An unbounded max loss gives sizing no worst case to divide capital by, until a leg like a bought option further out of the money caps it into a spread.",
+        "pt": "Uma perda máxima sem limite não dá ao dimensionamento nenhum pior cenário para dividir o capital, até que uma perna, como uma opção comprada num strike mais fora do dinheiro, a trave numa trava com limite."
       }
     },
     {
