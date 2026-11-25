@@ -10,7 +10,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
     {
       "items": [
         "Look-ahead: usar uma informação que uma decisão real, tomada naquele momento, ainda não teria. O motor da Fetha torna isso impossível por construção — um sinal calculado no fechamento do pregão D só pode ser executado no pregão D+1, e o avaliador de estratégia só recebe uma visão dos dados truncada em D, nunca uma espiada mais adiante.",
-        "Custos: ações são executadas na abertura do pregão seguinte, opções no preço médio negociado do próprio pregão seguinte mais um slippage configurável; uma série sem negócios naquele dia não gera execução, registrada como uma entrada perdida em vez de uma inventada. Taxas da B3, uma corretagem por ordem e um imposto de renda simplificado são sempre cobrados, nunca opcionais, e os limites do próprio perfil de risco de um backtest são aplicados por padrão.",
+        "Custos: ações são executadas na abertura do pregão seguinte, opções no preço médio negociado do próprio pregão seguinte mais o slippage fixo do próprio preset de custo; uma série sem negócios naquele dia não gera execução, registrada como uma entrada perdida em vez de uma inventada. As próprias taxas da B3 e um imposto de renda simplificado são sempre cobrados; a corretagem por ordem depende do preset de custo escolhido — o preset padrão da B3 cobra zero de corretagem em ações, só uma corretagem fixa em opções. Os limites do próprio perfil de risco de um backtest começam em "Só avisar" (só avisa, nunca recusa uma operação por conta própria) até o proprietário mudar esse controle para aplicar.",
         "Walk-forward: dividir um teste em janelas consecutivas (21, 63, 126 ou 252 pregões) e ler as métricas de cada janela ao lado das do período inteiro, em vez de um único número agregado que pode esconder um teste que só funcionou num trecho específico dos dados. Uma operação pertence à janela em que foi aberta; isso não é um teste fora da amostra nem uma otimização, só uma leitura de estabilidade ao longo do tempo.",
         "Viés de sobrevivência: uma base de dados que descarta, sem avisar, instrumentos que deixaram de ser negociados faz uma estratégia só-compra parecer melhor do que de fato foi. O próprio histórico de preços da Fetha mantém instrumentos deslistados na base, e toda base que ela usa documenta as próprias propriedades de sobrevivência, em vez de deixar a pergunta sem resposta.",
       ],
@@ -640,7 +640,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
 {
   "blocks": [
     {
-      "text": "Na data-ex de um provento em dinheiro — dividendo, juros sobre capital próprio (JCP) ou outro rendimento —, a B3 reduz o strike de toda opção listada daquele ativo pelo valor do provento, arredondado ao centavo. A ação cai por aproximadamente o mesmo valor na mesma data, então quem detém a opção não ganha nem perde com o pagamento: a opção é protegida contra dividendos.",
+      "text": "Na data-ex de um provento em dinheiro — dividendo, juros sobre capital próprio (JCP) ou outro rendimento —, a B3 reduz o strike de toda opção listada daquele ativo pelo valor do provento, arredondado ao centavo. A ação cai por aproximadamente o mesmo valor na mesma data, então os dois lados da diferença entre strike e ação se movem juntos: a condição de moneyness é preservada exatamente, e quem detém a opção não ganha nem perde com o pagamento. A opção é protegida contra dividendos.",
       "type": "paragraph",
     },
     {
@@ -649,14 +649,14 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "type": "callout",
     },
     {
-      "text": "Um split ou uma bonificação (distribuição gratuita de ações) funciona diferente: em vez de uma subtração, a B3 multiplica o strike e a quantidade de toda opção aberta pelo mesmo fator, de modo que o valor total da posição não muda — um split de 2 para 1, por exemplo, reduz o strike à metade e dobra a quantidade. O motor da Fetha lê o strike e a quantidade que de fato estavam em vigor em cada instante, então uma posição precificada antes e depois de qualquer um desses eventos já reflete o contrato ajustado, nunca o original por engano.",
+      "text": "Um split ou uma bonificação (distribuição gratuita de ações) funciona diferente: a B3 multiplica o strike de toda opção aberta pelo fator do split e divide a quantidade pelo mesmo fator, de modo que strike vezes quantidade — e o valor total da posição — permanece igual. Um split de 2 para 1, por exemplo, reduz o strike à metade e dobra a quantidade; a própria ação também cai à metade, então a condição de moneyness também é preservada aqui, pela mesma construção de fatores inversos.",
       "type": "paragraph",
     },
     {
       "items": [
-        "Perto de uma data-ex, vale observar o próprio strike se mover no pregão seguinte — uma série que parecia um pouco fora do dinheiro pode abrir o próximo pregão com outra condição de moneyness, sem nenhum gap de preço por trás disso.",
+        "Nenhum dos dois eventos muda, por si só, se uma série termina dentro ou fora do dinheiro — a ação e o strike se movem juntos, por construção, exatamente para preservar a condição de moneyness. O que muda, e vale observar, é o próprio número do strike no pregão seguinte.",
         "O código da série cotada nunca muda por conta própria em nenhum dos dois casos; só o strike (e, num split ou bonificação, a quantidade) se ajusta por baixo dele.",
-        "Nada disso exige memorizar um limiar ou percentual publicado pela B3 — o ajuste de strike e quantidade é exato, a partir do valor do próprio provento ou do fator do próprio split, lido direto do registro.",
+        "A Fetha lê o strike de uma série a partir dos próprios dados da B3, pontuais no tempo (o registro de instrumentos e a COTAHIST, ADR-0056) — nunca de um número digitado à mão. Um fator de split ou bonificação, por outro lado, é digitado pelo próprio proprietário a partir do comunicado público da empresa (ADR-0052): a B3 ainda não publica uma fonte automática desses eventos, então um evento perdido ou tardio é lido, por um indicador ou um backtest, como um salto de preço comum até ser digitado. O motor marca um strike que não consegue confirmar contra um fator conhecido como "não confirmado", em vez de supor que está correto.",
       ],
       "type": "list",
     },
@@ -684,26 +684,26 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
     },
     {
       "correctOptionId": "b",
-      "explanation": "Um split ou bonificação multiplica strike e quantidade juntos pelo próprio fator, mantendo o valor total da posição inalterado.",
+      "explanation": "Strike e quantidade se movem por fatores inversos, então strike vezes quantidade — e o valor total da posição — permanece igual.",
       "options": [
         "Subtraindo um valor fixo só do strike",
         "Cancelando a opção e devolvendo o prêmio",
-        "Multiplicando strike e quantidade pelo mesmo fator",
+        "Multiplicando o strike pelo fator do split e dividindo a quantidade por ele",
       ],
       "prompt": "Um split, diferente de um provento em dinheiro, ajusta uma opção aberta:",
     },
     {
       "correctOptionId": "c",
-      "explanation": "O próprio strike se move no ajuste, o que pode mudar a condição de moneyness sem nenhum gap no preço da opção.",
+      "explanation": "Ação e strike se movem pelo mesmo valor, então a diferença entre eles — e se uma série está dentro ou fora do dinheiro — nunca muda; só o número do strike muda.",
       "options": [
-        "Com outra condição de moneyness, sem nenhum gap de preço por trás disso",
-        "Sem mudança, já que ajustes nunca afetam a condição de moneyness",
-        "Com um novo ticker, já que o código da série em si muda",
+        "Preserva a condição de moneyness exatamente; só o número do strike muda",
+        "Pode levar uma série de fora do dinheiro para dentro do dinheiro",
+        "Dá a toda série um novo ticker, já que o código da série em si muda",
       ],
-      "prompt": "Perto de uma data-ex, uma série que parecia um pouco fora do dinheiro pode abrir o próximo pregão:",
+      "prompt": "O ajuste de strike por um dividendo, já que a ação e o strike caem pelo mesmo valor:",
     },
   ],
-  "summary": "Na B3, um provento em dinheiro move o próprio strike de uma opção, e um split ou bonificação move strike e quantidade — nunca o ganho ou a perda de quem detém a opção.",
+  "summary": "Na B3, um provento em dinheiro move o próprio strike de uma opção, e um split ou bonificação move o strike para um lado e a quantidade para o lado contrário — nunca o ganho ou a perda de quem detém a opção.",
   "title": "Eventos corporativos na B3: dividendos, JCP, splits e bonificações",
 }
 `;
@@ -949,11 +949,11 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "type": "callout",
     },
     {
-      "text": "A atribuição de uma perna vendida também pode deixar o resto de uma estrutura aberto por conta própria. Veja uma trava de alta com calls: se a call vendida (strike mais alto) for atribuída antes do vencimento por estar bem dentro do dinheiro — raro na B3, já que um motivo ligado a dividendo é, em boa parte, removido pela proteção do strike (ADR-0070), mas não impossível num movimento específico da ação —, o trader fica tendo entregado a ação naquele strike enquanto a call comprada no strike mais baixo continua sendo uma posição de opção aberta, sem mais nada compensando ela.",
+      "text": "A atribuição de uma perna vendida não deixa, necessariamente, o resto de uma estrutura exposto — deixa precisando de ação. Veja uma trava de alta com calls: se a call vendida (strike mais alto) for atribuída — raro antes do vencimento na B3, já que um motivo ligado a dividendo para exercício antecipado é, em boa parte, removido pela proteção do strike (ADR-0070), mas alcançável bem no vencimento pela regra de exercício automático —, o trader fica vendido na ação pelo strike mais alto. A call comprada no strike mais baixo ainda protege isso: exercê-la compra a mesma ação de volta pelo strike mais baixo, travando exatamente o ganho máximo da trava. O que a atribuição de fato exige é logística de liquidação (cobrir a posição vendida na ação, geralmente exercendo a perna comprada antes do próprio prazo) e alguém notar e agir dentro de uma janela curta — não uma posição se desmontando sozinha.",
       "type": "paragraph",
     },
     {
-      "text": "A tela de carteira da Fetha nomeia isso diretamente: a "Agenda de rolagem" de uma operação aberta aponta uma decisão se aproximando do vencimento, e oferece "Encerrar agora" especificamente para risco de atribuição antecipada numa perna bem dentro do dinheiro, junto com Rolar, Deixar virar pó e Acompanhar. Encerrar uma estrutura antes do vencimento, em vez de esperar para ver o que fica no pino ou é atribuído, troca um custo pequeno e conhecido (cruzar o spread de compra e venda em cada perna) por remover os dois riscos de perto do vencimento por completo.",
+      "text": "A tela de carteira da Fetha acompanha isso diretamente: a "Agenda de rolagem" de uma operação aberta oferece "Encerrar agora — risco de exercício" assim que qualquer perna vendida fica dentro do dinheiro, ou a até 1% do preço da ação em qualquer direção, com uma sessão ou menos faltando para o vencimento — cobrindo exatamente o risco de exercício e de pin que esta lição nomeou, junto com Rolar, Deixar virar pó e Acompanhar. Encerrar antes desse ponto, em vez de esperar para descobrir como o exercício ou o pin se resolveriam, custa corretagem, taxas da B3 e o spread de compra e venda em cada perna — um custo real, trocado por certeza, não uma ação de graça.",
       "type": "paragraph",
     },
   ],
@@ -970,30 +970,30 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
     },
     {
       "correctOptionId": "c",
-      "explanation": "A atribuição age só sobre a perna vendida; a perna comprada continua sendo uma posição de opção aberta, sem mais ser parte de uma trava encerrada.",
+      "explanation": "O próprio valor da call comprada ainda trava o ganho máximo da trava contra a posição vendida na ação atribuída; o risco real é a logística de liquidação e a necessidade de agir dentro de uma janela curta, não uma posição sem proteção.",
       "options": [
         "As duas pernas são encerradas automaticamente juntas",
-        "A call comprada fica aberta, sem mais nada compensando a perna vendida atribuída",
+        "A call comprada ainda protege a posição vendida na ação resultante, mas alguém precisa notar e agir a tempo",
         "A operação é desfeita e o prêmio devolvido",
       ],
       "prompt": "Se a perna vendida (strike mais alto) de uma trava de alta com calls for atribuída e a perna comprada não:",
     },
     {
       "correctOptionId": "c",
-      "explanation": ""Encerrar agora" é uma opção na agenda de rolagem, junto com Rolar, Deixar virar pó e Acompanhar, nomeada para risco de atribuição antecipada.",
+      "explanation": ""Encerrar agora — risco de exercício" dispara exatamente nessa condição — uma perna vendida dentro do dinheiro ou a até 1% do spot, uma sessão ou menos até o vencimento —, cobrindo risco de exercício e de pin, não um aviso genérico de perna bem dentro do dinheiro.",
       "options": [
-        "Risco de atribuição antecipada numa perna bem dentro do dinheiro",
+        "Uma perna vendida está dentro do dinheiro, ou a até 1% do spot, com uma sessão ou menos até o vencimento",
         "Toda operação, como a única ação disponível",
         "Operações que já venceram",
       ],
-      "prompt": "A tela de carteira da Fetha oferece "Encerrar agora" especificamente para:",
+      "prompt": "A tela de carteira da Fetha oferece "Encerrar agora — risco de exercício" especificamente quando:",
     },
     {
       "correctOptionId": "b",
-      "explanation": "Encerrar antes custa cruzar o spread em cada perna, um custo pequeno e conhecido, em troca de não precisar descobrir como o risco de pin ou de atribuição teria se resolvido.",
+      "explanation": "Encerrar antes ainda custa corretagem, taxas da B3 e o spread em cada perna, um custo real trocado por não precisar descobrir como o risco de pin ou de exercício teria se resolvido.",
       "options": [
         "Elimina qualquer custo de spread de compra e venda em cada perna",
-        "Troca um custo pequeno e conhecido por remover de vez o risco de pin e de atribuição",
+        "Troca corretagem, taxas da B3 e o spread de compra e venda por remover o risco de pin e de exercício",
         "Nunca está disponível na B3",
       ],
       "prompt": "Encerrar uma estrutura com várias pernas antes do vencimento, em vez de esperar para ver o que fica no pino ou é atribuído:",
@@ -1644,20 +1644,20 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
 {
   "blocks": [
     {
-      "text": "Toda grega que esta trilha cobriu — delta, gama, theta, vega — é aditiva: a exposição líquida de uma estrutura com várias pernas, ou de uma carteira inteira, é simplesmente a soma da grega de cada perna, uma perna comprada somando a própria e uma vendida subtraindo. O motor da Fetha faz exatamente essa soma sempre que precifica uma operação; as gregas da estrutura, mostradas uma vez, já são o líquido entre todas as pernas, nunca a leitura de uma perna isolada confundida com a da posição inteira.",
+      "text": "Toda grega que esta trilha cobriu — delta, gama, theta, vega — é aditiva: a exposição líquida de uma estrutura com várias pernas, ou das pernas de uma carteira no mesmo ativo, é simplesmente a soma da grega de cada perna, uma perna comprada somando a própria e uma vendida subtraindo. O motor da Fetha faz exatamente essa soma sempre que precifica uma operação; as gregas da estrutura, mostradas uma vez, já são o líquido entre todas as pernas, nunca a leitura de uma perna isolada confundida com a da posição inteira. Essa soma só vale direto assim dentro de um mesmo ativo: somar delta ou gama direto entre duas ações diferentes ignora que um real de movimento de uma ação não é um real de movimento da outra, então comparar ou combinar os dois entre ativos diferentes exige primeiro converter cada um em delta em reais (delta vezes o preço da ação vezes o multiplicador) ou ponderar por beta contra um mesmo índice de referência.",
       "type": "paragraph",
     },
     {
-      "caption": "O condor de ferro desta lição, quatro pernas, ação a R$ 20,00: delta líquido 0,0063, gama líquido −0,0212, vega líquido −0,0058, theta líquido valendo R$ 0,39 por lote por pregão — cada um já a soma entre as quatro pernas, não a grega isolada de nenhuma delas.",
+      "caption": "O condor de ferro desta lição, quatro pernas, ação a R$ 20,00: delta líquido 0,0063 por ação, gama líquido −0,0212, vega líquido valendo −R$ 0,01 por ponto de volatilidade implícita (por ação; ×100 para o lote), theta líquido valendo R$ 0,39 por lote por pregão — cada um já a soma entre as quatro pernas, não a grega isolada de nenhuma delas.",
       "exampleId": "iron-condor",
       "type": "payoff-example",
     },
     {
-      "text": "Ler essa exposição líquida conta uma história que as pernas isoladas, por si só, não contariam: um delta tão perto de zero significa que o valor justo da estrutura reage pouco a um movimento pequeno da ação, em qualquer direção — ela é, mais ou menos, delta-neutra, mesmo que cada uma das quatro pernas tenha o próprio delta, bem maior. Um gama líquido negativo diz que essa neutralidade não dura muito: um movimento maior em qualquer direção vira o delta contra a posição mais rápido do que um movimento pequeno viraria. Um theta líquido positivo diz que o tempo passando com a ação parada ajuda a posição, a recompensa da própria estrutura de crédito pelo risco que ela carrega; um vega líquido negativo diz que uma alta na volatilidade implícita a machuca, a mesma aposta que a lição de vega nomeou como "short volatility".",
+      "text": "Ler essa exposição líquida conta uma história que as pernas isoladas, por si só, não contariam: um delta tão perto de zero significa que o valor justo da estrutura reage pouco a um movimento pequeno da ação, em qualquer direção — ela é, mais ou menos, delta-neutra, mesmo que cada uma das quatro pernas tenha o próprio delta, bem maior. Um gama líquido negativo diz que essa neutralidade não dura muito: um movimento maior em qualquer direção vira o delta contra a posição mais rápido do que um movimento pequeno viraria. Um theta líquido positivo diz que o tempo passando com a ação parada ajuda a posição, a recompensa da própria estrutura de crédito pelo risco que ela carrega; um vega líquido negativo — dinheiro perdido por ponto de volatilidade implícita que sobe — diz que uma alta na volatilidade implícita a machuca, a mesma aposta que a lição de vega nomeou como "short volatility".",
       "type": "paragraph",
     },
     {
-      "text": "Uma carteira real com várias operações abertas ao mesmo tempo soma do mesmo jeito, entre todas as pernas de todas as operações juntas — uma segunda estrutura que por acaso está comprada onde a primeira está vendida pode cancelar uma exposição que o trader nunca escolheu cancelar de forma explícita, para o bem ou para o mal. Ler as gregas líquidas no nível da carteira, não só por operação, é o único jeito de notar isso.",
+      "text": "Uma carteira real com várias operações abertas no mesmo ativo ao mesmo tempo soma do mesmo jeito, entre todas as pernas de todas essas operações juntas — uma segunda estrutura que por acaso está comprada onde a primeira está vendida pode cancelar uma exposição que o trader nunca escolheu cancelar de forma explícita, para o bem ou para o mal. Ler as gregas líquidas nesse nível, não só por operação, é o único jeito de notar isso. Entre ativos diferentes, delta e gama em ações não somam direto pelo mesmo motivo de um real de movimento de uma ação não ser um real de movimento da outra — somar ali primeiro exige a conversão para delta em reais ou a ponderação por beta que o parágrafo acima nomeou.",
       "tone": "info",
       "type": "callout",
     },
@@ -1695,13 +1695,13 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
     },
     {
       "correctOptionId": "c",
-      "explanation": "As gregas seguem somando entre todas as pernas de todas as operações abertas, então uma segunda estrutura pode cancelar, sem intenção, a exposição da primeira.",
+      "explanation": "As gregas seguem somando entre todas as pernas de todas as operações abertas no mesmo ativo, então uma segunda estrutura pode cancelar, sem intenção, a exposição da primeira; entre ativos diferentes, a soma precisa primeiro ser convertida para delta em reais ou ponderada por beta.",
       "options": [
         "São lidas separadamente por operação e nunca combinadas",
         "Só valem para a operação aberta mais recentemente",
-        "Somam entre todas as pernas de todas as operações, o que pode cancelar uma exposição que o trader nunca escolheu de forma explícita",
+        "Somam entre todas as pernas de todas as operações naquele ativo, o que pode cancelar uma exposição que o trader nunca escolheu de forma explícita",
       ],
-      "prompt": "Em várias operações abertas ao mesmo tempo, as gregas líquidas de uma carteira real:",
+      "prompt": "Em várias operações abertas no mesmo ativo ao mesmo tempo, as gregas líquidas de uma carteira real:",
     },
   ],
   "summary": "As gregas de uma estrutura já somam as pernas — ler essa exposição líquida, em vez de cada perna isolada, é o que diferencia uma posição com várias pernas de uma opção só.",
@@ -1721,11 +1721,11 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "type": "paragraph",
     },
     {
-      "text": "O perfil de risco da Fetha (Configurações › Perfil de risco) guarda exatamente isso: um capital declarado e um limite de "Perda máxima por operação", definido como um percentual desse capital. Toda operação que o simulador precifica, e toda sugestão que o radar traz, confere a própria perda máxima contra esse limite e aponta quando ele é rompido, em vez de ficar em silêncio sobre isso.",
+      "text": "O perfil de risco da Fetha (Configurações › Risco, "Capital declarado e limites") guarda exatamente isso: um capital declarado e um limite de "Perda máxima por operação", definido como um percentual desse capital. Toda operação que o simulador precifica, e toda sugestão que o radar traz, confere a própria perda máxima contra esse limite e aponta quando ele é rompido, em vez de ficar em silêncio sobre isso.",
       "type": "paragraph",
     },
     {
-      "caption": "O condor de ferro desta lição, ação a R$ 20,00: a perda máxima é R$ 0,32 por ação (×100 por lote). Um capital de, digamos, R$ 50.000 com um limite de 2% de perda máxima por operação trava a perda de uma única operação em R$ 1.000 — e é por essa perda por lote deste condor que se divide para calcular quantos lotes cabem dentro do limite.",
+      "caption": "O condor de ferro desta lição, ação a R$ 20,00: a perda máxima é R$ 0,32 por ação, R$ 32,00 por lote. Contra o perfil que a Fetha propõe antes de alguém declarar o próprio — R$ 50.000,00 de capital e um limite de 2% de perda máxima por operação —, o teto da perda de uma única operação é R$ 1.000,00, e é por essa perda por lote deste condor que esse teto se divide em 31 lotes.",
       "exampleId": "iron-condor",
       "type": "payoff-example",
     },
@@ -1748,10 +1748,10 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
     },
     {
       "correctOptionId": "b",
-      "explanation": "O perfil de risco, em Configurações, guarda o capital declarado e todos os limites do perfil de risco, incluindo a perda máxima por operação.",
+      "explanation": "O perfil de risco, em Configurações › Risco, guarda o capital declarado e todos os limites do perfil de risco, incluindo a perda máxima por operação.",
       "options": [
         "O diário de decisões",
-        "Configurações › Perfil de risco",
+        "Configurações › Risco",
         "O diagrama de payoff de cada operação",
       ],
       "prompt": "Na Fetha, o capital declarado e o limite de perda máxima por operação ficam em:",
@@ -1889,7 +1889,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "type": "callout",
     },
     {
-      "text": "A partir daí, "Ver receita" abre a definição da própria receita, "Montar no simulador" carrega as pernas no simulador para explorar antes de se comprometer com qualquer coisa, e "Montar plano" é o passo seguinte de fato, para uma sugestão que o usuário decide seguir — ele transforma as pernas numa operação acompanhada, com seu próprio alvo de lucro, stop e saída por vencimento, e a decisão em si fica registrada no diário, avaliada depois contra o que de fato aconteceu.",
+      "text": "A partir daí, "Ver receita" abre a definição da própria receita, "Montar no simulador" carrega as pernas no simulador para explorar antes de se comprometer com qualquer coisa, e "Montar plano" é o passo seguinte de fato, para uma sugestão que o usuário decide seguir — ele transforma as pernas numa operação acompanhada, com seu próprio alvo de lucro, stop e saída por vencimento, e registra automaticamente uma decisão de "Entrar" no diário, avaliada depois contra o que de fato aconteceu. Ligar esse plano aos preenchimentos que o usuário de fato conseguiu, depois, pelo "Executei", não registra uma nova decisão própria — é o usuário agindo sobre a que já foi registrada.",
       "type": "paragraph",
     },
   ],
@@ -1926,9 +1926,9 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
     },
     {
       "correctOptionId": "a",
-      "explanation": "O Montar plano transforma as pernas da sugestão numa operação acompanhada, com saídas próprias, e a decisão fica registrada no diário para ser avaliada depois.",
+      "explanation": "O Montar plano transforma as pernas da sugestão numa operação acompanhada, com saídas próprias, e registra automaticamente uma decisão de "Entrar" no diário para ser avaliada depois.",
       "options": [
-        "O Montar plano, que acompanha a operação e registra a decisão no diário",
+        "O Montar plano, que acompanha a operação e registra automaticamente uma decisão de "Entrar" no diário",
         "Editar a definição da própria receita direto",
         "Nada — a sugestão se executa sozinha",
       ],
@@ -2092,19 +2092,19 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
     },
     {
       "items": [
-        "Rolar para fora leva os mesmos strikes a um vencimento mais distante — mais tempo para a visão se confirmar, geralmente por um débito líquido adicional ou um crédito líquido menor.",
+        "Rolar para fora leva a um vencimento mais distante, nos mesmos strikes ou nos mais próximos disponíveis — mais tempo para a visão se confirmar.",
         "Rolar para cima ou para baixo leva a novos strikes no mesmo vencimento (ou num novo) — ajustando onde ficam os próprios break-evens e o ganho máximo da estrutura conforme a ação se move.",
-        "Uma estrutura de crédito rolada enquanto ainda funciona às vezes pode ser rolada por um crédito líquido adicional; uma estrutura perdedora geralmente custa um débito líquido para rolar, que é, em si, um custo a pesar contra simplesmente encerrá-la.",
+        "Rolar uma opção vendida para fora, no mesmo strike ou num próximo, costuma ser um crédito: a nova opção, com vencimento mais distante, vale mais do que a que acabou de ser encerrada, pelo mesmo motivo que uma opção mais distante sempre custa mais. Rolar uma opção comprada para fora, ou rolar uma trava bem dentro do dinheiro, costuma ser um débito em vez disso — pagando pelo valor do tempo extra que uma perna comprada precisa, ou por quanto uma perna vendida bem dentro do dinheiro tem que devolver.",
       ],
       "type": "list",
     },
     {
-      "text": "O Rolar da Fetha, hoje, rola as pernas de opção de uma operação para o próximo vencimento mensal nos mesmos strikes — uma rolagem para fora, não para cima ou para baixo: ele recusa uma rolagem que mudaria a distância entre os strikes das pernas. Quem quer novos strikes encerra a posição e abre uma nova nos strikes desejados em vez disso.",
+      "text": "O Rolar da Fetha, hoje, leva as pernas de opção de uma operação para o próximo vencimento mensal, escolhendo para cada perna o strike listado mais próximo do que acabou de ser encerrado — não necessariamente o mesmo strike, e uma perna isolada não tem nenhuma garantia contra terminar num strike mais baixo ou mais alto. Ele recusa a rolagem inteira só quando duas pernas terminariam no mesmo ticker, ou quando a largura entre os strikes das pernas mudaria: qualquer um dos dois transformaria, em silêncio, a estrutura mantida em outra diferente. A Fetha nunca monta nem envia uma ordem (ela não tem conexão com corretora): o Rolar registra, como uma única rolagem, as execuções de encerramento e de abertura que o usuário já fez em outro lugar.",
       "tone": "info",
       "type": "callout",
     },
     {
-      "text": "Na tela de carteira, a "Agenda de rolagem" de uma operação aberta aponta uma decisão se aproximando do vencimento com uma de algumas ações: Rolar, Deixar virar pó (deixar uma opção vencer sem valor), Acompanhar (sem ação ainda) ou Encerrar agora (geralmente por risco de exercício antecipado numa perna vendida bem dentro do dinheiro). O Rolar ali monta as ordens de encerramento e de abertura juntas e registra o conjunto como uma única rolagem, com seu próprio crédito ou débito líquido antes de custos.",
+      "text": "Na tela de carteira, a "Agenda de rolagem" de uma operação aberta aponta uma decisão se aproximando do vencimento com uma de algumas ações: Rolar, Deixar virar pó (deixar uma opção vencer sem valor), Acompanhar (sem ação ainda) ou "Encerrar agora — risco de exercício" (quando uma perna vendida está dentro do dinheiro, ou a até 1% do preço da ação, faltando uma sessão ou menos). O Rolar ali registra as execuções de encerramento e de abertura juntas como uma única rolagem, com seu próprio crédito ou débito líquido antes de custos.",
       "type": "paragraph",
     },
     {
@@ -2124,27 +2124,27 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "prompt": "Rolar uma posição significa:",
     },
     {
-      "correctOptionId": "b",
-      "explanation": "Rolar para fora dá mais tempo à posição mantendo os mesmos strikes e levando a um vencimento mais distante; mudar os strikes é rolar para cima ou para baixo.",
+      "correctOptionId": "a",
+      "explanation": "Uma opção mais distante carrega mais valor do tempo, então vendê-la para reabrir a perna vendida costuma trazer mais do que custou encerrar a mais próxima.",
       "options": [
-        "Mudar para uma estrutura completamente diferente",
-        "Mudar para novos strikes no mesmo vencimento",
-        "Levar os mesmos strikes a um vencimento mais distante",
+        "Um crédito, já que a opção mais distante vendida vale mais",
+        "Sempre um débito, independente do tipo de posição",
+        "Gratuito, sem nenhum prêmio mudando de mãos",
       ],
-      "prompt": "Rolar para fora, especificamente, significa:",
+      "prompt": "Rolar uma opção vendida para fora, no mesmo strike ou num próximo, costuma ser:",
     },
     {
       "correctOptionId": "c",
-      "explanation": "O Rolar da Fetha recusa uma rolagem que mudaria a distância entre os strikes das pernas — ele leva ao próximo vencimento mensal nos mesmos strikes, uma rolagem para fora.",
+      "explanation": "Cada perna rola para o próprio strike listado mais próximo no próximo vencimento mensal; a rolagem inteira só é recusada por uma mudança de largura entre os strikes das pernas ou por um ticker duplicado, então uma perna isolada ainda pode terminar num strike diferente.",
       "options": [
         "Uma escolha livre de quaisquer novos strikes e qualquer vencimento",
-        "Uma rolagem para fora, para o próximo vencimento mensal, mesmos strikes, nunca uma troca de strikes",
+        "Uma rolagem para o próximo vencimento mensal, cada perna no próprio strike listado mais próximo, recusando só uma mudança de largura ou um ticker duplicado",
         "Algo que acontece automaticamente, sem nenhuma ação do usuário",
       ],
       "prompt": "O Rolar da Fetha, hoje, é melhor descrito como:",
     },
     {
-      "correctOptionId": "a",
+      "correctOptionId": "b",
       "explanation": "O Montar plano define saídas de antemão para as pernas de uma receita; a rolagem é o que acontece quando o plano pede para manter a visão e mudar o tempo ou os strikes, em vez de encerrar.",
       "options": [
         "São a mesma funcionalidade com dois nomes",
@@ -2234,15 +2234,15 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
 {
   "blocks": [
     {
-      "text": "Uma decisão não registrada é uma decisão que a própria memória de um trader pode reescrever depois, geralmente a seu favor. O Diário da Fetha registra toda decisão de um usuário — abrir, encerrar, rolar ou deixar uma operação vencer — com o que se sabia naquele momento, para que exista um histórico independente de como o resultado é lembrado depois.",
+      "text": "Uma decisão não registrada é uma decisão que a própria memória de um trader pode reescrever depois, geralmente a seu favor. O Diário da Fetha registra toda decisão de um usuário como exatamente um de cinco tipos — Entrar, Não entrar, Manter, Ajustar, Sair — com o que se sabia naquele momento, para que exista um histórico independente de como o resultado é lembrado depois. O Montar plano registra automaticamente um Entrar no momento em que uma sugestão se torna uma operação acompanhada; confirmar uma rolagem não registra nenhuma decisão própria, já que uma rolagem é a Fetha registrando preenchimentos que o usuário já executou em outro lugar (ADR-0003), não uma decisão nova; e deixar uma operação vencer sem valor não é, por si só, um tipo de decisão.",
       "type": "paragraph",
     },
     {
-      "text": "Uma análise de IA entra no mesmo diário quando carrega uma tese checável: uma afirmação que nomeia uma direção (o ativo fechando acima ou abaixo de algum nível — o próprio spot, um break-even, um ponto do próprio payoff) e um horizonte (uma semana, um mês, três meses ou o vencimento). O modelo nunca escreve o número em si; ele só nomeia qual fato já calculado quer dizer e o quanto, em palavras, julga provável aquela direção. Uma crítica sem essa tese — a maioria das críticas de backtest, por exemplo — ainda é guardada e exibida, só nunca avaliada como confirmada ou não.",
+      "text": "Uma análise de IA entra no mesmo diário quando carrega uma previsão checável: uma afirmação que nomeia uma direção (o ativo fechando acima ou abaixo de algum nível — o próprio spot, um break-even, um ponto do próprio payoff) e um horizonte (uma semana, um mês, três meses ou o vencimento). O modelo nunca escreve o número em si; ele só nomeia qual fato já calculado quer dizer e o quanto, em palavras, julga provável aquela direção. Uma crítica sem essa previsão — a maioria das críticas de backtest, por exemplo — ainda é guardada e exibida, só nunca avaliada como confirmada ou não.",
       "type": "paragraph",
     },
     {
-      "text": "A probabilidade declarada da tese mapeia para uma confiança fixa (0,60, 0,75 ou 0,90); na própria sessão de horizonte da tese, o motor confere se o ativo de fato fechou do lado afirmado e calcula um escore de Brier contra essa confiança — um escore de Brier menor significa uma tese mais bem calibrada, não só uma direção com sorte. A IA nunca avalia a si mesma: só o motor lê o resultado realizado, depois do fato, contra o que a tese já tinha dito antes dele.",
+      "text": "A probabilidade declarada da previsão mapeia para uma confiança fixa (0,60, 0,75 ou 0,90); na própria sessão de horizonte da previsão, o motor confere se o ativo de fato fechou do lado afirmado e calcula um escore de Brier contra essa confiança. Um único escore de Brier não distingue habilidade de sorte — uma previsão confiante ainda pode acertar por acaso uma vez. Só a média do escore de Brier entre muitas previsões avaliadas, lida ao lado do painel de "calibração da IA" abaixo, diz se uma probabilidade declarada de fato vem acompanhando a taxa de acerto realizada. A IA nunca avalia a si mesma: só o motor lê o resultado realizado, depois do fato, contra o que a previsão já tinha dito antes dele.",
       "tone": "info",
       "type": "callout",
     },
@@ -2254,7 +2254,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
   "quiz": [
     {
       "correctOptionId": "a",
-      "explanation": "O diário registra toda decisão — abrir, encerrar, rolar ou deixar uma operação vencer — com o próprio contexto daquele momento.",
+      "explanation": "O diário registra toda decisão, como um de cinco tipos — Entrar, Não entrar, Manter, Ajustar, Sair — com o próprio contexto daquele momento.",
       "options": [
         "Toda decisão de um usuário, com o que se sabia naquele momento",
         "Só operações que terminaram com lucro",
@@ -2270,17 +2270,17 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
         "Uma direção e um horizonte nomeando um fato já calculado, nunca um número novo",
         "Um preço-alvo digitado à mão que o modelo inventa",
       ],
-      "prompt": "A tese checável de uma análise de IA é escrita como:",
+      "prompt": "A previsão checável de uma análise de IA é escrita como:",
     },
     {
       "correctOptionId": "a",
-      "explanation": "Só o motor avalia uma tese, depois do fato, contra o resultado realizado no próprio horizonte da tese; a IA nunca avalia a si mesma.",
+      "explanation": "Só o motor avalia uma previsão, depois do fato, contra o resultado realizado no próprio horizonte da previsão; a IA nunca avalia a si mesma.",
       "options": [
         "O mesmo modelo de IA que escreveu a análise",
         "Ninguém — análises nunca são avaliadas",
         "O motor, lendo o resultado realizado depois do fato",
       ],
-      "prompt": "Quem confere se a tese de uma análise de fato se confirmou no próprio horizonte?",
+      "prompt": "Quem confere se a previsão de uma análise de fato se confirmou no próprio horizonte?",
     },
     {
       "correctOptionId": "b",
@@ -2293,7 +2293,7 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
       "prompt": "No histórico, as avaliações de decisões e de análises são:",
     },
   ],
-  "summary": "Por que toda decisão — e toda análise de IA com uma tese checável — fica registrada, e como a Fetha avalia cada uma contra o que de fato aconteceu.",
+  "summary": "Por que toda decisão — e toda análise de IA com uma previsão checável — fica registrada, e como a Fetha avalia cada uma contra o que de fato aconteceu.",
   "title": "O diário de decisões e a avaliação",
 }
 `;
@@ -2371,16 +2371,16 @@ exports[`the lesson catalog and its content files > pins every lesson's resolved
 {
   "blocks": [
     {
-      "text": "Vega é a grega que mede quanto o valor justo de uma opção muda para cada ponto de volatilidade implícita, mantidos iguais o preço da ação e o tempo. Toda opção comprada, call ou put, tem vega positivo: uma volatilidade implícita mais rica deixa a opção mais valiosa, uma mais barata a deixa menos valiosa.",
+      "text": "Vega é a grega que mede quanto o valor justo de uma opção muda para cada ponto de volatilidade implícita, mantidos iguais o preço da ação e o tempo. Diferente de delta e gama, que esta trilha mostrou como uma razão pura, vega é dinheiro — reais por ação, por ponto de volatilidade implícita; multiplique por 100 para o valor de um lote. Toda opção comprada, call ou put, tem vega positivo: uma volatilidade implícita mais rica deixa a opção mais valiosa, uma mais barata a deixa menos valiosa.",
       "type": "paragraph",
     },
     {
-      "caption": "A call comprada desta lição, ação a R$ 20,00: o vega dela é 0,0300, positivo — uma opção comprada é uma aposta de que a volatilidade implícita, não só a ação, se move a seu favor.",
+      "caption": "A call comprada desta lição, ação a R$ 20,00: o vega dela é R$ 0,03 por ponto de volatilidade implícita, positivo — uma opção comprada é uma aposta de que a volatilidade implícita, não só a ação, se move a seu favor.",
       "exampleId": "long-call",
       "type": "payoff-example",
     },
     {
-      "text": "Vender uma opção inverte o sinal: o vega de uma call vendida é o da call comprada, com o sinal trocado — −0,0300 aqui. Uma posição montada em boa parte com opções vendidas é "short volatility": ela lucra conforme a volatilidade implícita cai, mesmo com a ação parada, e uma alta repentina na volatilidade implícita a machuca do mesmo jeito que um movimento da ação contra o strike vendido machucaria.",
+      "text": "Vender uma opção inverte o sinal: o vega de uma call vendida é o da call comprada, com o sinal trocado — −R$ 0,03 por ponto aqui. Uma posição montada em boa parte com opções vendidas é "short volatility": ela lucra conforme a volatilidade implícita cai, mesmo com a ação parada, e uma alta repentina na volatilidade implícita a machuca do mesmo jeito que um movimento da ação contra o strike vendido machucaria.",
       "type": "paragraph",
     },
     {
