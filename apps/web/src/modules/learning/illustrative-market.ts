@@ -28,7 +28,7 @@ import {
 // lessons also need.
 export const ILLUSTRATIVE_UNDERLYING: Ticker = tickerSchema.parse("EXMP3");
 export const ILLUSTRATIVE_SPOT: DecimalString = decimalStringSchema.parse("20.00");
-const ILLUSTRATIVE_EXPIRY: SessionDate = sessionDateSchema.parse("2026-02-20");
+export const ILLUSTRATIVE_EXPIRY: SessionDate = sessionDateSchema.parse("2026-02-20");
 export const ILLUSTRATIVE_LOWEST_STRIKE: DecimalString = decimalStringSchema.parse("18.00");
 export const ILLUSTRATIVE_LOWER_STRIKE: DecimalString = decimalStringSchema.parse("20.00");
 export const ILLUSTRATIVE_LOWER_MID_STRIKE: DecimalString = decimalStringSchema.parse("19.00");
@@ -52,7 +52,7 @@ export const ILLUSTRATIVE_LOWEST_PUT_PREMIUM: DecimalString = decimalStringSchem
 export const ILLUSTRATIVE_LOWER_MID_PUT_PREMIUM: DecimalString = decimalStringSchema.parse("1.02");
 export const ILLUSTRATIVE_HIGHER_PUT_PREMIUM: DecimalString = decimalStringSchema.parse("2.78");
 
-const AT = instantSchema.parse("2026-01-02T13:00:00.000Z");
+export const AT = instantSchema.parse("2026-01-02T13:00:00.000Z");
 const CALENDAR_START = "2026-01-02";
 const CALENDAR_SESSIONS = 60;
 
@@ -169,8 +169,15 @@ export const ILLUSTRATIVE_OPTION_SERIES = [
   },
 ];
 
+// Exported so a test can derive the fixture's own T (years to expiry) from the actual session
+// count, instead of restating the day-count rule's result as a bare literal (review round 2).
+export const ILLUSTRATIVE_CALENDAR: TradingSession[] = dailySessions(
+  CALENDAR_START,
+  CALENDAR_SESSIONS,
+);
+
 const ILLUSTRATIVE_VIEW: MarketView = {
-  calendar: dailySessions(CALENDAR_START, CALENDAR_SESSIONS),
+  calendar: ILLUSTRATIVE_CALENDAR,
   candles: [],
   corporateActions: [],
   optionSeries: ILLUSTRATIVE_OPTION_SERIES,

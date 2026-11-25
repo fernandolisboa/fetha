@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  AT,
+  ILLUSTRATIVE_CALENDAR,
   ILLUSTRATIVE_CALL_PREMIUM,
+  ILLUSTRATIVE_EXPIRY,
   ILLUSTRATIVE_HIGHER_CALL_PREMIUM,
   ILLUSTRATIVE_HIGHER_PUT_PREMIUM,
   ILLUSTRATIVE_HIGHER_STRIKE,
@@ -215,11 +218,21 @@ describe("the fixture's own put-call parity", () => {
   });
 });
 
+// The fixture's own day-count rule (ADR-0013): the session count from `AT`'s own session
+// through `ILLUSTRATIVE_EXPIRY`, inclusive of both ends, read from the fixture calendar itself
+// rather than restated as a bare literal (review round 2, finding #3).
+function sessionCountThroughExpiry(): number {
+  const atDate = AT.slice(0, 10);
+  return ILLUSTRATIVE_CALENDAR.filter(
+    (session) => session.date >= atDate && session.date <= ILLUSTRATIVE_EXPIRY,
+  ).length;
+}
+
 describe("the fixture's own premiums, against an independent Black-Scholes", () => {
-  it("matches every one of the 8 premiums to the cent, at sigma=0.50, r=0, T=36/252", () => {
+  it("matches every one of the 8 premiums to the cent, at sigma=0.50, r=0, over the fixture's own session count to expiry", () => {
     const s = Number(ILLUSTRATIVE_SPOT);
     const sigma = 0.5;
-    const t = 36 / 252;
+    const t = sessionCountThroughExpiry() / 252;
     const cases: [number, "call" | "put", string][] = [
       [Number(ILLUSTRATIVE_LOWEST_STRIKE), "call", ILLUSTRATIVE_LOWEST_CALL_PREMIUM],
       [Number(ILLUSTRATIVE_LOWEST_STRIKE), "put", ILLUSTRATIVE_LOWEST_PUT_PREMIUM],
