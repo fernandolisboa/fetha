@@ -7,7 +7,7 @@
     "pt": "Lendo um gráfico de payoff"
   },
   "summary": {
-    "en": "The expiry line, the thinner grey T+0 line, and what break-even, max gain and max loss mean on the chart.",
+    "en": "The expiry line, the thinner T+0 line, and what break-even, max gain and max loss mean on the chart.",
     "pt": "A linha de vencimento, a linha mais fina de hoje (T+0), e o que break-even, ganho máximo e perda máxima significam no gráfico."
   },
   "blocks": [
